@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import { searchPhrases } from "../../app/usecases/searchPhrases";
 import type { Phrase } from "../../app/ports/PhraseRepository";
-// import { getRandomPhrase } from "../../app/usecases/getRandomPhrase";
 import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn";
 import { createPortal } from "react-dom";
@@ -10,15 +9,30 @@ import { PHRASES_SEED } from "../../data/phrases.seed";
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
 type PickLog = {
-  time: number;
+  time: number;                 // Date.now()
+  order: number;                // 何問目か（0,1,2,...）
   phraseId: string;
-  tags: string[];
+
+  // 分類（tags[0]を代表として使う）
+  primaryTag: string | null;    // 例: "否定" / "安心" / null
+
+  // PickReason 由来
   rule: string;
   detail: string;
-  
-  revealed: boolean;     // 英語を見るを押したか
-  elapsed: number;       // 押した時点の秒数
+
+  // ユーザー行動
+  revealed: boolean;            // 英語を見るを押したか
+  revealAtSec: number | null;   // 押した秒数（押してないなら null）
+  timeout: boolean;             // タイムアップで次へ行ったか
+
+  // 時間
+  elapsedTotal: number;         // （いまはタイムアップ時に 5 を入れる程度でOK）
+
+  // 文脈
+  tagOrder: number;             // このタグが「何回目」に出たか（1,2,3,...）
+  consecutiveSameTag: number;   // 同じタグが連続何回目か
 };
+
 
 
 export default function HomePage() {
@@ -28,25 +42,27 @@ export default function HomePage() {
   const [focus, setFocus] = useState(true);
   const [showEn, setShowEn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  // const [goNext, setGoNext] = useState(false);
+  const [goNext, setGoNext] = useState(false);
   const [autoNext, setAutoNext] = useState<boolean>(() => readBool("autoNext", true));
   const [soundOn, setSoundOn] = useState<boolean>(() => readBool("soundOn", true));
   const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
   const [debugMode, setDebugMode] = useState(false);
-  const [hasStarted, setHasStarted] = useState<boolean>(() => {
-    return localStorage.getItem("hasStarted") === "true";
-  });
 
   const repo = new InMemoryPhraseRepository(PHRASES_SEED);
   const [pickLogs, setPickLogs] = useState<PickLog[]>([]);
   const [isBusy, setIsBusy] = useState(false);
 
-  const canAcceptInput = () => {
-    if (isBusy) return false;        // ★最重要
-    if (elapsed < 0.5) return false;
-    if (!showEn && autoNext && elapsed >= 4.5) return false;
-    return true;
-  };
+const canAcceptInput = () => {
+  if (isBusy) return false;          // TTS / 遷移中ガード
+  // 🔑 未出題フェーズは必ず通す
+  if (!randomPhrase) return true;
+  // ここから下は「設問中」専用ガード
+  if (elapsed < 0.5) return false;   // 開始直後ガード
+  if (!showEn && autoNext && elapsed >= 4.5) return false; // 終了直前ガード
+  return true;
+};
+
+
 
   function readBool(key: string, def: boolean) {
     const v = localStorage.getItem(key);
@@ -59,61 +75,98 @@ export default function HomePage() {
   }
 
   function RecentLogs({ logs }: { logs: PickLog[] }) {
-  const recent = logs.slice(-3).reverse();
+    const recent = logs.slice(-5).reverse();
 
-  return (
-    <div style={{
-      marginTop: 12,
-      padding: 8,
-      fontSize: "0.8em",
-      color: "#555",
-      borderTop: "1px dashed #ccc"
-    }}>
-      {recent.map((l, i) => (
-        <div key={i}>
-          <strong>{l.phraseId}</strong>
-          {" / "}revealed:{l.revealed ? "Y" : "N"}
-          {" / "}t:{l.elapsed}s
-        </div>
-      ))}
-    </div>
-  );
-}
+    return (
+      <div
+        style={{
+          marginTop: 12,
+          padding: 8,
+          fontSize: "0.8em",
+          color: "#555",
+          borderTop: "1px dashed #ccc",
+        }}
+      >
+        {recent.map((l) => (
+          <div key={l.order}>
+            #{l.order}{" "}
+            [{l.primaryTag ?? "-"}] {l.phraseId}{" "}
+            / tag#{l.tagOrder}{" "}
+            / 連続{l.consecutiveSameTag}
+            {" / "}
+            {l.revealed
+              ? `見た:${l.revealAtSec}s`
+              : l.timeout
+              ? "タイムアップ(5s)"
+              : "未判定"}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const [showSettings, setShowSettings] = useState(false);
 
   const requestGoNext = () => {
-    startQuestion();
-    // setGoNext(true);
+    setGoNext(true);
   };
 
   const startQuestion = async () => {
     if (isBusy) return;
     setIsBusy(true);
 
-    const result = await getNextPhrase(repo, randomPhrase?.id);
-    // const p = await getRandomPhrase(repo);
-    setRandomPhrase(result.phrase);
-    setShowEn(false);
-    setElapsed(0);
-    setFocus(true);
+    try {
+      const result = await getNextPhrase(repo, randomPhrase?.id);
 
-    // ★ JSONログを積む
-    setPickLogs((logs) => [
-      ...logs,
-      {
-        time: Date.now(),
-        phraseId: result.phrase.id,
-        tags: result.phrase.tags,
-        rule: result.reason.rule,
-        detail: result.reason.detail,
-        revealed: false,
-        elapsed: 0,
-      },
-    ]);
+      setRandomPhrase(result.phrase);
+      setShowEn(false);
+      setElapsed(0);
+      setFocus(true);
 
-    if (soundOn) playSe();
-    setIsBusy(false);
+      setPickLogs((logs) => {
+        const primaryTag =
+          result.phrase.tags && result.phrase.tags.length > 0
+            ? result.phrase.tags[0]
+            : null;
+
+        // このタグがこれまで何回出たか
+        const sameTagCount = logs.filter(
+          (l) => l.primaryTag === primaryTag
+        ).length;
+
+        const prev = logs[logs.length - 1];
+        const consecutiveSameTag =
+          prev && prev.primaryTag === primaryTag
+            ? prev.consecutiveSameTag + 1
+            : 1;
+
+        return [
+          ...logs,
+          {
+            time: Date.now(),
+            order: logs.length,
+            phraseId: result.phrase.id,
+
+            primaryTag,
+            rule: result.reason.rule,
+            detail: result.reason.detail,
+
+            revealed: false,
+            revealAtSec: null,
+            timeout: false,
+
+            elapsedTotal: 0,
+
+            tagOrder: sameTagCount + 1,
+            consecutiveSameTag,
+          },
+        ];
+      });
+
+      if (soundOn) playSe();
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -139,12 +192,12 @@ export default function HomePage() {
     }
   }, [ttsOn]);
 
-  /* useEffect(() => {
+  useEffect(() => {
     if (!goNext) return;
 
     setGoNext(false);
     startQuestion();
-  }, [goNext]); */
+  }, [goNext]);
 
   useEffect(() => {
     if (!showEn) return;
@@ -162,10 +215,26 @@ export default function HomePage() {
     const id = window.setInterval(() => {
       setElapsed((e) => {
         const next = e + 1;
+
         if (next >= 5 && !showEn && autoNext) {
+          // ★ タイムアップ情報をログに反映
+          setPickLogs((logs) => {
+            if (logs.length === 0) return logs;
+            const last = logs[logs.length - 1];
+            return [
+              ...logs.slice(0, -1),
+              {
+                ...last,
+                timeout: true,
+                elapsedTotal: next,   // 実質 5秒
+              },
+            ];
+          });
+
           requestGoNext();
           return 0;
         }
+
         return next;
       });
     }, 1000);
@@ -249,46 +318,14 @@ export default function HomePage() {
               padding: "10px 0",
               marginBottom: 8,
             }}
+            
             onClick={() => {
               if (!canAcceptInput()) return;
-
-              // 出題中＝スキップ（英語を見ていない）
-              if (focus && randomPhrase && !showEn) {
-                setPickLogs((logs) => {
-                  if (logs.length === 0) return logs;
-                  const last = logs[logs.length - 1];
-                  return [
-                    ...logs.slice(0, -1),
-                    { ...last, revealed: false, elapsed },
-                  ];
-                });
-                requestGoNext();
-                return;
-              }
-
-              // それ以外（初回・英語表示後など）は従来どおり
-              if (!hasStarted) {
-                setHasStarted(true);
-                localStorage.setItem("hasStarted", "true");
-              }
-              startQuestion();
+              requestGoNext();
             }}
           >
             次へ
           </button>
-
-
-          {!hasStarted && (
-            <div
-              style={{
-                marginBottom: 24,
-                fontSize: "0.95em",
-                color: "#777",
-              }}
-            >
-              このボタンを押して開始
-            </div>
-          )}
 
           {/* 出題エリア */}
           {focus && randomPhrase && (
@@ -317,9 +354,14 @@ export default function HomePage() {
                     setPickLogs((logs) => {
                       if (logs.length === 0) return logs;
                       const last = logs[logs.length - 1];
+
                       return [
                         ...logs.slice(0, -1),
-                        { ...last, revealed: true, elapsed },
+                        {
+                          ...last,
+                          revealed: true,
+                          revealAtSec: elapsed,
+                        },
                       ];
                     });
 
@@ -415,33 +457,7 @@ export default function HomePage() {
         <RecentLogs logs={pickLogs} />
       )}
 
-      {/* {debugMode && (
-        <PhraseList phrases={phrases} />
-      )} */}
     </div>
   );
 }
 
-// function PhraseList({ phrases }: { phrases: Phrase[] }) {
-//   return (
-//     <div style={{ marginTop: 24, padding: 12 }}>
-//       <h3 style={{ fontSize: "1em", color: "#666" }}>フレーズ確認（開発用）</h3>
-
-//       {phrases.map((p) => (
-//         <div
-//           key={p.id}
-//           style={{
-//             marginBottom: 8,
-//             paddingBottom: 8,
-//             borderBottom: "1px solid #eee",
-//           }}
-//         >
-//           <div>{p.jp}</div>
-//           <div style={{ fontSize: "0.9em", color: "#555" }}>
-//             {p.en}
-//           </div>
-//         </div>
-//       ))}
-//     </div>
-//   );
-// }
