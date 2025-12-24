@@ -1,0 +1,41 @@
+/* =========================
+   Player controls
+   ========================= */
+
+.player-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.player-controls button {
+  height: 44px;
+  border-radius: 10px;
+  border: none;
+  background: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.player-controls button:active {
+  transform: translateY(1px);
+}
+
+/* 停止 */
+.btn-stop {
+  width: 56px;
+}
+
+/* 次へ（主役） */
+.btn-next {
+  width: 96px;
+  font-size: 20px;
+}
+
+/* 英語 */
+.btn-en {
+  width: 64px;
+  font-weight: 600;
+}

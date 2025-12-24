@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import "../../styles/style.css";
+import { useEffect, useState, useMemo } from "react";
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import { searchPhrases } from "../../app/usecases/searchPhrases";
 import type { Phrase } from "../../app/ports/PhraseRepository";
@@ -48,21 +49,21 @@ export default function HomePage() {
   const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
   const [debugMode, setDebugMode] = useState(false);
 
-  const repo = new InMemoryPhraseRepository(PHRASES_SEED);
+  const repo = useMemo(
+    () => new InMemoryPhraseRepository(PHRASES_SEED),
+    []
+  );
   const [pickLogs, setPickLogs] = useState<PickLog[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-const canAcceptInput = () => {
-  if (isBusy) return false;          // TTS / 遷移中ガード
-  // 🔑 未出題フェーズは必ず通す
-  if (!randomPhrase) return true;
-  // ここから下は「設問中」専用ガード
-  if (elapsed < 0.5) return false;   // 開始直後ガード
-  if (!showEn && autoNext && elapsed >= 4.5) return false; // 終了直前ガード
-  return true;
-};
-
-
+  const canAcceptInput = () => {
+    if (isPaused) return false;
+    if (isBusy) return false;
+    if (elapsed < 0.5) return false;
+    if (!showEn && autoNext && elapsed >= 4.5) return false;
+    return true;
+  };
 
   function readBool(key: string, def: boolean) {
     const v = localStorage.getItem(key);
@@ -113,6 +114,15 @@ const canAcceptInput = () => {
 
   const startQuestion = async () => {
     if (isBusy) return;
+
+    // ★ すでに停止中なら「準備だけして開始しない」
+    if (isPaused) {
+      const result = await getNextPhrase(repo, randomPhrase?.id);
+      setRandomPhrase(result.phrase);
+      setShowEn(false);
+      setElapsed(0);
+      return;   // ← ここで止まる
+    }
     setIsBusy(true);
 
     try {
@@ -121,8 +131,7 @@ const canAcceptInput = () => {
       setRandomPhrase(result.phrase);
       setShowEn(false);
       setElapsed(0);
-      setFocus(true);
-
+      
       setPickLogs((logs) => {
         const primaryTag =
           result.phrase.tags && result.phrase.tags.length > 0
@@ -163,7 +172,6 @@ const canAcceptInput = () => {
         ];
       });
 
-      if (soundOn) playSe();
     } finally {
       setIsBusy(false);
     }
@@ -194,29 +202,30 @@ const canAcceptInput = () => {
 
   useEffect(() => {
     if (!goNext) return;
-
+  
     setGoNext(false);
     startQuestion();
   }, [goNext]);
 
   useEffect(() => {
-    if (!showEn) return;
+    if (!showEn || !autoNext || isPaused) return;
 
     const id = window.setTimeout(() => {
       requestGoNext();
     }, 2000);
 
     return () => window.clearTimeout(id);
-  }, [showEn, autoNext]);
+  }, [showEn, autoNext, isPaused]);
 
   useEffect(() => {
+    if (isPaused) return;
     if (!focus || !randomPhrase) return;
 
     const id = window.setInterval(() => {
       setElapsed((e) => {
         const next = e + 1;
 
-        if (next >= 5 && !showEn && autoNext) {
+        if (next >= 5 && !showEn && autoNext && !isPaused) {
           // ★ タイムアップ情報をログに反映
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
@@ -240,7 +249,7 @@ const canAcceptInput = () => {
     }, 1000);
 
     return () => window.clearInterval(id);
-  }, [focus, randomPhrase, showEn, autoNext]);
+  }, [focus, randomPhrase, showEn, autoNext, isPaused]);
 
   useEffect(() => {
     searchPhrases(repo, {
@@ -249,12 +258,20 @@ const canAcceptInput = () => {
     }).then(setPhrases);
   }, [keyword]);
 
+  useEffect(() => {
+    startQuestion();
+  }, []);
+
   return (
       <div style={{ position: "relative" }}>
         {/* 設定ボタン：センター箱の外・固定 */}
         <button
           aria-label="settings"
-          onClick={() => setShowSettings(v => !v)}
+          onClick={() => {
+            if (soundOn) playSe();
+            setShowSettings(true);
+          }}
+          
           style={{
             position: "fixed",
             top: 8,
@@ -309,43 +326,42 @@ const canAcceptInput = () => {
               marginBottom: 12,
             }}
           />
+        <div className="player-controls">
+          <button onClick={() => {
+            if (isBusy) return;
+            if (isPaused) return;
+            if (soundOn) playSe();
+            setIsPaused(true);
+            requestGoNext();
+          }}
+          >
+          Ⅱ 停止
+          </button>
 
           {/* 次へ */}
           <button
-            style={{
-              width: "100%",
-              fontSize: "1.1em",
-              padding: "10px 0",
-              marginBottom: 8,
-            }}
-            
             onClick={() => {
+              if (soundOn) playSe();
+              if (isBusy) return;
+              setIsPaused(false);
               if (!canAcceptInput()) return;
               requestGoNext();
             }}
           >
-            次へ
+            ▷ 次へ
           </button>
-
-          {/* 出題エリア */}
-          {focus && randomPhrase && (
-            <div>
-              <div style={{ fontSize: "2.2em", marginBottom: 16 }}>
-                {randomPhrase.jp}
-              </div>
-
-              {/* 0–3秒：カウント / 3秒：考えた？ */}
-              {!showEn && (
-                <div style={{ color: "#888", marginBottom: 12 }}>
-                  {elapsed < 3 ? `${3 - elapsed}` : "考えた？"}
-                </div>
-              )}
 
               {/* 英語を見る（必要なときだけ） */}
               {!showEn && (
                 <button
                   onClick={() => {
+                    if (isBusy) return;
                     if (!canAcceptInput()) return;
+                    if (!randomPhrase) return;
+                    if (isPaused) {
+                      speechSynthesis.cancel();
+                      setIsPaused(false); // 再開扱い
+                    }
 
                     setIsBusy(true);
                     setShowEn(true);
@@ -365,26 +381,40 @@ const canAcceptInput = () => {
                       ];
                     });
 
-                    if (ttsOn) {
+                    if (ttsOn && randomPhrase) {
                       speakEn(randomPhrase.en, () => {
                         setIsBusy(false);
-                        if (autoNext) requestGoNext();
+                        if (autoNext && !isPaused) requestGoNext();
                       });
                     } else {
-                      setTimeout(() => {
+                      if (soundOn) playSe();
+                        setTimeout(() => {
                         setIsBusy(false);
-                        if (autoNext) requestGoNext();
+                        if (autoNext && !isPaused) requestGoNext();
                       }, 2000);
                     }
                   }}
-                  style={{
-                    marginTop: 8,
-                    padding: "8px 16px",
-                  }}
                 >
-                  英語を見る
+                  English
                 </button>
               )}
+        </div>
+
+
+          {/* 出題エリア */}
+          {focus && randomPhrase && (
+            <div>
+              <div style={{ fontSize: "2.2em", marginBottom: 16 }}>
+                {randomPhrase.jp}
+              </div>
+
+              {/* 0–3秒：カウント / 3秒：考えた？ */}
+              {!showEn && (
+                <div style={{ color: "#888", marginBottom: 12 }}>
+                  {elapsed < 3 ? `${3 - elapsed}` : "考えた？"}
+                </div>
+              )}
+
 
               {/* 英語表示 */}
               {showEn && (
@@ -447,6 +477,19 @@ const canAcceptInput = () => {
             />
             確認モード（開発用）
           </label>
+
+          <button
+            onClick={() => {
+              if (soundOn) playSe();
+              setShowSettings(false);
+            }}
+            style={{
+              marginTop: 12,
+              width: "100%",
+            }}
+          >
+            閉じる
+          </button>
 
         </div>,
         document.body
