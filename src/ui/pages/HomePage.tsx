@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
-type PickLog = {
+export type PickLog = {
   time: number;                 // Date.now()
   order: number;                // 何問目か（0,1,2,...）
   phraseId: string;
@@ -117,7 +117,11 @@ export default function HomePage() {
 
     // ★ すでに停止中なら「準備だけして開始しない」
     if (isPaused) {
-      const result = await getNextPhrase(repo, randomPhrase?.id);
+      const result = await getNextPhrase(
+        repo,
+        randomPhrase?.id,
+        pickLogs        // ★そのまま渡す
+      );
       setRandomPhrase(result.phrase);
       setShowEn(false);
       setElapsed(0);
@@ -126,7 +130,11 @@ export default function HomePage() {
     setIsBusy(true);
 
     try {
-      const result = await getNextPhrase(repo, randomPhrase?.id);
+      const result = await getNextPhrase(
+        repo,
+        randomPhrase?.id,
+        pickLogs        // ★そのまま渡す
+      );
 
       setRandomPhrase(result.phrase);
       setShowEn(false);
@@ -327,15 +335,18 @@ export default function HomePage() {
             }}
           />
         <div className="player-controls">
-          <button onClick={() => {
-            if (isBusy) return;
-            if (isPaused) return;
-            if (soundOn) playSe();
-            setIsPaused(true);
-            requestGoNext();
-          }}
-          >
-          Ⅱ 停止
+          <button
+            disabled={isBusy || isPaused}
+            onClick={() => {
+              if (showEn) return;
+              if (isBusy) return;
+              if (isPaused) return;
+              if (soundOn) playSe();
+              setIsPaused(true);
+              requestGoNext();
+            }}
+            >
+            Ⅱ 停止
           </button>
 
           {/* 次へ */}
@@ -352,8 +363,9 @@ export default function HomePage() {
           </button>
 
               {/* 英語を見る（必要なときだけ） */}
-              {!showEn && (
+              {/* {!showEn && ( */}
                 <button
+                  disabled={isBusy || isPaused}
                   onClick={() => {
                     if (isBusy) return;
                     if (!canAcceptInput()) return;
@@ -397,7 +409,7 @@ export default function HomePage() {
                 >
                   English
                 </button>
-              )}
+              {/* )} */}
         </div>
 
 
