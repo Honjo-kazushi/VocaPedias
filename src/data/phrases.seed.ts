@@ -85,7 +85,29 @@ export const PHRASES_SEED: Phrase[] = [
 { id: "t027", jp: "君のせいだよ。", en: "It's your fault.", tags: ["非難"]},
 { id: "t028", jp: "これ以上ないくらい最高。", en: "It couldn't be better.", tags: ["評価"]},
 { id: "t029", jp: "一人ずつ自己紹介して。", en: "Introduce yourself one by one.", tags: ["指示"]},
-{ id: "t030", jp: "ひとりごとを言わないで。", en: "Don't talk to yourself.", tags: ["注意"]}
+{ id: "t030", jp: "ひとりごとを言わないで。", en: "Don't talk to yourself.", tags: ["注意"]},
+{ id: "t031", jp: "もう出るよ。", en: "I'm leaving now.", tags: ["出発"]},
+{ id: "t032", jp: "私に任せて！", en: "Leave it to me!", tags: ["任せて"]},
+{ id: "t033", jp: "何をすればいい？", en: "What should I do?", tags: ["確認"]},
+{ id: "t034", jp: "一人にして！", en: "Leave me alone!", tags: ["拒否"]},
+{ id: "t035", jp: "水道を出しっぱなしにしないで！", en: "Don't leave the tap running!", tags: ["注意"]},
+{ id: "t036", jp: "別れないで！", en: "Don't leave me!", tags: ["感情"]},
+{ id: "t037", jp: "詳しく言って。", en: "Go into detail.", tags: ["促し"]},
+{ id: "t038", jp: "念のために、", en: "Just in case.", tags: ["予防"]},
+{ id: "t039", jp: "調子に乗るな！", en: "Don't get carried away!", tags: ["注意"]},
+{ id: "t040", jp: "手ぶらで来て。", en: "Just come as you are.", tags: ["依頼"]},
+{ id: "t041", jp: "それがいらいらさせる。", en: "It drives me crazy.", tags: ["感情"]},
+{ id: "t042", jp: "どうしてここへ？", en: "What brings you here?", tags: ["質問"]},
+{ id: "t043", jp: "試してみて。", en: "Give it a try.", tags: ["促し"]},
+{ id: "t044", jp: "何か御用ですか？", en: "May I help you?", tags: ["接客"]},
+{ id: "t045", jp: "どしゃ降り", en: "It's raining cats and dogs.", tags: ["天気"]},
+{ id: "t046", jp: "さあ、着いた！", en: "Here we are!", tags: ["到着"]},
+{ id: "t047", jp: "どうぞ！", en: "Go ahead!", tags: ["許可"]},
+{ id: "t048", jp: "バスが停車するまで立たないで。", en: "Stay seated until the bus stops.", tags: ["注意"]},
+{ id: "t049", jp: "時代は変わった。", en: "Times have changed.", tags: ["変化"]},
+{ id: "t050", jp: "忘れ物しないで！", en: "Don't forget your things!", tags: ["注意"]}
+
+
 
 
 

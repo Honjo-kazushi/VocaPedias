@@ -65,6 +65,60 @@ export default function HomePage() {
     return true;
   };
 
+  const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] =
+    useState<boolean>(() => readBool("autoSpeakOnTimeout", false));
+
+  const TAG_EMOJI: Record<string, string> = {
+  // 行動・進行
+  出発: "🚶",
+  到着: "📍",
+  終了: "🏁",
+  促し: "👉",
+  指示: "📣",
+  依頼: "🙏",
+  確認: "❓",
+  質問: "❔",
+
+  // 判断・状態
+  許可: "👍",
+  保留: "⏸️",
+  拒否: "✋",
+  強調: "❗",
+  評価: "⭐",
+  一致: "🎯",
+  変化: "🔄",
+
+  // 感情・心理
+  感情: "❤️",
+  安心: "😌",
+  心配: "🤔",
+  非難: "😠",
+  配慮: "🤝",
+  期待: "🤞",
+  助言: "💡",
+  任せて: "🙋",
+  思考: "🧠",
+  状態: "🔍",
+  快諾: "✅",
+  謝罪: "🙏",
+
+  // 注意・警告
+  注意: "⚠️",
+  トラブル: "🚨",
+  予防: "🛡️",
+
+  // 会話・対人
+  挨拶: "👋",
+  応答: "💬",
+  近況: "🗣️",
+  理由: "🧠",
+
+  // 実務・生活
+  支払い: "💰",
+  接客: "🙇",
+  天気: "🌧️",
+  };
+
   function readBool(key: string, def: boolean) {
     const v = localStorage.getItem(key);
     if (v === null) return def;
@@ -203,6 +257,13 @@ export default function HomePage() {
   }, [autoNext]);
 
   useEffect(() => {
+    localStorage.setItem(
+      "autoSpeakOnTimeout",
+      JSON.stringify(autoSpeakOnTimeout)
+    );
+  }, [autoSpeakOnTimeout]);
+
+  useEffect(() => {
     if (!ttsOn) {
       speechSynthesis.cancel();
     }
@@ -248,8 +309,25 @@ export default function HomePage() {
             ];
           });
 
+        // ★ 自動発声（ぼーっとモード）
+        if (autoSpeakOnTimeout && randomPhrase) {
+          setShowEn(true);
+
+          if (ttsOn) {
+            speakEn(randomPhrase.en, () => {
+              requestGoNext();
+            });
+          } else {
+             // ★ 表示だけ：2秒待つ
+              setTimeout(() => {
+                requestGoNext();
+              }, 2000);
+          }
+        } else {
           requestGoNext();
-          return 0;
+        }
+
+        return 0;
         }
 
         return next;
@@ -416,7 +494,10 @@ export default function HomePage() {
           {/* 出題エリア */}
           {focus && randomPhrase && (
             <div>
-              <div style={{ fontSize: "2.2em", marginBottom: 16 }}>
+              <div style={{ fontSize: "1.2em" }}>
+                <span style={{ marginRight: 8 }}>
+                  {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
+                </span>
                 {randomPhrase.jp}
               </div>
 
@@ -479,6 +560,15 @@ export default function HomePage() {
               onChange={(e) => setTtsOn(e.target.checked)}
             />
             英語の音声（TTS）
+          </label>
+
+          <label style={{ display: "block", marginBottom: 8 }}>
+            <input
+              type="checkbox"
+              checked={autoSpeakOnTimeout}
+              onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
+            />
+            タイムアップ時に自動で英語を表す
           </label>
 
           <label>
