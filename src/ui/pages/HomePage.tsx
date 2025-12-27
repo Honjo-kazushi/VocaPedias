@@ -1,5 +1,5 @@
 import "../../styles/style.css";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef} from "react";
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import { searchPhrases } from "../../app/usecases/searchPhrases";
 import type { Phrase } from "../../app/ports/PhraseRepository";
@@ -67,6 +67,10 @@ export default function HomePage() {
 
   const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] =
     useState<boolean>(() => readBool("autoSpeakOnTimeout", false));
+
+  const jpTimerRef = useRef<number | null>(null);
+  const enTimerRef = useRef<number | null>(null);
+  const speakGenRef = useRef(0); // TTSコールバック持ち越し防止（フラグ増殖ではなく世代番号1本）
 
   const TAG_EMOJI: Record<string, string> = {
   // 行動・進行
@@ -168,6 +172,7 @@ export default function HomePage() {
 
   const startQuestion = async () => {
     if (isBusy) return;
+      clearEnTriggers();
 
     // ★ すでに停止中なら「準備だけして開始しない」
     if (isPaused) {
@@ -239,6 +244,28 @@ export default function HomePage() {
     }
   };
 
+
+  const clearEnTriggers = () => {
+  if (enTimerRef.current !== null) {
+    clearTimeout(enTimerRef.current);
+    enTimerRef.current = null;
+  }
+  speakGenRef.current += 1;      // 以後、古いTTS callbackは無効
+  speechSynthesis.cancel();      // 発声自体も止める
+};
+
+  const scheduleGoNext2s = () => {
+  // 2秒タイマーは常に1本
+  if (enTimerRef.current !== null) {
+    clearTimeout(enTimerRef.current);
+    enTimerRef.current = null;
+  }
+  enTimerRef.current = window.setTimeout(() => {
+    enTimerRef.current = null;
+    requestGoNext();
+  }, 2000);
+};
+
   useEffect(() => {
     if (!debugMode) return;
     console.table(pickLogs);
@@ -276,26 +303,24 @@ export default function HomePage() {
     startQuestion();
   }, [goNext]);
 
-  useEffect(() => {
-    if (!showEn || !autoNext || isPaused) return;
-
-    const id = window.setTimeout(() => {
-      requestGoNext();
-    }, 2000);
-
-    return () => window.clearTimeout(id);
-  }, [showEn, autoNext, isPaused]);
 
   useEffect(() => {
     if (isPaused) return;
     if (!focus || !randomPhrase) return;
+    if (showEn) return;
 
-    const id = window.setInterval(() => {
+    // ★ 既存JPタイマーがあれば必ず止める
+    if (jpTimerRef.current !== null) {
+      clearInterval(jpTimerRef.current);
+      jpTimerRef.current = null;
+    }
+
+    jpTimerRef.current = window.setInterval(() => {
       setElapsed((e) => {
         const next = e + 1;
 
         if (next >= 5 && !showEn && autoNext && !isPaused) {
-          // ★ タイムアップ情報をログに反映
+
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
             const last = logs[logs.length - 1];
@@ -304,37 +329,47 @@ export default function HomePage() {
               {
                 ...last,
                 timeout: true,
-                elapsedTotal: next,   // 実質 5秒
+                elapsedTotal: next,
               },
             ];
           });
 
-        // ★ 自動発声（ぼーっとモード）
-        if (autoSpeakOnTimeout && randomPhrase) {
-          setShowEn(true);
-
-          if (ttsOn) {
-            speakEn(randomPhrase.en, () => {
-              requestGoNext();
-            });
-          } else {
-             // ★ 表示だけ：2秒待つ
-              setTimeout(() => {
-                requestGoNext();
-              }, 2000);
+          // ★ JP → EN 遷移点（ここで必ず①を止める）
+          if (jpTimerRef.current !== null) {
+            clearInterval(jpTimerRef.current);
+            jpTimerRef.current = null;
           }
-        } else {
-          requestGoNext();
-        }
 
-        return 0;
+          // ★ 自動発声（ぼーっとモード）
+          if (autoSpeakOnTimeout && randomPhrase) {
+            setShowEn(true);
+
+            if (ttsOn) {
+              const gen = speakGenRef.current;
+              speakEn(randomPhrase.en, () => {
+                if (speakGenRef.current !== gen) return; // 古い発声の終端は無視
+                requestGoNext();
+              });
+            } else {
+              scheduleGoNext2s();
+            }
+          } else {
+            requestGoNext();
+          }
+
+          return 0;
         }
 
         return next;
       });
     }, 1000);
 
-    return () => window.clearInterval(id);
+    return () => {
+      if (jpTimerRef.current !== null) {
+        clearInterval(jpTimerRef.current);
+        jpTimerRef.current = null;
+      }
+    };
   }, [focus, randomPhrase, showEn, autoNext, isPaused]);
 
   useEffect(() => {
@@ -472,16 +507,16 @@ export default function HomePage() {
                     });
 
                     if (ttsOn && randomPhrase) {
+                      const gen = speakGenRef.current;
                       speakEn(randomPhrase.en, () => {
+                        if (speakGenRef.current !== gen) return;
                         setIsBusy(false);
                         if (autoNext && !isPaused) requestGoNext();
                       });
                     } else {
                       if (soundOn) playSe();
-                        setTimeout(() => {
-                        setIsBusy(false);
-                        if (autoNext && !isPaused) requestGoNext();
-                      }, 2000);
+                        scheduleGoNext2s();
+                        setTimeout(() => { setIsBusy(false); }, 0);
                     }
                   }}
                 >
@@ -550,7 +585,7 @@ export default function HomePage() {
               checked={soundOn}
               onChange={(e) => setSoundOn(e.target.checked)}
             />
-            効果音（SE）
+            操作音（SE）
           </label>
 
           <label style={{ display: "block" }}>
