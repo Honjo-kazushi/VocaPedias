@@ -1,13 +1,16 @@
 import "../../styles/style.css";
 import { useEffect, useState, useMemo, useRef} from "react";
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
-import { searchPhrases } from "../../app/usecases/searchPhrases";
 import type { Phrase } from "../../app/ports/PhraseRepository";
 import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn";
 import { createPortal } from "react-dom";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
+
+import { TrainUI } from "../../components/TrainUI";
+import { PracticeUI } from "../../components/PracticeUI";
+
 
 export type PickLog = {
   time: number;                 // Date.now()
@@ -37,10 +40,7 @@ export type PickLog = {
 
 
 export default function HomePage() {
-  const [keyword, setKeyword] = useState("");
-  const [phrases, setPhrases] = useState<Phrase[]>([]);
   const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
-  const [focus, setFocus] = useState(true);
   const [showEn, setShowEn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [goNext, setGoNext] = useState(false);
@@ -67,10 +67,63 @@ export default function HomePage() {
 
   const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] =
     useState<boolean>(() => readBool("autoSpeakOnTimeout", false));
+  const [jpLearnMode, setJpLearnMode] =
+    useState<boolean>(() => readBool("jpLearnMode", false));
 
   const jpTimerRef = useRef<number | null>(null);
   const enTimerRef = useRef<number | null>(null);
   const speakGenRef = useRef(0); // TTSコールバック持ち越し防止（フラグ増殖ではなく世代番号1本）
+
+  type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
+  const [mode, setMode] = useState<Mode>("TRAIN");
+
+  const UI = jpLearnMode
+  ? {
+      next: "▷ Next",
+      pause: "Ⅱ Pause",
+      english: "Japanese",
+      keyword: "Keyword (e.g. see / I see)",
+      ready: "Ready?",
+      autoNext: "Auto Next",
+      uiSounds: "UI Sounds",
+      tts: "Voice (TTS)",
+      autoSpeak: "Show Answer on Timeout",
+      close: "Close",
+      settings: "Settings",
+    }
+  : {
+      next: "▷ 次へ",
+      pause: "Ⅱ 停止",
+      english: "English",
+      keyword: "キーワード（例: see / なるほど）",
+      ready: "考えた？",
+      autoNext: "自動で次へ",
+      uiSounds: "操作音(SE）",
+      tts: "英語の音声（TTS）",
+      autoSpeak: "タイムアップ時に自動で英語を表す",
+      close: "閉じる",
+      settings: "設定",
+    };
+
+    const MODE_LABELS = jpLearnMode
+    ? {
+        TRAIN: "Training",
+        A: "Conversation",
+        B: "Emotion",
+        C: "State",
+        D: "Practical",
+        E: "Judgement",
+        F: "Others",
+      }
+    : {
+        TRAIN: "脳トレ",
+        A: "会話",
+        B: "感情",
+        C: "状態",
+        D: "実務",
+        E: "判断",
+        F: "その他",
+      };
 
   const TAG_EMOJI: Record<string, string> = {
   // 行動・進行
@@ -291,6 +344,10 @@ export default function HomePage() {
   }, [autoSpeakOnTimeout]);
 
   useEffect(() => {
+    localStorage.setItem("jpLearnMode", JSON.stringify(jpLearnMode));
+  }, [jpLearnMode]);
+
+  useEffect(() => {
     if (!ttsOn) {
       speechSynthesis.cancel();
     }
@@ -306,7 +363,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (isPaused) return;
-    if (!focus || !randomPhrase) return;
+    if (!randomPhrase) return;
     if (showEn) return;
 
     // ★ 既存JPタイマーがあれば必ず止める
@@ -346,10 +403,14 @@ export default function HomePage() {
 
             if (ttsOn) {
               const gen = speakGenRef.current;
-              speakEn(randomPhrase.en, () => {
-                if (speakGenRef.current !== gen) return; // 古い発声の終端は無視
-                requestGoNext();
-              });
+              speakEn(
+                jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+                () => {
+                  if (speakGenRef.current !== gen) return; // 古い発声の終端は無視
+                  requestGoNext();
+                },
+                jpLearnMode ? "ja" : "en"
+              );
             } else {
               scheduleGoNext2s();
             }
@@ -370,40 +431,36 @@ export default function HomePage() {
         jpTimerRef.current = null;
       }
     };
-  }, [focus, randomPhrase, showEn, autoNext, isPaused]);
+  }, [randomPhrase, showEn, autoNext, isPaused]);
 
   useEffect(() => {
-    searchPhrases(repo, {
-      keyword: keyword || undefined,
-      limit: 3,
-    }).then(setPhrases);
-  }, [keyword]);
+    if (mode !== "TRAIN") {
+      clearEnTriggers();
+      if (jpTimerRef.current) {
+        clearInterval(jpTimerRef.current);
+        jpTimerRef.current = null;
+      }
+    }
+      setIsPaused(false);
+      setIsBusy(false);
+      setGoNext(false);
+      setShowEn(false);
+  }, [mode]);
 
-  useEffect(() => {
+/*   useEffect(() => {
     startQuestion();
   }, []);
+ */
 
   return (
       <div style={{ position: "relative" }}>
         {/* 設定ボタン：センター箱の外・固定 */}
         <button
+          className="btn-settings"        
           aria-label="settings"
           onClick={() => {
             if (soundOn) playSe();
             setShowSettings(true);
-          }}
-          
-          style={{
-            position: "fixed",
-            top: 8,
-            right: 8,
-            zIndex: 1000,
-            border: "none",
-            outline: "none",
-            background: "transparent",
-            fontSize: "20px",
-            cursor: "pointer",
-            padding: 4,
           }}
         >
           ⚙️
@@ -412,43 +469,33 @@ export default function HomePage() {
         <img
           src="/images/tossa.png"
           alt="tossa"
-          style={{
-            width: 144,
-            height: "auto",
-            opacity: 0.6,
-            display: "block",
-            margin: "8px auto 16px",
-            pointerEvents: "none",
-          }}
+          className="app-logo"
         />
 
-        {/* ===== メインUI：センター1列 ===== */}
-        <div
-          style={{
-            maxWidth: 360,
-            margin: "0 auto",
-            padding: "16px",
-            textAlign: "center",
-            background: "rgba(255,0,0,0.05)",
-          }}
-        >
-          {/* 上部の余白（将来：アプリイラスト／ガイド） */}
-          <div style={{ height: 48 }} />
+        <div className="mode-select-wrap">
+          <select
+            className="mode-select"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as Mode)}
+          >
+            <option value="TRAIN">{MODE_LABELS.TRAIN}</option>
+            <option value="A">{MODE_LABELS.A}</option>
+            <option value="B">{MODE_LABELS.B}</option>
+            <option value="C">{MODE_LABELS.C}</option>
+            <option value="D">{MODE_LABELS.D}</option>
+            <option value="E">{MODE_LABELS.E}</option>
+            <option value="F">{MODE_LABELS.F}</option>
+          </select>
+        </div>
 
-          {/* 検索（確認モード用。今はあってOK） */}
-          <input
-            placeholder="キーワード（例: see / なるほど）"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "8px",
-              marginBottom: 12,
-            }}
-          />
+        {/* ===== メインUI：センター1列 ===== */}
+        <div className="app-main">
+        
+        {/* 上部の余白（将来：アプリイラスト／ガイド） */}
+        <div className="spacer-top" />
+          
         <div className="player-controls">
-          <button
+          <button className="btn btn-stop"
             disabled={isBusy || isPaused}
             onClick={() => {
               if (showEn) return;
@@ -459,11 +506,11 @@ export default function HomePage() {
               requestGoNext();
             }}
             >
-            Ⅱ 停止
+            {UI.pause}
           </button>
 
           {/* 次へ */}
-          <button
+          <button className="btn btn-next"
             onClick={() => {
               if (soundOn) playSe();
               if (isBusy) return;
@@ -472,12 +519,12 @@ export default function HomePage() {
               requestGoNext();
             }}
           >
-            ▷ 次へ
+            {UI.next}
           </button>
 
               {/* 英語を見る（必要なときだけ） */}
               {/* {!showEn && ( */}
-                <button
+                <button className="btn btn-en"
                   disabled={isBusy || isPaused}
                   onClick={() => {
                     if (isBusy) return;
@@ -507,12 +554,16 @@ export default function HomePage() {
                     });
 
                     if (ttsOn && randomPhrase) {
-                      const gen = speakGenRef.current;
-                      speakEn(randomPhrase.en, () => {
-                        if (speakGenRef.current !== gen) return;
-                        setIsBusy(false);
-                        if (autoNext && !isPaused) requestGoNext();
-                      });
+                    const gen = speakGenRef.current;
+                      speakEn(
+                        jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+                        () => {
+                          if (speakGenRef.current !== gen) return;
+                          setIsBusy(false);
+                          if (autoNext && !isPaused) requestGoNext();
+                        },
+                        jpLearnMode ? "ja" : "en"
+                      );
                     } else {
                       if (soundOn) playSe();
                         scheduleGoNext2s();
@@ -520,39 +571,43 @@ export default function HomePage() {
                     }
                   }}
                 >
-                  English
+                  {UI.english}
                 </button>
               {/* )} */}
         </div>
 
 
           {/* 出題エリア */}
-          {focus && randomPhrase && (
-            <div>
-              <div style={{ fontSize: "1.2em" }}>
-                <span style={{ marginRight: 8 }}>
-                  {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
-                </span>
-                {randomPhrase.jp}
+          {randomPhrase && (() => {
+            const promptText = jpLearnMode ? randomPhrase.en : randomPhrase.jp;
+            const answerText = jpLearnMode ? randomPhrase.jp : randomPhrase.en;
+            return (
+              <div>
+                <div className="prompt-text">
+                  <span style={{ marginRight: 8 }}>
+                    {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
+                  </span>
+                  {promptText}
+                </div>
+
+                {/* 0–3秒：カウント / 3秒：考えた？ */}
+                {!showEn && (
+                  <div className="count-text">
+                    {elapsed < 3 ? `${3 - elapsed}` : UI.ready}
+                  </div>
+                )}
+
+
+                {/* 英語表示 */}
+                {showEn && (
+                  <div className="answer-text">
+                    {answerText}
+                  </div>
+                )}
               </div>
-
-              {/* 0–3秒：カウント / 3秒：考えた？ */}
-              {!showEn && (
-                <div style={{ color: "#888", marginBottom: 12 }}>
-                  {elapsed < 3 ? `${3 - elapsed}` : "考えた？"}
-                </div>
-              )}
-
-
-              {/* 英語表示 */}
-              {showEn && (
-                <div style={{ fontSize: "1.3em", color: "#555", marginTop: 12 }}>
-                  {randomPhrase.en}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            );
+        })()}
+      </div>
 
     {showSettings &&
       createPortal(
@@ -576,7 +631,7 @@ export default function HomePage() {
               checked={autoNext}
               onChange={(e) => setAutoNext(e.target.checked)}
             />
-            自動で次へ
+            {UI.autoNext}
           </label>
 
           <label style={{ display: "block", marginBottom: 8 }}>
@@ -585,7 +640,7 @@ export default function HomePage() {
               checked={soundOn}
               onChange={(e) => setSoundOn(e.target.checked)}
             />
-            操作音（SE）
+            {UI.uiSounds}
           </label>
 
           <label style={{ display: "block" }}>
@@ -594,7 +649,7 @@ export default function HomePage() {
               checked={ttsOn}
               onChange={(e) => setTtsOn(e.target.checked)}
             />
-            英語の音声（TTS）
+            {UI.tts}
           </label>
 
           <label style={{ display: "block", marginBottom: 8 }}>
@@ -603,7 +658,16 @@ export default function HomePage() {
               checked={autoSpeakOnTimeout}
               onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
             />
-            タイムアップ時に自動で英語を表す
+            {UI.autoSpeak}
+          </label>
+
+          <label style={{ display: "block", marginBottom: 8 }}>
+            <input
+              type="checkbox"
+              checked={jpLearnMode}
+              onChange={(e) => setJpLearnMode(e.target.checked)}
+            />
+            Japanese Learning Mode
           </label>
 
           <label>
@@ -616,16 +680,14 @@ export default function HomePage() {
           </label>
 
           <button
+            className="btn btn-close"
             onClick={() => {
               if (soundOn) playSe();
               setShowSettings(false);
             }}
-            style={{
-              marginTop: 12,
-              width: "100%",
-            }}
+            
           >
-            閉じる
+            {UI.close}
           </button>
 
         </div>,
@@ -640,4 +702,3 @@ export default function HomePage() {
     </div>
   );
 }
-

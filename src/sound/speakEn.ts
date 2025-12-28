@@ -1,18 +1,26 @@
-export function speakEn(text: string, onEnd?: () => void) {
-  if (!("speechSynthesis" in window)) {
-    onEnd?.();
-    return;
-  }
+export function speakEn(
+  text: string,
+  onEnd?: () => void,
+  lang: "en" | "ja" = "en"
+) {
+  if (!window.speechSynthesis) return;
 
-  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
 
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
-  u.rate = 0.9;
+  utter.lang = lang === "ja" ? "ja-JP" : "en-US";
+  utter.rate = lang === "ja" ? 1.3 : 1.0;
 
-  u.onend = () => {
-    onEnd?.();
+
+  const voices = speechSynthesis.getVoices();
+  const voice = voices.find(v =>
+    lang === "ja" ? v.lang.startsWith("ja") : v.lang.startsWith("en")
+  );
+  if (voice) utter.voice = voice;
+
+  utter.onend = () => {
+    if (onEnd) onEnd();
   };
 
-  speechSynthesis.speak(u);
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
 }

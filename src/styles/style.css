@@ -9,33 +9,100 @@
   margin: 12px 0 16px;
 }
 
-.player-controls button {
+.player-controls .btn {
   height: 44px;
+  min-width: 64px;          /* 最低幅だけ保証 */
+  padding: 0 14px;          /* 文字数に応じて伸びる */
   border-radius: 10px;
   border: none;
   background: #fff;
   font-size: 16px;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  white-space: nowrap;      /* 改行させない */
 }
 
-.player-controls button:active {
+.player-controls .btn:active {
   transform: translateY(1px);
-}
-
-/* 停止 */
-.btn-stop {
-  width: 56px;
 }
 
 /* 次へ（主役） */
 .btn-next {
-  width: 96px;
-  font-size: 20px;
+  font-size: 18px;          /* 主役感 */
+  font-weight: 600;
 }
 
-/* 英語 */
-.btn-en {
-  width: 64px;
-  font-weight: 600;
+.btn-close {
+  margin-top: 12px;
+  width: 100%;
+}
+
+/* =========================
+   HomePage styles
+   ========================= */
+.app-main {
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 16px;
+  text-align: center;
+}
+
+.spacer-top {
+  height: 48px;
+}
+
+.prompt-text {
+  font-size: 1.2em;
+}
+
+.answer-text {
+  font-size: 1.3em;
+  color: #555;
+  margin-top: 12px;
+}
+
+.count-text {
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.app-logo {
+  width: 144px;
+  height: auto;
+  opacity: 0.6;
+  display: block;
+  margin: 8px auto 16px;
+  pointer-events: none;
+}
+
+/* =========================
+   Settings button
+   ========================= */
+.btn-settings {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 1000;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.mode-select-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 16px;
+}
+
+.mode-select {
+  width: 92%;
+  max-width: 420px;
+  height: 44px;
+  font-size: 16px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  background: #fff;
 }

@@ -3,7 +3,11 @@ export type Phrase = {
   jp: string;
   en: string;
   tags: string[];        // ["同調","推測"] など
-  scene?: string;        // "cafe" 等（任意）
+  tags2?: {
+    main: string;
+    sub: string;
+  };
+  meaningGroup?: string; // 同義束（Alt 展開の基点）
 };
 
 export type PhraseQuery = {
