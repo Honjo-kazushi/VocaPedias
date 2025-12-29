@@ -1,20 +1,23 @@
 import { useMemo, useState } from "react";
-import type { Phrase } from "../../app/ports/PhraseRepository";
+import type { Phrase } from "../app/ports/PhraseRepository";
+import type { Mode } from "../ui/pages/HomePage";
 
-type MainTag = "会話" | "感情" | "状態" | "行動" | "判断" | "その他";
 
 type Props = {
-  main: MainTag;        // コンボで選ばれた A–F
-  phrases: Phrase[];   // PHRASES_SEED 全体
+  main: Exclude<Mode, "TRAIN">;
+  phrases: Phrase[];
 };
 
-const SUB_TAGS: Record<MainTag, string[]> = {
-  会話: ["確認", "質問", "依頼", "応答", "提案"],
-  感情: ["喜", "怒", "哀", "驚", "共"],
-  状態: ["体調", "状況", "進行", "環境", "能力"],
-  行動: ["依頼", "提案", "指示", "制止", "申し出", "拒否"],
-  判断: ["同意", "否定", "保留", "許可", "評価", "予測"],
-  その他: ["前置", "反応", "教訓", "説明"],
+const SUB_TAGS: Record<
+  Exclude<Mode, "TRAIN">,
+  string[]
+> = {
+  A: ["確認", "質問", "依頼", "応答", "提案"],
+  B: ["喜", "怒", "哀", "驚", "共"],
+  C: ["体調", "状況", "進行", "環境", "能力"],
+  D: ["依頼", "提案", "指示", "制止", "申し出", "拒否"],
+  E: ["同意", "否定", "保留", "許可", "評価", "予測"],
+  F: ["前置", "反応", "教訓", "説明"],
 };
 
 export function PracticeUI({ main, phrases }: Props) {
