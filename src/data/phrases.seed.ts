@@ -39,7 +39,7 @@ export const PHRASES_SEED: Phrase[] = [
 
 // B：感情
 
-{ id: "B01-001", jp: "それは安心しました", en: "That's a relief.", tags: ["感情"], tags2: { main: "感情", sub: "喜" }, meaningGroup: "FEEL_RELIEF" },
+{ id: "B01-001", jp: "それは安心しました", en: "That's a relief.", tags: ["感情"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "FEEL_RELIEF" },
 { id: "B01-002", jp: "やばい（いい意味で）", en: "That's wild!", tags: ["感情"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "EXPRESS_EXCITEMENT" },
 { id: "B01-003", jp: "当然だよ！", en: "You deserved it!", tags: ["評価"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "PRAISE_DESERVED" },
 { id: "B01-004", jp: "ここは落ち着くよ。", en: "I feel at home here.", tags: ["感情"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "FEEL_COMFORTABLE" },

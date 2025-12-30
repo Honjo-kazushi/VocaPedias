@@ -57,7 +57,7 @@ export default function HomePage() {
   const canAcceptInput = () => {
     if (isPaused) return false;
     if (isBusy) return false;
-    if (elapsed < 0.5) return false;
+    // if (elapsed < 0.5) return false;
     if (!showEn && autoNext && elapsed >= 4.5) return false;
     return true;
   };
@@ -520,11 +520,6 @@ useEffect(() => {
       setShowEn(false);
   }, [mode]);
 
-/*   useEffect(() => {
-    startQuestion();
-  }, []);
- */
-
   return (
       <div style={{ position: "relative" }}>
         {/* 設定ボタン：センター箱の外・固定 */}
@@ -547,6 +542,22 @@ useEffect(() => {
           className="app-logo"
         />
 
+<div className="app-description">
+  <div>
+    "<strong>脳トレ</strong>"を選んだ状態で「<strong>次へ</strong>」を押す：学習スタート
+  </div>
+  <div style={{ marginTop: 4 }}>
+    "脳トレ"以外を選ぶ：フレーズ集の閲覧
+  </div>
+  <div>
+    Select “<strong>Training</strong>” and press 「<strong>Next</strong>」 to start learning
+  </div>
+
+  <div>
+    Select any other mode to browse the phrase list
+  </div>
+</div>
+
         <div className="mode-select-wrap">
           <select
             className="mode-select"
@@ -565,7 +576,41 @@ useEffect(() => {
 
         {/* ===== メインUI：センター1列 ===== */}
         <div className="app-main">
-        
+
+          {/* 出題エリア */}
+          {mode === "TRAIN" && randomPhrase && (() => {
+            const promptText = jpLearnMode ? randomPhrase.en : randomPhrase.jp;
+            const answerText = jpLearnMode ? randomPhrase.jp : randomPhrase.en;
+            return (
+              <div className="train-question"> 
+                <div className="prompt-text">
+                  <span style={{ marginRight: 8 }}>
+                    {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
+                  </span>
+                  {promptText}
+                </div>
+
+                {/* 0–3秒：カウント / 3秒：考えた？ */}
+                {!showEn && (
+                  <div className="count-text">
+                    {elapsed < 3 ? `${3 - elapsed}` : UI.ready}
+                  </div>
+                )}
+
+
+                {/* 英語表示 */}
+                {showEn && (
+                  <div className="answer-text">
+                    {answerText}
+                  </div>
+                )}
+              </div>
+            );
+        })()}
+      </div>
+
+
+
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
@@ -673,8 +718,8 @@ useEffect(() => {
 )}
 
         {/* 上部の余白（将来：アプリイラスト／ガイド） */}
-        <div className="spacer-top" />
-          
+      <div className={`spacer-top ${mode === "TRAIN" ? "train" : ""}`} />
+    
       {mode === "TRAIN" && (
 
         <div className="player-controls">
@@ -761,39 +806,7 @@ useEffect(() => {
       )}
 
     
-          {/* 出題エリア */}
-          {mode === "TRAIN" && randomPhrase && (() => {
-            const promptText = jpLearnMode ? randomPhrase.en : randomPhrase.jp;
-            const answerText = jpLearnMode ? randomPhrase.jp : randomPhrase.en;
-            return (
-              <div>
-                <div className="prompt-text">
-                  <span style={{ marginRight: 8 }}>
-                    {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
-                  </span>
-                  {promptText}
-                </div>
 
-                {/* 0–3秒：カウント / 3秒：考えた？ */}
-                {!showEn && (
-                  <div className="count-text">
-                    {elapsed < 3 ? `${3 - elapsed}` : UI.ready}
-                  </div>
-                )}
-
-
-                {/* 英語表示 */}
-                {showEn && (
-                  <div className="answer-text">
-                    {answerText}
-                  </div>
-                )}
-              </div>
-            );
-        })()}
-      </div>
-
- 
     {showSettings &&
       createPortal(
         <div
