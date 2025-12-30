@@ -8,9 +8,6 @@ import { createPortal } from "react-dom";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
-import { TrainUI } from "../../components/TrainUI";
-import { PracticeUI } from "../../components/PracticeUI";
-
 
 export type PickLog = {
   time: number;                 // Date.now()
@@ -79,6 +76,40 @@ export default function HomePage() {
 
   const [activeMeaningGroup, setActiveMeaningGroup] =
   useState<string | null>(null);
+  const [practiceSub, setPracticeSub] = useState<string | null>(null);
+
+const PRACTICE_MAIN_JP: Record<Mode, string | null> = {
+  TRAIN: null,
+    A: "会話",
+    B: "感情",
+    C: "状態",
+    D: "行動",
+    E: "判断",
+    F: "その他",
+};
+
+const practiceMainJp = mode !== "TRAIN" ? PRACTICE_MAIN_JP[mode] : null;
+
+const practiceMainPhrases = useMemo(() => {
+  if (!practiceMainJp) return [];
+  return PHRASES_SEED.filter(p => p.tags2?.main === practiceMainJp);
+}, [practiceMainJp]);
+
+const practiceSubStats = useMemo(() => {
+  // sub -> count（出現順を維持）
+  const map = new Map<string, number>();
+  for (const p of practiceMainPhrases) {
+    const sub = p.tags2?.sub?.trim();
+    if (!sub) continue;
+    map.set(sub, (map.get(sub) ?? 0) + 1);
+  }
+  return Array.from(map.entries()).map(([sub, count]) => ({ sub, count }));
+}, [practiceMainPhrases]);
+
+const practicePhrases = useMemo(() => {
+  if (!practiceSub) return practiceMainPhrases;
+  return practiceMainPhrases.filter(p => p.tags2?.sub === practiceSub);
+}, [practiceMainPhrases, practiceSub]);
 
   const UI = jpLearnMode
   ? {
@@ -114,7 +145,7 @@ export default function HomePage() {
         A: "Conversation",
         B: "Emotion",
         C: "State",
-        D: "Practical",
+        D: "Action",
         E: "Judgement",
         F: "Others",
       }
@@ -123,10 +154,23 @@ export default function HomePage() {
         A: "会話",
         B: "感情",
         C: "状態",
-        D: "実務",
+        D: "行動",
         E: "判断",
         F: "その他",
       };
+
+
+useEffect(() => {
+  if (mode === "TRAIN") return;
+
+  // Practiceに入ったら、ポップアップは閉じる
+  setActiveMeaningGroup(null);
+
+  // subを先頭に自動選択（出現順の先頭）
+  const first = practiceSubStats[0]?.sub ?? null;
+  setPracticeSub(first);
+}, [mode, practiceSubStats]);
+
 
   const TAG_EMOJI: Record<string, string> = {
   // 行動・進行
@@ -177,6 +221,32 @@ export default function HomePage() {
   支払い: "💰",
   接客: "🙇",
   天気: "🌧️",
+
+  // 感情・反応
+提案: "💡",
+喜ぶ: "😊",
+怒こる: "😠",
+哀しい: "😢",
+驚き: "😲",
+共感: "🤝",
+残念: "😞",
+
+// 状態・状況
+体調: "🤒",
+状況: "📍",
+進行: "🔄",
+環境: "🌍",
+能力: "💪",
+不確実: "🤔",
+
+// 会話アクション
+制止: "✋",
+申し出: "🙋",
+同意: "👍",
+否定: "❌",
+前置き: "☝️",
+教訓: "📘"
+
   };
 
   function readBool(key: string, def: boolean) {
@@ -496,47 +566,64 @@ export default function HomePage() {
         {/* ===== メインUI：センター1列 ===== */}
         <div className="app-main">
         
-{/* ===== PRACTICE 仮表示（HomePage内・非侵襲） ===== */}
+{/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
-  <div
-    style={{
-      margin: "12px 0",
-      padding: "12px",
-      border: "1px solid #ccc",
-      borderRadius: 6,
-      background: "#fff",
-    }}
-  >
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>
-      {MODE_LABELS[mode]}（Practice 仮）
+  <>
+    {/* ===== サブタグ：コンボ直下・固定 ===== */}
+    <div className="practice-subtabs-fixed">
+      {practiceSubStats.map(({ sub, count }) => {
+        const selected = sub === practiceSub;
+        return (
+          <button
+            key={sub}
+            className={`practice-subtab ${selected ? "active" : ""}`}
+            onClick={() => {
+              setActiveMeaningGroup(null);
+              setPracticeSub(sub);
+            }}
+          >
+            <span className="practice-subtab-emoji">
+              {TAG_EMOJI[sub] ?? "🔖"}
+            </span>
+            <span className="practice-subtab-label">
+              {sub} {count}
+            </span>
+          </button>
+        );
+      })}
     </div>
 
+    {/* ===== リスト枠（可変高） ===== */}
+    <div className="practice-list-wrap">
+      {/* 表題：サブタグ + 件数 */}
+      <div className="practice-title">
+        {(practiceSub ?? "—")} {practicePhrases.length}
+      </div>
 
-    {PHRASES_SEED
-      .filter(p => p.tags2?.main === MODE_LABELS[mode])
-      .slice(0, 30)
-      .map(p => (
+      {/* ===== 実際にスクロールする部分 ===== */}
+      <div className="practice-list">
+        {practicePhrases.map((p) => (
           <div
             key={p.id}
-            style={{
-              padding: "6px 0",
-              borderBottom: "1px dashed #eee",
-              cursor: p.meaningGroup ? "pointer" : "default",
-              opacity: p.meaningGroup ? 1 : 0.5,
-            }}
+            className={`practice-item ${
+              p.meaningGroup ? "clickable" : "disabled"
+            }`}
             onClick={() => {
               if (!p.meaningGroup) return;
-              console.log("practice tap:", p.id, p.meaningGroup);
               setActiveMeaningGroup(p.meaningGroup);
             }}
           >
-          <div>{p.jp}</div>
-          <div style={{ fontSize: "0.9em", color: "#555" }}>
-            {p.en}
+            <div className="practice-item-jp">
+              {jpLearnMode ? p.en : p.jp}
+            </div>
+            <div className="practice-item-en">
+              {jpLearnMode ? p.jp : p.en}
+            </div>
           </div>
-        </div>
-      ))}
-  </div>
+        ))}
+      </div>
+    </div>
+  </>
 )}
 
 {activeMeaningGroup && (
@@ -568,9 +655,9 @@ export default function HomePage() {
         .filter(p => p.meaningGroup === activeMeaningGroup)
         .map(p => (
           <div key={p.id} style={{ marginBottom: 6 }}>
-            <div>{p.jp}</div>
+            <div>{jpLearnMode ? p.en : p.jp}</div>
             <div style={{ fontSize: "0.9em", color: "#555" }}>
-              {p.en}
+              {jpLearnMode ? p.jp : p.en}
             </div>
           </div>
         ))}

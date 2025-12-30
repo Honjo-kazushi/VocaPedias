@@ -40,26 +40,26 @@ export const PHRASES_SEED: Phrase[] = [
 // B：感情
 
 { id: "B01-001", jp: "それは安心しました", en: "That's a relief.", tags: ["感情"], tags2: { main: "感情", sub: "喜" }, meaningGroup: "FEEL_RELIEF" },
-{ id: "B01-002", jp: "やばい（いい意味で）", en: "That's wild!", tags: ["感情"], tags2: { main: "感情", sub: "喜" }, meaningGroup: "EXPRESS_EXCITEMENT" },
-{ id: "B01-003", jp: "当然だよ！", en: "You deserved it!", tags: ["評価"], tags2: { main: "感情", sub: "喜" }, meaningGroup: "PRAISE_DESERVED" },
-{ id: "B01-004", jp: "ここは落ち着くよ。", en: "I feel at home here.", tags: ["感情"], tags2: { main: "感情", sub: "喜" }, meaningGroup: "FEEL_COMFORTABLE" },
+{ id: "B01-002", jp: "やばい（いい意味で）", en: "That's wild!", tags: ["感情"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "EXPRESS_EXCITEMENT" },
+{ id: "B01-003", jp: "当然だよ！", en: "You deserved it!", tags: ["評価"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "PRAISE_DESERVED" },
+{ id: "B01-004", jp: "ここは落ち着くよ。", en: "I feel at home here.", tags: ["感情"], tags2: { main: "感情", sub: "喜ぶ" }, meaningGroup: "FEEL_COMFORTABLE" },
 
-{ id: "B02-001", jp: "それがいらいらさせる。", en: "It drives me crazy.", tags: ["感情"], tags2: { main: "感情", sub: "怒" }, meaningGroup: "FEEL_IRRITATED" },
-{ id: "B02-002", jp: "調子に乗るな！", en: "Don't get carried away!", tags: ["注意"], tags2: { main: "感情", sub: "怒" }, meaningGroup: "WARN_OVERCONFIDENCE" },
-{ id: "B02-003", jp: "君のせいだよ。", en: "It's your fault.", tags: ["非難"], tags2: { main: "感情", sub: "怒" }, meaningGroup: "BLAME_SOMEONE" },
+{ id: "B02-001", jp: "それがいらいらさせる。", en: "It drives me crazy.", tags: ["感情"], tags2: { main: "感情", sub: "怒る" }, meaningGroup: "FEEL_IRRITATED" },
+{ id: "B02-002", jp: "調子に乗るな！", en: "Don't get carried away!", tags: ["注意"], tags2: { main: "感情", sub: "怒る" }, meaningGroup: "WARN_OVERCONFIDENCE" },
+{ id: "B02-003", jp: "君のせいだよ。", en: "It's your fault.", tags: ["非難"], tags2: { main: "感情", sub: "怒る" }, meaningGroup: "BLAME_SOMEONE" },
 
-{ id: "B03-001", jp: "それは残念です", en: "That's too bad.", tags: ["感情"], tags2: { main: "感情", sub: "哀" }, meaningGroup: "EXPRESS_REGRET" },
-{ id: "B03-002", jp: "残念だ。", en: "That's a shame.", tags: ["感情"], tags2: { main: "感情", sub: "哀" }, meaningGroup: "EXPRESS_REGRET" },
-{ id: "B03-003", jp: "我慢できない。", en: "I can't take it.", tags: ["感情"], tags2: { main: "感情", sub: "哀" }, meaningGroup: "FEEL_OVERWHELMED" },
-{ id: "B03-004", jp: "お手上げだ。", en: "I'm at my wit's end.", tags: ["感情"], tags2: { main: "感情", sub: "哀" }, meaningGroup: "FEEL_OVERWHELMED" },
+{ id: "B03-001", jp: "それは残念です", en: "That's too bad.", tags: ["感情"], tags2: { main: "感情", sub: "哀しい" }, meaningGroup: "EXPRESS_REGRET" },
+{ id: "B03-002", jp: "残念だ。", en: "That's a shame.", tags: ["感情"], tags2: { main: "感情", sub: "哀しい" }, meaningGroup: "EXPRESS_REGRET" },
+{ id: "B03-003", jp: "我慢できない。", en: "I can't take it.", tags: ["感情"], tags2: { main: "感情", sub: "哀しい" }, meaningGroup: "FEEL_OVERWHELMED" },
+{ id: "B03-004", jp: "お手上げだ。", en: "I'm at my wit's end.", tags: ["感情"], tags2: { main: "感情", sub: "哀しい" }, meaningGroup: "FEEL_OVERWHELMED" },
 
-{ id: "B04-001", jp: "まじ？", en: "Are you serious?", tags: ["驚き"], tags2: { main: "感情", sub: "驚" }, meaningGroup: "EXPRESS_SURPRISE" },
-{ id: "B04-002", jp: "ヒヤー。", en: "Yikes!", tags: ["驚き"], tags2: { main: "感情", sub: "驚" }, meaningGroup: "EXPRESS_SURPRISE" },
-{ id: "B04-003", jp: "信じられない！", en: "Oh my gosh!", tags: ["感情"], tags2: { main: "感情", sub: "驚" }, meaningGroup: "EXPRESS_SURPRISE" },
+{ id: "B04-001", jp: "まじ？", en: "Are you serious?", tags: ["驚き"], tags2: { main: "感情", sub: "驚き" }, meaningGroup: "EXPRESS_SURPRISE" },
+{ id: "B04-002", jp: "ヒヤー。", en: "Yikes!", tags: ["驚き"], tags2: { main: "感情", sub: "驚き" }, meaningGroup: "EXPRESS_SURPRISE" },
+{ id: "B04-003", jp: "信じられない！", en: "Oh my gosh!", tags: ["感情"], tags2: { main: "感情", sub: "驚き" }, meaningGroup: "EXPRESS_SURPRISE" },
 
-{ id: "B05-001", jp: "気持ち分かる。", en: "I know how you feel.", tags: ["共感"], tags2: { main: "感情", sub: "共" }, meaningGroup: "SHOW_EMPATHY" },
-{ id: "B05-002", jp: "お気のどく。", en: "I feel for you.", tags: ["共感"], tags2: { main: "感情", sub: "共" }, meaningGroup: "SHOW_EMPATHY" },
-{ id: "B05-003", jp: "ヘイ、元気出して。", en: "Come on, cheer up!", tags: ["励まし"], tags2: { main: "感情", sub: "共" }, meaningGroup: "ENCOURAGE_SOMEONE" },
+{ id: "B05-001", jp: "気持ち分かる。", en: "I know how you feel.", tags: ["共感"], tags2: { main: "感情", sub: "共感" }, meaningGroup: "SHOW_EMPATHY" },
+{ id: "B05-002", jp: "お気のどく。", en: "I feel for you.", tags: ["共感"], tags2: { main: "感情", sub: "共感" }, meaningGroup: "SHOW_EMPATHY" },
+{ id: "B05-003", jp: "ヘイ、元気出して。", en: "Come on, cheer up!", tags: ["励まし"], tags2: { main: "感情", sub: "共感" }, meaningGroup: "ENCOURAGE_SOMEONE" },
 
 // C：状態
 
@@ -173,8 +173,8 @@ export const PHRASES_SEED: Phrase[] = [
 { id: "F04-004", jp: "初めに、", en: "To begin with,", tags: ["順序"], tags2: { main: "その他", sub: "前置き" }, meaningGroup: "INTRODUCE_TOPIC" },
 { id: "F04-005", jp: "分かる通り、", en: "As you can see,", tags: ["説明"], tags2: { main: "その他", sub: "前置き" }, meaningGroup: "INTRODUCE_EXPLANATION" },
 
-{ id: "F05-001", jp: "あの〜。", en: "Um...", tags: ["前置き"], tags2: { main: "その他", sub: "間" }, meaningGroup: "HESITATION" },
-{ id: "F05-002", jp: "突然に。", en: "Out of the blue.", tags: ["突然"], tags2: { main: "その他", sub: "間" }, meaningGroup: "SUDDEN_EVENT" }
+{ id: "F05-001", jp: "あの〜。", en: "Um...", tags: ["前置き"], tags2: { main: "その他", sub: "前置き" }, meaningGroup: "HESITATION" },
+{ id: "F05-002", jp: "突然に。", en: "Out of the blue.", tags: ["突然"], tags2: { main: "その他", sub: "その他" }, meaningGroup: "SUDDEN_EVENT" }
 ]
 
 

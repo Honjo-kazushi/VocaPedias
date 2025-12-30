@@ -106,3 +106,88 @@
   border: 1px solid #ccc;
   background: #fff;
 }
+
+/* ===== Practice 全体（高さは持たせない） ===== */
+.practice-wrap {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* ===== サブタグ：コンボ直下・固定 ===== */
+.practice-subtabs-fixed {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+
+/* サブタグボタン */
+.practice-subtab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.practice-subtab.active {
+  background: #333;
+  color: #fff;
+}
+
+.practice-subtab-emoji {
+  font-size: 1.1em;
+}
+
+/* ===== リスト枠（可変高） ===== */
+.practice-list-wrap {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+}
+
+/* 表題（確認 10 など） */
+.practice-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+/* ===== 実際にスクロールする部分 ===== */
+.practice-list {
+  max-height: 50vh;   /* 多いときだけスクロール */
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* ===== フレーズ行 ===== */
+.practice-item {
+  padding: 6px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.practice-item.clickable {
+  cursor: pointer;
+}
+
+.practice-item.disabled {
+  opacity: 0.5;
+}
+
+.practice-item-jp {
+  font-size: 1em;
+}
+
+.practice-item-en {
+  font-size: 0.9em;
+  color: #555;
+}
