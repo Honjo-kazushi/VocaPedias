@@ -85,7 +85,7 @@ const PRACTICE_MAIN_JP: Record<Mode, string | null> = {
     C: "状態",
     D: "行動",
     E: "判断",
-    F: "その他",
+    F: "配慮",
 };
 
 const practiceMainJp = mode !== "TRAIN" ? PRACTICE_MAIN_JP[mode] : null;
@@ -124,6 +124,7 @@ const practicePhrases = useMemo(() => {
       autoSpeak: "Show Answer on Timeout",
       close: "Close",
       settings: "Settings",
+      related: "Related phrases",
     }
   : {
       next: "▷ 次へ",
@@ -137,6 +138,7 @@ const practicePhrases = useMemo(() => {
       autoSpeak: "タイムアップ時に自動で英語を表す",
       close: "閉じる",
       settings: "設定",
+      related: "関連フレーズ",
     };
 
     const MODE_LABELS = jpLearnMode
@@ -147,7 +149,7 @@ const practicePhrases = useMemo(() => {
         C: "State",
         D: "Action",
         E: "Judgement",
-        F: "Others",
+        F: "Consideration",
       }
     : {
         TRAIN: "脳トレ",
@@ -156,7 +158,7 @@ const practicePhrases = useMemo(() => {
         C: "状態",
         D: "行動",
         E: "判断",
-        F: "その他",
+        F: "配慮",
       };
 
 
@@ -224,9 +226,9 @@ useEffect(() => {
 
   // 感情・反応
 提案: "💡",
-喜ぶ: "😊",
-怒こる: "😠",
-哀しい: "😢",
+喜び: "😊",
+怒り: "😠",
+悲哀: "😢",
 驚き: "😲",
 共感: "🤝",
 残念: "😞",
@@ -244,8 +246,9 @@ useEffect(() => {
 申し出: "🙋",
 同意: "👍",
 否定: "❌",
-前置き: "☝️",
-教訓: "📘"
+前置: "☝️",
+教訓: "📘",
+雑談: "💬"
 
   };
 
@@ -291,6 +294,10 @@ useEffect(() => {
   }
 
   const [showSettings, setShowSettings] = useState(false);
+
+  const playClickSe = () => {
+    if (soundOn) playSe();
+  };
 
   const requestGoNext = () => {
     setGoNext(true);
@@ -623,6 +630,7 @@ useEffect(() => {
             key={sub}
             className={`practice-subtab ${selected ? "active" : ""}`}
             onClick={() => {
+              playClickSe();
               setActiveMeaningGroup(null);
               setPracticeSub(sub);
             }}
@@ -655,6 +663,7 @@ useEffect(() => {
             }`}
             onClick={() => {
               if (!p.meaningGroup) return;
+              playClickSe();
               setActiveMeaningGroup(p.meaningGroup);
             }}
           >
@@ -690,10 +699,13 @@ useEffect(() => {
         maxWidth: 400,
         borderRadius: 8,
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={() => {
+        playClickSe();
+        setActiveMeaningGroup(null);
+      }}
     >
       <div style={{ fontWeight: "bold", marginBottom: 8 }}>
-        関連フレーズ
+        {UI.related}
       </div>
 
       {PHRASES_SEED
@@ -711,7 +723,7 @@ useEffect(() => {
         style={{ marginTop: 12 }}
         onClick={() => setActiveMeaningGroup(null)}
       >
-        閉じる
+        {UI.close}
       </button>
     </div>
   </div>

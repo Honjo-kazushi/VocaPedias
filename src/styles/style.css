@@ -226,24 +226,30 @@
 }
 
 /* ===== フレーズ行 ===== */
-.practice-item {
+.practice-item{
   padding: 6px 0;
   border-bottom: 1px dashed #eee;
 }
 
-.practice-item.clickable {
+/* 押せるだけ強調 */
+.practice-item.clickable{
   cursor: pointer;
+  font-weight: 700;          /* ←ボールド */
 }
 
-.practice-item.disabled {
-  opacity: 0.5;
+/* 押せないは普通（灰色にしない） */
+.practice-item.disabled{
+  opacity: 1;                /* ←無効化してた灰色を解除 */
+  font-weight: 400;          /* ←通常 */
+  cursor: default;
 }
 
-.practice-item-jp {
+/* 文字 */
+.practice-item-jp{
   font-size: 1em;
 }
 
-.practice-item-en {
+.practice-item-en{
   font-size: 0.9em;
   color: #555;
 }
