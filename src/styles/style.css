@@ -171,6 +171,13 @@
   align-self: stretch;
 }
 
+.practice-guide {
+  font-size: 0.85em;
+  color: #666;
+  margin: 4px 12px 6px;
+  text-align: left;
+}
+
 
 /* ===== サブタグ：コンボ直下・固定 ===== */
 .practice-subtabs-fixed {

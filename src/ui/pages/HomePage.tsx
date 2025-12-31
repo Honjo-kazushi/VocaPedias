@@ -125,6 +125,8 @@ const practicePhrases = useMemo(() => {
       close: "Close",
       settings: "Settings",
       related: "Related phrases",
+      practiceGuide:
+        "Tap the bold phrases in the list to view related phrases.",
     }
   : {
       next: "▷ 次へ",
@@ -139,6 +141,8 @@ const practicePhrases = useMemo(() => {
       close: "閉じる",
       settings: "設定",
       related: "関連フレーズ",
+      practiceGuide:
+        "リスト内の太文字フレーズを押すと、関連フレーズを見ることができます。",
     };
 
     const MODE_LABELS = jpLearnMode
@@ -299,6 +303,34 @@ useEffect(() => {
     if (soundOn) playSe();
   };
 
+  const resetTrainingState = () => {
+    // JP タイマー
+    if (jpTimerRef.current !== null) {
+      clearInterval(jpTimerRef.current);
+      jpTimerRef.current = null;
+    }
+
+    // EN タイマー
+    if (enTimerRef.current !== null) {
+      clearTimeout(enTimerRef.current);
+      enTimerRef.current = null;
+    }
+
+    // TTS 停止
+    speechSynthesis.cancel();
+
+    // 発声世代を進めて、古い callback を無効化
+    speakGenRef.current += 1;
+
+    // 学習用 state を初期化
+    setIsPaused(false);
+    setIsBusy(false);
+    setGoNext(false);
+    setShowEn(false);
+    setElapsed(0);
+  };
+
+  
   const requestGoNext = () => {
     setGoNext(true);
   };
@@ -403,6 +435,19 @@ useEffect(() => {
     if (!debugMode) return;
     console.table(pickLogs);
   }, [pickLogs, debugMode]);
+
+  useEffect(() => {
+    if (mode !== "TRAIN") {
+      // TRAIN から離れる → 完全掃除
+      resetTrainingState();
+      return;
+    }
+
+    // PRACTICE → TRAIN に戻った瞬間
+    resetTrainingState();
+    setRandomPhrase(null);   // ← これが「新規スタート固定」の核心
+    setPickLogs([]);      // ← ログも毎回リセットするなら有効
+  }, [mode]);
 
   useEffect(() => {
     localStorage.setItem("soundOn", JSON.stringify(soundOn));
@@ -515,17 +560,10 @@ useEffect(() => {
 
   useEffect(() => {
     if (mode !== "TRAIN") {
-      clearEnTriggers();
-      if (jpTimerRef.current) {
-        clearInterval(jpTimerRef.current);
-        jpTimerRef.current = null;
-      }
+      resetTrainingState();
     }
-      setIsPaused(false);
-      setIsBusy(false);
-      setGoNext(false);
-      setShowEn(false);
   }, [mode]);
+
 
   return (
       <div style={{ position: "relative" }}>
@@ -621,6 +659,11 @@ useEffect(() => {
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
+    {/* ===== PRACTICE ガイダンス（固定） ===== */}
+    <div className="practice-guide">
+      {UI.practiceGuide}
+    </div>
+
     {/* ===== サブタグ：コンボ直下・固定 ===== */}
     <div className="practice-subtabs-fixed">
       {practiceSubStats.map(({ sub, count }) => {
