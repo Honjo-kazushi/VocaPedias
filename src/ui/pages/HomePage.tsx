@@ -45,6 +45,31 @@ export default function HomePage() {
   const [soundOn, setSoundOn] = useState<boolean>(() => readBool("soundOn", true));
   const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
   const [debugMode, setDebugMode] = useState(false);
+  const STAR_KEY = "debugStarredPhraseIds";
+
+  const [starredIds, setStarredIds] = useState<string[]>(() => {
+    if (!debugMode) return [];
+    try {
+      return JSON.parse(localStorage.getItem(STAR_KEY) ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleStar = (id: string) => {
+    setStarredIds(prev => {
+      const next = prev.includes(id)
+        ? prev.filter(x => x !== id)
+        : [...prev, id];
+      localStorage.setItem(STAR_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const clearAllStars = () => {
+    setStarredIds([]);
+    localStorage.removeItem(STAR_KEY);
+  };
 
   const repo = useMemo(
     () => new InMemoryPhraseRepository(PHRASES_SEED),
@@ -659,11 +684,6 @@ useEffect(() => {
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
-    {/* ===== PRACTICE ガイダンス（固定） ===== */}
-    <div className="practice-guide">
-      {UI.practiceGuide}
-    </div>
-
     {/* ===== サブタグ：コンボ直下・固定 ===== */}
     <div className="practice-subtabs-fixed">
       {practiceSubStats.map(({ sub, count }) => {
@@ -687,6 +707,19 @@ useEffect(() => {
           </button>
         );
       })}
+
+      {debugMode && (
+        <button
+          className="practice-subtab debug-clear"
+          onClick={() => {
+            clearAllStars();
+          }}
+          title="Clear all stars"
+        >
+          <span className="practice-subtab-emoji">★</span>
+          <span className="practice-subtab-label">Clear</span>
+        </button>
+      )}
     </div>
 
     {/* ===== リスト枠（可変高） ===== */}
@@ -695,7 +728,10 @@ useEffect(() => {
       <div className="practice-title">
         {(practiceSub ?? "—")} {practicePhrases.length}
       </div>
-
+      {/* ===== PRACTICE ガイダンス（固定） ===== */}
+      <div className="practice-guide">
+        {UI.practiceGuide}
+      </div>
       {/* ===== 実際にスクロールする部分 ===== */}
       <div className="practice-list">
         {practicePhrases.map((p) => (
@@ -712,6 +748,21 @@ useEffect(() => {
           >
             <div className="practice-item-jp">
               {jpLearnMode ? p.en : p.jp}
+
+              {debugMode && (
+                <span className="debug-id-star">
+                  {p.id}
+                  <span
+                    className={`debug-star ${starredIds.includes(p.id) ? "on" : ""}`}
+                    onClick={(e) => {
+                      e.stopPropagation(); // フレーズクリックと分離
+                      toggleStar(p.id);
+                    }}
+                  >
+                    ★
+                  </span>
+                </span>
+              )}
             </div>
             <div className="practice-item-en">
               {jpLearnMode ? p.jp : p.en}
@@ -754,8 +805,46 @@ useEffect(() => {
       {PHRASES_SEED
         .filter(p => p.meaningGroup === activeMeaningGroup)
         .map(p => (
-          <div key={p.id} style={{ marginBottom: 6 }}>
-            <div>{jpLearnMode ? p.en : p.jp}</div>
+          <div
+            key={p.id}
+            style={{
+              marginBottom: 6,
+              position: "relative",
+            }}
+          >
+            {/* 上段（主表示） */}
+            <div>
+              {jpLearnMode ? p.en : p.jp}
+
+              {debugMode && (
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 0,
+                    fontSize: "0.7em",
+                    color: "#999",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  {p.id}
+                  <span
+                    style={{
+                      cursor: "pointer",
+                      opacity: starredIds.includes(p.id) ? 1 : 0.3,
+                      color: starredIds.includes(p.id) ? "#f5b301" : undefined,
+                    }}
+                    onClick={() => toggleStar(p.id)}
+                  >
+                    ★
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {/* 下段（補助表示） */}
             <div style={{ fontSize: "0.9em", color: "#555" }}>
               {jpLearnMode ? p.jp : p.en}
             </div>

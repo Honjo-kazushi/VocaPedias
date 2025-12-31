@@ -142,7 +142,7 @@
 .mode-select-wrap {
   display: flex;
   justify-content: center;
-  margin: 12px 0 16px;
+  margin: 12px 0 8px;
 }
 
 .mode-select {
@@ -174,7 +174,7 @@
 .practice-guide {
   font-size: 0.85em;
   color: #666;
-  margin: 4px 12px 6px;
+  margin: 2px 12px 2px;
   text-align: left;
 }
 
@@ -259,4 +259,25 @@
 .practice-item-en{
   font-size: 0.9em;
   color: #555;
+}
+
+.debug-id-star {
+  float: right;
+  font-size: 0.7em;
+  color: #999;
+}
+
+.debug-star {
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0.3;
+}
+
+.debug-star.on {
+  opacity: 1;
+  color: #f5b301;
+}
+
+.practice-subtab.debug-clear {
+  opacity: 0.6;
 }
