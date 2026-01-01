@@ -6,7 +6,7 @@
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin: 6px 0 10px;   /* もとは 12px 0 16px */
+  margin: 2px 0 4px;   /* もとは 12px 0 16px */
 }
 
 .player-controls .btn {
@@ -55,7 +55,7 @@
 }
 
 .prompt-text {
-  font-size: 1.2em;
+  font-size: 1.3em;
 }
 
 .answer-text {
@@ -67,6 +67,8 @@
 .count-text {
   color: #888;
   margin-bottom: 12px;
+  font-size: 1.25em;     /* ← カウントと「考えた？」 */
+  font-weight: 600;
 }
 
 .app-logo {
@@ -115,6 +117,9 @@
 
 .train-question {
   text-align: center;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  min-height: 100px;
 }
 
 .train-question .prompt-text,
@@ -184,7 +189,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 8px 0 12px;
+  margin: 2px 0 6px;
 }
 
 /* サブタグボタン */

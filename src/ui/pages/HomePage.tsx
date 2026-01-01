@@ -44,7 +44,8 @@ export default function HomePage() {
   const [autoNext, setAutoNext] = useState<boolean>(() => readBool("autoNext", true));
   const [soundOn, setSoundOn] = useState<boolean>(() => readBool("soundOn", true));
   const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
-  const [debugMode, setDebugMode] = useState(false);
+  const [debugMode, setDebugMode] =
+    useState<boolean>(() => readBool("debugMode", false));
   const STAR_KEY = "debugStarredPhraseIds";
 
   const [starredIds, setStarredIds] = useState<string[]>(() => {
@@ -167,7 +168,7 @@ const practicePhrases = useMemo(() => {
       settings: "設定",
       related: "関連フレーズ",
       practiceGuide:
-        "リスト内の太文字フレーズを押すと、関連フレーズを見ることができます。",
+        "リスト内の太文字フレーズを押すと関連フレーズを見れます",
     };
 
     const MODE_LABELS = jpLearnMode
@@ -202,6 +203,9 @@ useEffect(() => {
   setPracticeSub(first);
 }, [mode, practiceSubStats]);
 
+useEffect(() => {
+  localStorage.setItem("debugMode", JSON.stringify(debugMode));
+}, [debugMode]);
 
   const TAG_EMOJI: Record<string, string> = {
   // 行動・進行
@@ -277,7 +281,29 @@ useEffect(() => {
 否定: "❌",
 前置: "☝️",
 教訓: "📘",
-雑談: "💬"
+雑談: "💬",
+
+// === 追加定義（未定義分） ===
+曖昧: "🤷",
+断り: "🚫",
+反応: "😮",
+医療: "🩺",
+仕事: "💼",
+買い物: "🛒",
+量: "📏",
+順番: "🔢",
+映画: "🎬",
+場所: "📍",
+事実: "📄",
+突然: "⚡",
+順序: "➡️",
+前置き: "☝️",
+注意喚起: "⚠️",
+時間: "⏰",
+予定: "📅",
+食事: "🍽️",
+説明: "📖",
+諦め: "😔"
 
   };
 
@@ -829,7 +855,13 @@ useEffect(() => {
                     gap: 4,
                   }}
                 >
+                  {p.tags2?.main && p.tags2?.sub && (
+                      <span style={{ color: "#777" }}>
+                        （{p.tags2.main}−{p.tags2.sub}）
+                      </span>
+                    )}
                   {p.id}
+
                   <span
                     style={{
                       cursor: "pointer",
