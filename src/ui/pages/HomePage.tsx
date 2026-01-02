@@ -152,7 +152,7 @@ const practicePhrases = useMemo(() => {
       settings: "Settings",
       related: "Related phrases",
       practiceGuide:
-        "Tap the bold phrases in the list to view related phrases.",
+        "Tap the bold phrases to view related phrases.",
     }
   : {
       next: "▷ 次へ",
@@ -168,7 +168,7 @@ const practicePhrases = useMemo(() => {
       settings: "設定",
       related: "関連フレーズ",
       practiceGuide:
-        "リスト内の太文字フレーズを押すと関連フレーズを見れます",
+        "太文字フレーズを押すと関連フレーズを見れます",
     };
 
     const MODE_LABELS = jpLearnMode
@@ -354,6 +354,8 @@ useEffect(() => {
     if (soundOn) playSe();
   };
 
+  const practiceListRef = useRef<HTMLDivElement | null>(null);
+
   const resetTrainingState = () => {
     // JP タイマー
     if (jpTimerRef.current !== null) {
@@ -482,23 +484,25 @@ useEffect(() => {
   }, 2000);
 };
 
+useEffect(() => {
+  // === TRAIN / PRACTICE 切替時の完全リセット ===
+  resetTrainingState();
+
+  if (mode === "TRAIN") {
+    // 学習モードは毎回新規スタート
+    setRandomPhrase(null);
+    setPickLogs([]);
+  } else {
+    // 実践モードでは学習系の表示物を消す
+    setActiveMeaningGroup(null);
+  }
+}, [mode]);
+
   useEffect(() => {
     if (!debugMode) return;
     console.table(pickLogs);
   }, [pickLogs, debugMode]);
 
-  useEffect(() => {
-    if (mode !== "TRAIN") {
-      // TRAIN から離れる → 完全掃除
-      resetTrainingState();
-      return;
-    }
-
-    // PRACTICE → TRAIN に戻った瞬間
-    resetTrainingState();
-    setRandomPhrase(null);   // ← これが「新規スタート固定」の核心
-    setPickLogs([]);      // ← ログも毎回リセットするなら有効
-  }, [mode]);
 
   useEffect(() => {
     localStorage.setItem("soundOn", JSON.stringify(soundOn));
@@ -538,6 +542,7 @@ useEffect(() => {
 
 
   useEffect(() => {
+    if (mode !== "TRAIN") return;   // ★最重要
     if (isPaused) return;
     if (!randomPhrase) return;
     if (showEn) return;
@@ -607,13 +612,7 @@ useEffect(() => {
         jpTimerRef.current = null;
       }
     };
-  }, [randomPhrase, showEn, autoNext, isPaused]);
-
-  useEffect(() => {
-    if (mode !== "TRAIN") {
-      resetTrainingState();
-    }
-  }, [mode]);
+  }, [mode,randomPhrase, showEn, autoNext, isPaused]);
 
 
   return (
@@ -722,6 +721,10 @@ useEffect(() => {
               playClickSe();
               setActiveMeaningGroup(null);
               setPracticeSub(sub);
+              // ★ スクロールを先頭へ
+              requestAnimationFrame(() => {
+                practiceListRef.current?.scrollTo({ top: 0 });
+              });
             }}
           >
             <span className="practice-subtab-emoji">
@@ -759,7 +762,7 @@ useEffect(() => {
         {UI.practiceGuide}
       </div>
       {/* ===== 実際にスクロールする部分 ===== */}
-      <div className="practice-list">
+      <div className="practice-list" ref={practiceListRef}>
         {practicePhrases.map((p) => (
           <div
             key={p.id}

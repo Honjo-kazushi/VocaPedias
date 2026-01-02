@@ -168,6 +168,7 @@
   border: 1px solid #ccc;
   border-radius: 6px;
   background: #fff;
+  
 
   display: flex;
   flex-direction: column;
@@ -184,18 +185,20 @@
 }
 
 
-/* ===== サブタグ：コンボ直下・固定 ===== */
 .practice-subtabs-fixed {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 2px 0 6px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 上3固定 */
+  gap: 6px 8px;                          /* 縦 横 */
+  margin: 6px 0 8px;
+
+  padding: 0 16px;
 }
 
 /* サブタグボタン */
 .practice-subtab {
   display: flex;
   align-items: center;
+  justify-content: center; /* ← 横中央 */
   gap: 4px;
 
   padding: 6px 10px;
@@ -220,8 +223,11 @@
 .practice-list-wrap {
   border: 1px solid #ccc;
   border-radius: 6px;
-  padding: 12px;
+  padding: 0 18px;
   background: #fff;
+  
+  flex: 1;
+  min-height: 0;   /* ← iOS含め必須 */
 }
 
 /* 表題（確認 10 など） */
@@ -235,12 +241,27 @@
   max-height: 50vh;   /* 多いときだけスクロール */
   overflow-y: auto;
   padding-right: 4px;
+  padding-bottom: 32px;
+
+  overscroll-behavior: contain; /* ★ 画面全体を動かさない */
+  -webkit-overflow-scrolling: touch;
+}
+
+.practice-list::after{
+  content:"";
+  display:block;
+  height: 32px;   /* ←あなたが入れてる padding-bottom と同じでOK */
 }
 
 /* ===== フレーズ行 ===== */
 .practice-item{
   padding: 6px 0;
+  padding-bottom: 8px;
   border-bottom: 1px dashed #eee;
+}
+
+.practice-item:last-child {
+  border-bottom: none;
 }
 
 /* 押せるだけ強調 */
