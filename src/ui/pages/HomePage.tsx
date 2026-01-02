@@ -638,19 +638,25 @@ useEffect(() => {
         />
 
 <div className="app-description">
-  <div>
-    "<strong>脳トレ</strong>"を選んだ状態で「<strong>次へ</strong>」を押す：学習スタート
-  </div>
-  <div style={{ marginTop: 4 }}>
-    "脳トレ"以外を選ぶ：フレーズ集の閲覧
-  </div>
-  <div>
-    Select “<strong>Training</strong>” and press 「<strong>Next</strong>」 to start learning
-  </div>
-
-  <div>
-    Select any other mode to browse the phrase list
-  </div>
+  {!jpLearnMode ? (
+    <>
+      <div>
+        「<strong>脳トレ</strong>」を選んだ状態で「<strong>次へ</strong>」を押す：学習スタート
+      </div>
+      <div style={{ marginTop: 4 }}>
+        「脳トレ」以外を選ぶ：フレーズ集の閲覧
+      </div>
+    </>
+  ) : (
+    <>
+      <div>
+        Select <strong>Training</strong> and press <strong>Next</strong> to start learning.
+      </div>
+      <div style={{ marginTop: 4 }}>
+        Select any other mode to browse the phrase list.
+      </div>
+    </>
+  )}
 </div>
 
         <div className="mode-select-wrap">
@@ -709,7 +715,6 @@ useEffect(() => {
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
-  <div className="practice-wrap">
     {/* ===== サブタグ：コンボ直下・固定 ===== */}
     <div className="practice-subtabs-fixed">
       {practiceSubStats.map(({ sub, count }) => {
@@ -751,8 +756,7 @@ useEffect(() => {
         </button>
       )}
     </div>
-  </div>
-  
+
     {/* ===== リスト枠（可変高） ===== */}
     <div className="practice-list-wrap">
       {/* 表題：サブタグ + 件数 */}
@@ -839,7 +843,7 @@ useEffect(() => {
           <div
             key={p.id}
             style={{
-              marginBottom: 6,
+              marginBottom: 2,
               position: "relative",
             }}
           >

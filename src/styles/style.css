@@ -40,19 +40,10 @@
 /* =========================
    HomePage styles（統一）
    ========================= */
-html, body, #root {
-  height: 100%;
-  overflow: hidden;   /* ★ 画面全体をスクロールさせない */
-}
-
 .app-main {
   max-width: 360px;
   margin: 0 auto;
   padding: 16px;
-
-  display: flex;
-  flex-direction: column;
-  height: 100%;
 
   /* ★ 中央寄せをやめる */
   text-align: left;
@@ -179,8 +170,6 @@ html, body, #root {
   background: #fff;
   
 
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
 
@@ -239,8 +228,6 @@ html, body, #root {
   
   flex: 1;
   min-height: 0;   /* ← iOS含め必須 */
-  display: flex;
-  flex-direction: column;
 }
 
 /* 表題（確認 10 など） */
@@ -252,10 +239,9 @@ html, body, #root {
 /* ===== 実際にスクロールする部分 ===== */
 .practice-list {
   max-height: 50vh;   /* 多いときだけスクロール */
-  flex: 1;                     /* ★ 高さは親に任せる */
   overflow-y: auto;
   padding-right: 4px;
-  padding-bottom: 0px;
+  padding-bottom: 32px;
 
   overscroll-behavior: contain; /* ★ 画面全体を動かさない */
   -webkit-overflow-scrolling: touch;
@@ -264,12 +250,12 @@ html, body, #root {
 .practice-list::after{
   content:"";
   display:block;
-  height: 24px;
+  height: 32px;   /* ←あなたが入れてる padding-bottom と同じでOK */
 }
 
 /* ===== フレーズ行 ===== */
 .practice-item{
-  padding: 6px 0;
+  padding: 0px 0;
   padding-bottom: 8px;
   border-bottom: 1px dashed #eee;
 }
@@ -294,11 +280,14 @@ html, body, #root {
 /* 文字 */
 .practice-item-jp{
   font-size: 1em;
+  line-height: 1.2;
 }
 
 .practice-item-en{
   font-size: 0.9em;
   color: #555;
+  line-height: 1.2;
+  margin-top: 1px;
 }
 
 .debug-id-star {
