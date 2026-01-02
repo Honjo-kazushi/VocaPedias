@@ -709,6 +709,7 @@ useEffect(() => {
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
+  <div className="practice-wrap">
     {/* ===== サブタグ：コンボ直下・固定 ===== */}
     <div className="practice-subtabs-fixed">
       {practiceSubStats.map(({ sub, count }) => {
@@ -750,7 +751,8 @@ useEffect(() => {
         </button>
       )}
     </div>
-
+  </div>
+  
     {/* ===== リスト枠（可変高） ===== */}
     <div className="practice-list-wrap">
       {/* 表題：サブタグ + 件数 */}

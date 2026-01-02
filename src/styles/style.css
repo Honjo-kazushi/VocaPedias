@@ -40,10 +40,19 @@
 /* =========================
    HomePage styles（統一）
    ========================= */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;   /* ★ 画面全体をスクロールさせない */
+}
+
 .app-main {
   max-width: 360px;
   margin: 0 auto;
   padding: 16px;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 
   /* ★ 中央寄せをやめる */
   text-align: left;
@@ -170,6 +179,8 @@
   background: #fff;
   
 
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 
@@ -228,6 +239,8 @@
   
   flex: 1;
   min-height: 0;   /* ← iOS含め必須 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* 表題（確認 10 など） */
@@ -239,9 +252,10 @@
 /* ===== 実際にスクロールする部分 ===== */
 .practice-list {
   max-height: 50vh;   /* 多いときだけスクロール */
+  flex: 1;                     /* ★ 高さは親に任せる */
   overflow-y: auto;
   padding-right: 4px;
-  padding-bottom: 32px;
+  padding-bottom: 0px;
 
   overscroll-behavior: contain; /* ★ 画面全体を動かさない */
   -webkit-overflow-scrolling: touch;
@@ -250,7 +264,7 @@
 .practice-list::after{
   content:"";
   display:block;
-  height: 32px;   /* ←あなたが入れてる padding-bottom と同じでOK */
+  height: 24px;
 }
 
 /* ===== フレーズ行 ===== */
