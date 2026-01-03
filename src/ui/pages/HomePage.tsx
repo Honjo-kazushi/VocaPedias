@@ -98,11 +98,23 @@ export default function HomePage() {
   const speakGenRef = useRef(0); // TTSコールバック持ち越し防止（フラグ増殖ではなく世代番号1本）
 
   type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
-  const [mode, setMode] = useState<Mode>("TRAIN");
+  const [mode, setMode] = useState<Mode>("A");
+  // const [mode, setMode] = useState<Mode>("TRAIN");
 
   const [activeMeaningGroup, setActiveMeaningGroup] =
   useState<string | null>(null);
+
+  const relatedPhrases = useMemo(() => {
+    if (!activeMeaningGroup) return [];
+    return PHRASES_SEED
+      .filter((p) => p.meaningGroup === activeMeaningGroup)
+      .slice()
+      .sort((a, b) => a.jp.localeCompare(b.jp, "ja"));
+  }, [activeMeaningGroup]);
+
   const [practiceSub, setPracticeSub] = useState<string | null>(null);
+  const sortByJapanese = (a: Phrase, b: Phrase) =>
+    a.jp.localeCompare(b.jp, "ja");
 
 const PRACTICE_MAIN_JP: Record<Mode, string | null> = {
   TRAIN: null,
@@ -114,7 +126,26 @@ const PRACTICE_MAIN_JP: Record<Mode, string | null> = {
     F: "配慮",
 };
 
+const PRACTICE_SUB_ORDER: Record<Mode, string[]> = {
+  TRAIN: [],
+  A: ["質問", "確認", "促し", "応答", "挨拶"],
+  B: ["喜び", "怒り", "悲哀", "驚き", "共感"],
+  C: ["体調", "状況", "進行", "環境", "能力"],
+  D: ["依頼", "提案", "指示", "制止", "拒否"],
+  E: ["同意", "否定", "保留", "許可", "期待"],
+  F: ["前置", "安心", "配慮", "教訓", "雑談"],
+};
+
 const practiceMainJp = mode !== "TRAIN" ? PRACTICE_MAIN_JP[mode] : null;
+
+const getModeLabelWithSubs = (mode: Mode) => {
+  if (mode === "TRAIN") return MODE_LABELS.TRAIN;
+
+  const main = MODE_LABELS[mode];
+  const subs = PRACTICE_SUB_ORDER[mode];
+
+  return `${main}（${subs.join("・")}）`;
+};
 
 const practiceMainPhrases = useMemo(() => {
   if (!practiceMainJp) return [];
@@ -129,12 +160,37 @@ const practiceSubStats = useMemo(() => {
     if (!sub) continue;
     map.set(sub, (map.get(sub) ?? 0) + 1);
   }
-  return Array.from(map.entries()).map(([sub, count]) => ({ sub, count }));
-}, [practiceMainPhrases]);
+
+const order = PRACTICE_SUB_ORDER[mode] ?? [];
+
+return order
+  .filter(sub => map.has(sub))
+  .map(sub => ({ sub, count: map.get(sub)! }));
+}, [practiceMainPhrases, mode]);
+
+const [speakingPhraseId, setSpeakingPhraseId] = useState<string | null>(null);
+const speakPractice = (p: Phrase) => {
+  // いま喋っている音声を止める
+  speechSynthesis.cancel();
+
+  setSpeakingPhraseId(p.id);
+
+  speakEn(
+    jpLearnMode ? p.jp : p.en,
+    () => {
+      setSpeakingPhraseId(null);
+    },
+    jpLearnMode ? "ja" : "en"
+  );
+};
+
 
 const practicePhrases = useMemo(() => {
-  if (!practiceSub) return practiceMainPhrases;
-  return practiceMainPhrases.filter(p => p.tags2?.sub === practiceSub);
+  const list = practiceSub
+    ? practiceMainPhrases.filter(p => p.tags2?.sub === practiceSub)
+    : practiceMainPhrases;
+
+  return list.slice().sort(sortByJapanese);
 }, [practiceMainPhrases, practiceSub]);
 
   const UI = jpLearnMode
@@ -618,7 +674,6 @@ useEffect(() => {
   return (
       <div style={{ position: "relative" }}>
         {/* 設定ボタン：センター箱の外・固定 */}
-      {mode === "TRAIN" && (
         <button
           className="btn-settings"        
           aria-label="settings"
@@ -629,8 +684,7 @@ useEffect(() => {
         >
           ⚙️
         </button>
-      )}
-
+      
         <img
           src="/images/tossa.png"
           alt="tossa"
@@ -666,12 +720,12 @@ useEffect(() => {
             onChange={(e) => setMode(e.target.value as Mode)}
           >
             <option value="TRAIN">{MODE_LABELS.TRAIN}</option>
-            <option value="A">{MODE_LABELS.A}</option>
-            <option value="B">{MODE_LABELS.B}</option>
-            <option value="C">{MODE_LABELS.C}</option>
-            <option value="D">{MODE_LABELS.D}</option>
-            <option value="E">{MODE_LABELS.E}</option>
-            <option value="F">{MODE_LABELS.F}</option>
+            <option value="A">{getModeLabelWithSubs("A")}</option>
+            <option value="B">{getModeLabelWithSubs("B")}</option>
+            <option value="C">{getModeLabelWithSubs("C")}</option>
+            <option value="D">{getModeLabelWithSubs("D")}</option>
+            <option value="E">{getModeLabelWithSubs("E")}</option>
+            <option value="F">{getModeLabelWithSubs("F")}</option>
           </select>
         </div>
 
@@ -781,21 +835,63 @@ useEffect(() => {
               setActiveMeaningGroup(p.meaningGroup);
             }}
           >
-            <div className="practice-item-jp">
+            <div className="practice-item-jp" style={{ position: "relative" }}>
               {jpLearnMode ? p.en : p.jp}
 
-              {debugMode && (
-                <span className="debug-id-star">
-                  {p.id}
-                  <span
-                    className={`debug-star ${starredIds.includes(p.id) ? "on" : ""}`}
-                    onClick={(e) => {
-                      e.stopPropagation(); // フレーズクリックと分離
-                      toggleStar(p.id);
-                    }}
-                  >
-                    ★
-                  </span>
+              {(debugMode || ttsOn) && (
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 0,
+                    minWidth: 72,              // ★ 常に確保
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 6,
+                    fontSize: "0.75em",
+                    color: "#999",
+                  }}
+                  onClick={(e) => e.stopPropagation()} // 親クリック防止
+                >
+                  {/* ID + ★（debug時） */}
+                  {debugMode && (
+                    <>
+                      <span>{p.id}</span>
+                      
+                      <span
+                        className={`debug-star ${starredIds.includes(p.id) ? "on" : ""}`}
+                        style={{
+                          fontSize: "1.2em",
+                          transform: "scale(1.4)",
+                          transformOrigin: "right top",
+                          lineHeight: 1,
+                        }}
+                      >
+                        ★
+                      </span>
+                    </>
+                  )}
+
+                  {/* 🔊（TTSオン時） */}
+                  {ttsOn && (
+                    <span
+                      style={{
+                        cursor: "pointer",
+                        fontSize: "1.2em",
+                        opacity: speakingPhraseId === p.id ? 0.5 : 1,
+                        transform: "scale(1.4)",
+                        transformOrigin: "right top",
+                        lineHeight: 1,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speakPractice(p);
+                      }}
+                    >
+                      🔊
+                    </span>
+                  )}
                 </span>
               )}
             </div>
@@ -837,9 +933,7 @@ useEffect(() => {
         {UI.related}
       </div>
 
-      {PHRASES_SEED
-        .filter(p => p.meaningGroup === activeMeaningGroup)
-        .map(p => (
+        {relatedPhrases.map((p) => (
           <div
             key={p.id}
             style={{
@@ -876,8 +970,15 @@ useEffect(() => {
                       cursor: "pointer",
                       opacity: starredIds.includes(p.id) ? 1 : 0.3,
                       color: starredIds.includes(p.id) ? "#f5b301" : undefined,
+                      fontSize: "1.2em",
+                      transform: "scale(1.4)",
+                      transformOrigin: "right top",
+                      lineHeight: 1,
                     }}
-                    onClick={() => toggleStar(p.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleStar(p.id);
+                    }}
                   >
                     ★
                   </span>
@@ -1008,14 +1109,16 @@ useEffect(() => {
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
           }}
         >
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <input
-              type="checkbox"
-              checked={autoNext}
-              onChange={(e) => setAutoNext(e.target.checked)}
-            />
-            {UI.autoNext}
-          </label>
+          {mode === "TRAIN" && (
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={autoNext}
+                onChange={(e) => setAutoNext(e.target.checked)}
+              />
+              {UI.autoNext}
+            </label>
+          )}
 
           <label style={{ display: "block", marginBottom: 8 }}>
             <input
@@ -1035,14 +1138,16 @@ useEffect(() => {
             {UI.tts}
           </label>
 
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <input
-              type="checkbox"
-              checked={autoSpeakOnTimeout}
-              onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
-            />
-            {UI.autoSpeak}
-          </label>
+          {mode === "TRAIN" && (
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={autoSpeakOnTimeout}
+                onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
+              />
+              {UI.autoSpeak}
+            </label>
+          )}
 
           <label style={{ display: "block", marginBottom: 8 }}>
             <input
