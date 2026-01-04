@@ -37,6 +37,19 @@ export type PickLog = {
 
 
 export default function HomePage() {
+    // ===== Speech debug log =====
+type SpeechLog = {
+  time: number;
+  event: string;
+};
+    const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
+
+  const pushSpeechLog = (event: string) => {
+    setSpeechLogs((logs) => [
+      ...logs.slice(-9),
+      { time: Date.now(), event },
+    ]);
+  };
   const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
   const [showEn, setShowEn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -113,12 +126,15 @@ export default function HomePage() {
   if (!ttsOn) return;
   if (recognitionRef.current) return;
 
+  pushSpeechLog("initSpeechRecognition()"); // log1
+
   const SR =
     (window as any).SpeechRecognition ||
     (window as any).webkitSpeechRecognition;
 
   if (!SR) {
     console.warn("SpeechRecognition not supported");
+    pushSpeechLog("SR not supported");  // log2
     return;
   }
 
@@ -128,17 +144,19 @@ export default function HomePage() {
   rec.interimResults = false;
 
   rec.onstart = () => {
+    pushSpeechLog("onstart");               // log3
     // setSpokenText(null);
     setSpeechState("RECORDING");
   };
 
   rec.onresult = (e: any) => {
+    pushSpeechLog("onresult");               // log4
     const text = e.results[0][0].transcript;
     setSpokenText(text);
   };
 
   rec.onend = () => {
-
+    pushSpeechLog("onend");                  // log5
     const dur = Date.now() - recordStartedAtRef.current;
     const hasSpeech = !!(spokenText && spokenText.trim() !== "");
 
@@ -186,6 +204,7 @@ export default function HomePage() {
   };
 
   rec.onerror = (e: any) => {
+    pushSpeechLog(`error:${e.error}`);          // log6
     console.warn("SpeechRecognition error", e);
     setSpokenText(UI.recogError);
     setSpeechState("IDLE");
@@ -200,6 +219,22 @@ const noSpeechRetryRef = useRef<number>(0);
 const MIN_NO_SPEECH_MS = 1800; // ★ 1.8秒未満は「早すぎ」
 
 function startSpeechFlow() {
+  
+pushSpeechLog("startSpeechFlow()");
+if (!ttsOn) {
+  pushSpeechLog("ttsOff");
+  return;
+}
+if (speechState !== "IDLE") {
+  pushSpeechLog("blocked:not IDLE");
+  return;
+}
+if (!recognitionRef.current) {
+  pushSpeechLog("no recognitionRef");
+}
+  
+  
+  
   if (!ttsOn) return;
   if (speechState !== "IDLE") return;
   
@@ -216,6 +251,7 @@ function startSpeechFlow() {
   recordStartedAtRef.current = Date.now();
 
     try {
+      pushSpeechLog("recognition.start()");
       recognitionRef.current.start();
 
       // ★ 最大6秒で強制終了
@@ -226,6 +262,7 @@ function startSpeechFlow() {
       }, MAX_RECORD_MS);
 
     } catch {
+      pushSpeechLog("start() threw");
       setSpeechState("IDLE");
     }
   }
@@ -1234,8 +1271,38 @@ useEffect(() => {
           <button
             className="btn btn-en"
             disabled={isBusy || isPaused}
-            onClick={() => {
-              if (isBusy) return;
+onClick={() => {
+  pushSpeechLog("🎤 clicked");
+
+  if (!ttsOn) return;
+  if (!randomPhrase) return;
+
+  // JP タイマー停止
+  if (jpTimerRef.current !== null) {
+    clearInterval(jpTimerRef.current);
+    jpTimerRef.current = null;
+  }
+
+  // 初期化
+  if (!recognitionRef.current) {
+    initSpeechRecognition();
+  }
+  if (!recognitionRef.current) {
+    pushSpeechLog("no recognitionRef");
+    return;
+  }
+
+  // ★ ここで直接 start（最重要）
+  try {
+    pushSpeechLog("recognition.start() [direct]");
+    recognitionRef.current.start();
+  } catch (e) {
+    pushSpeechLog("start() threw");
+  }
+}}
+
+
+/*               if (isBusy) return;
               if (!canAcceptInput()) return;
               if (!randomPhrase) return;
 
@@ -1284,6 +1351,7 @@ useEffect(() => {
 
               // 進行は音声側に任せる
             }}
+ */          
           >
             {UI.english}
           </button>
@@ -1386,6 +1454,26 @@ useEffect(() => {
       {mode === "TRAIN" && debugMode && (
         <RecentLogs logs={pickLogs} />
       )}
+
+
+      {mode === "TRAIN" && !debugMode && (
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: "0.7em",
+            color: "#666",
+            borderTop: "1px dashed #ccc",
+            paddingTop: 4,
+          }}
+        >
+          {speechLogs.map((l, i) => (
+            <div key={i}>
+              {new Date(l.time).toLocaleTimeString()} : {l.event}
+            </div>
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }
