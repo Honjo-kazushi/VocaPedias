@@ -48,12 +48,6 @@ export default function HomePage() {
     useState<boolean>(() => readBool("debugMode", false));
   const STAR_KEY = "debugStarredPhraseIds";
 
-  // ===== Speech Recognition =====
-  const recognitionRef = useRef<any>(null);
-  const [speechState, setSpeechState] = useState<"IDLE" | "RECORDING">("IDLE");
-  const [spokenText, setSpokenText] = useState<string | null>(null);
-  const speechUnlockedRef = useRef(false);
-
   const [starredIds, setStarredIds] = useState<string[]>(() => {
     if (!debugMode) return [];
     try {
@@ -102,6 +96,140 @@ export default function HomePage() {
   const jpTimerRef = useRef<number | null>(null);
   const enTimerRef = useRef<number | null>(null);
   const speakGenRef = useRef(0); // TTSコールバック持ち越し防止（フラグ増殖ではなく世代番号1本）
+
+  // ===== Speech Recognition =====
+  const recognitionRef = useRef<any>(null);
+  const [speechState, setSpeechState] =
+    useState<"IDLE" | "RECORDING" | "RECOGNIZED">("IDLE");
+  const [spokenText, setSpokenText] = useState<string | null>(null);
+  const speechTextStyle: React.CSSProperties = {
+    fontSize: "0.85em",
+    color: "#666",
+    marginTop: 4,
+    lineHeight: 1.3,
+  };
+
+  function initSpeechRecognition() {
+  if (!ttsOn) return;
+  if (recognitionRef.current) return;
+
+  const SR =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition;
+
+  if (!SR) {
+    console.warn("SpeechRecognition not supported");
+    return;
+  }
+
+  const rec = new SR();
+  rec.lang = jpLearnMode ? "ja-JP" : "en-US";
+  rec.continuous = false;
+  rec.interimResults = false;
+
+  rec.onstart = () => {
+    // setSpokenText(null);
+    setSpeechState("RECORDING");
+  };
+
+  rec.onresult = (e: any) => {
+    const text = e.results[0][0].transcript;
+    setSpokenText(text);
+  };
+
+  rec.onend = () => {
+
+    const dur = Date.now() - recordStartedAtRef.current;
+    const hasSpeech = !!(spokenText && spokenText.trim() !== "");
+
+    // ★ 無音かつ早すぎ → 1回だけやり直す
+    if (!hasSpeech && dur < MIN_NO_SPEECH_MS && noSpeechRetryRef.current < 1) {
+      noSpeechRetryRef.current += 1;
+      recordStartedAtRef.current = Date.now();
+
+      try {
+        recognitionRef.current?.start();
+      } catch {}
+
+      return; // ★ 認識完了扱いにしない
+    }
+
+    // ===== 認識完了 =====
+    speechSynthesis.cancel();
+    speakGenRef.current += 1;
+    setSpeechState("RECOGNIZED");
+
+    // ★ 無音・失敗時の補正（UI 文言をそのまま入れる）
+    setSpokenText((prev) =>
+      prev && prev.trim() !== ""
+        ? prev
+        : UI.recogNoSpeech
+    );
+
+    recognitionRef.current = null;
+    const gen = speakGenRef.current;
+
+    // ★ 認識後は必ず「正解表示」
+    setShowEn(true);
+
+    // ★ 正解 TTS
+    if (randomPhrase) {
+      speakEn(
+        jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+        () => {
+          if (speakGenRef.current !== gen) return;
+          if (autoNext && !isPaused) requestGoNext();
+        },
+        jpLearnMode ? "ja" : "en"
+      );
+    }
+  };
+
+  rec.onerror = (e: any) => {
+    console.warn("SpeechRecognition error", e);
+    setSpokenText(UI.recogError);
+    setSpeechState("IDLE");
+  };
+
+  recognitionRef.current = rec;
+}
+
+const MAX_RECORD_MS = 6000;
+const recordStartedAtRef = useRef<number>(0);
+const noSpeechRetryRef = useRef<number>(0);
+const MIN_NO_SPEECH_MS = 1800; // ★ 1.8秒未満は「早すぎ」
+
+function startSpeechFlow() {
+  if (!ttsOn) return;
+  if (speechState !== "IDLE") return;
+  
+  // ★ 念のため毎回初期化
+  if (!recognitionRef.current) {
+    initSpeechRecognition();
+  }
+  if (!recognitionRef.current) {
+    console.warn("SpeechRecognition not initialized");
+    return;
+  }
+  setSpokenText(null);
+  noSpeechRetryRef.current = 0;
+  recordStartedAtRef.current = Date.now();
+
+    try {
+      recognitionRef.current.start();
+
+      // ★ 最大6秒で強制終了
+      window.setTimeout(() => {
+        try {
+          recognitionRef.current?.stop();
+        } catch {}
+      }, MAX_RECORD_MS);
+
+    } catch {
+      setSpeechState("IDLE");
+    }
+  }
+
 
   type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
   const [mode, setMode] = useState<Mode>("A");
@@ -203,10 +331,12 @@ const practicePhrases = useMemo(() => {
   ? {
       next: "▷ Next",
       pause: "Ⅱ Pause",
-      english: "Japanese",
+      english: "🎤Speak",
       keyword: "Keyword (e.g. see / I see)",
       ready: "Ready?",
-      recording: "Speak now…",
+      recording: "Recording...",
+      recogNoSpeech: "No speech detected",
+      recogError: "Could not recognize speech",
       autoNext: "Auto Next",
       uiSounds: "UI Sounds",
       tts: "Voice (TTS)",
@@ -220,10 +350,12 @@ const practicePhrases = useMemo(() => {
   : {
       next: "▷ 次へ",
       pause: "Ⅱ 停止",
-      english: "English",
+      english: "🎤発声",
       keyword: "キーワード（例: see / なるほど）",
       ready: "考えた？",
-      recording: "話してください…",
+      recording: "録音中...",
+      recogNoSpeech: "音声が検出されませんでした",
+      recogError: "音声を認識できませんでした",
       autoNext: "自動で次へ",
       uiSounds: "操作音(SE）",
       tts: "英語の音声（TTS）",
@@ -367,7 +499,34 @@ useEffect(() => {
 予定: "📅",
 食事: "🍽️",
 説明: "📖",
-諦め: "😔"
+諦め: "😔",
+// 会話・発話ニュアンス
+聞き返し: "🔁",
+話題転換: "🔀",
+
+// 感情・心理（細分）
+落胆: "😞",
+困惑: "😕",
+納得: "😌",
+違和感: "😵‍💫",
+覚悟: "🔥",
+自信: "😎",
+強気: "😤",
+称賛: "👏",
+励まし: "📣",
+応援: "🎉",
+
+// 状態・変化
+喪失: "💔",
+完了: "✔️",
+開始: "🚀",
+移動: "➡️",
+頻度: "🔁",
+
+// 判断・認識
+不満: "😒",
+警告: "🚫",
+決断: "⚡",
 
   };
 
@@ -412,76 +571,6 @@ useEffect(() => {
     );
   }
 
-  function initSpeechRecognition() {
-    if (!ttsOn) return;
-    // if (recognitionRef.current) return;
-
-    
-    const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-
-    if (!SR) return;
-
-    const rec = new SR();
-    rec.lang = "en-US";
-    rec.continuous = false;
-    rec.interimResults = false;
-
-    rec.onresult = (e: any) => {
-      const text = e.results[0][0].transcript;
-      setSpokenText(text);
-    };
-
-    rec.onend = () => {
-      setSpeechState("IDLE");
-      setShowEn(true);
-      // ★ 認識後に必ず正解を TTS
-      if (randomPhrase) {
-        speakEn(
-          jpLearnMode ? randomPhrase.jp : randomPhrase.en,
-          undefined,
-          jpLearnMode ? "ja" : "en"
-        );
-      }
-    };
-
-    recognitionRef.current = rec;
-  }
-
-  function startSpeechFlow() {
-    if (!ttsOn) return;
-    if (speechState !== "IDLE") return;
-
-    setSpokenText(null);
-    setSpeechState("RECORDING");
-
-      // ★ 技術的に無理なら、ここで静かに終わる
-      if (!recognitionRef.current) {
-        console.warn("SpeechRecognition not initialized");
-        return;
-      }
-    
-  try {
-      recognitionRef.current.start();
-    } catch {
-      setSpeechState("IDLE");
-    }
-  }
-
-  function unlockSpeechOnce() {
-    if (speechUnlockedRef.current) return;
-    // if (!recognitionRef.current) return;
-
-    try {
-      recognitionRef.current.start();
-      recognitionRef.current.stop();   // ★ 即止める（録音しない）
-      speechUnlockedRef.current = true;
-    } catch {
-      // 失敗しても無視（次のユーザー操作で再挑戦）
-    }
-  }
-
   const [showSettings, setShowSettings] = useState(false);
 
   const playClickSe = () => {
@@ -524,42 +613,50 @@ useEffect(() => {
 
   const startQuestion = async () => {
     if (isBusy) return;
-      clearEnTriggers();
+
+    // ===== 既存：EN/TTS/タイマーの後始末 =====
+    clearEnTriggers();
+
+    // ===== ★ 音声入力は「問題単位」なので必ず最初にリセット =====
+    setSpokenText(null);
+    setSpeechState("IDLE");
+    noSpeechRetryRef.current = 0;
 
     // ★ すでに停止中なら「準備だけして開始しない」
     if (isPaused) {
       const result = await getNextPhrase(
         repo,
         randomPhrase?.id,
-        pickLogs        // ★そのまま渡す
+        pickLogs
       );
+
       setRandomPhrase(result.phrase);
-      // 音声認識初期化
-      initSpeechRecognition();
       setShowEn(false);
       setElapsed(0);
-      return;   // ← ここで止まる
+      return; // ← 開始しない
     }
+
     setIsBusy(true);
 
     try {
       const result = await getNextPhrase(
         repo,
         randomPhrase?.id,
-        pickLogs        // ★そのまま渡す
+        pickLogs
       );
 
+      // ===== 新しい問題をセット =====
       setRandomPhrase(result.phrase);
       setShowEn(false);
       setElapsed(0);
-      
+
+      // ===== PickLog 更新（既存そのまま）=====
       setPickLogs((logs) => {
         const primaryTag =
           result.phrase.tags && result.phrase.tags.length > 0
             ? result.phrase.tags[0]
             : null;
 
-        // このタグがこれまで何回出たか
         const sameTagCount = logs.filter(
           (l) => l.primaryTag === primaryTag
         ).length;
@@ -592,7 +689,6 @@ useEffect(() => {
           },
         ];
       });
-
     } finally {
       setIsBusy(false);
     }
@@ -693,9 +789,9 @@ useEffect(() => {
       setElapsed((e) => {
         const next = e + 1;
 
-        if (next >= 5+1 && !showEn && autoNext && !isPaused) {
+        if (next >= 5 && !showEn && autoNext && !isPaused) {
 
-            setPickLogs((logs) => {
+          setPickLogs((logs) => {
             if (logs.length === 0) return logs;
             const last = logs[logs.length - 1];
             return [
@@ -716,21 +812,28 @@ useEffect(() => {
 
           // ★ 自動発声（ぼーっとモード）
           if (autoSpeakOnTimeout && randomPhrase) {
+            setShowEn(true);
 
-            // ===== TTSオン：音声認識＆TTS発声 =====
             if (ttsOn) {
-              startSpeechFlow();   // ← READY後 → GO相当（英語表示のタイミング）
-              return 0;            // ← ここでこの tick を終える（TTSへ行かない）
-            }
-            // ===== TTSオフ：英文表示 =====
-              setShowEn(true);
+              const gen = speakGenRef.current;
+              speakEn(
+                jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+                () => {
+                  if (speakGenRef.current !== gen) return; // 古い発声の終端は無視
+                  requestGoNext();
+                },
+                jpLearnMode ? "ja" : "en"
+              );
+            } else {
               scheduleGoNext2s();
-              return 0;
+            }
           } else {
             requestGoNext();
           }
+
           return 0;
         }
+
         return next;
       });
     }, 1000);
@@ -818,24 +921,31 @@ useEffect(() => {
                   {promptText}
                 </div>
 
-                {/* 0–3秒：カウント / 3秒：考えた？ */}
-                {(speechState === "RECORDING" || elapsed > 0) && (
-                  <div className="count-text">
-                    {speechState === "RECORDING"
-                      ? UI.recording
-                      : elapsed === 1
-                      ? "3"
-                      : elapsed === 2
-                      ? "2"
-                      : elapsed === 3
-                      ? "1"
-                      : elapsed === 4
-                      ? UI.ready
-                      : elapsed === 5
-                      ? UI.recording
-                      : null}
-                  </div>
-                )}
+
+                {/* 0–3秒：カウント / 3秒：考えた？ 認識結果*/}
+                <div className="count-text">
+                  {speechState === "RECORDING" ? (
+                    <>
+                      <div>{UI.recording}</div>
+                      {spokenText && (
+                        <div style={speechTextStyle}>
+                          {spokenText}
+                        </div>
+                      )}
+                    </>
+                  ) : speechState === "RECOGNIZED" && spokenText ? (
+                    // ★ showEn 中でも表示される
+                    <div style={speechTextStyle}>
+                      {spokenText}
+                    </div>
+                  ) : !showEn ? (
+                    // ★ カウント表示だけ showEn に依存
+                    elapsed === 1 ? "3"
+                    : elapsed === 2 ? "2"
+                    : elapsed === 3 ? "1"
+                    : UI.ready
+                  ) : null}
+                </div>
 
                 {/* 英語表示 */}
                 {showEn && (
@@ -1115,57 +1225,68 @@ useEffect(() => {
               setIsPaused(false);
               if (!canAcceptInput()) return;
               requestGoNext();
-              unlockSpeechOnce();
             }}
           >
             {UI.next}
           </button>
 
-              {/* 英語を見る（必要なときだけ） */}
-              {/* {!showEn && ( */}
-                <button className="btn btn-en"
-                  disabled={isBusy || isPaused}
-                  onClick={() => {
-                    if (isBusy) return;
-                    if (!canAcceptInput()) return;
-                    if (!randomPhrase) return;
-                    if (isPaused) {
-                      speechSynthesis.cancel();
-                      setIsPaused(false); // 再開扱い
-                    }
+          {/* 認識実行／英語を見る（必要なときだけ） */}
+          <button
+            className="btn btn-en"
+            disabled={isBusy || isPaused}
+            onClick={() => {
+              if (isBusy) return;
+              if (!canAcceptInput()) return;
+              if (!randomPhrase) return;
 
-                    setIsBusy(true);
-                    setShowEn(true);
+              // 停止中なら解除（既存仕様）
+              if (isPaused) {
+                speechSynthesis.cancel();
+                setIsPaused(false);
+              }
 
-                    // ★ 直近ログを更新（英語を見た）
-                    setPickLogs((logs) => {
-                      if (logs.length === 0) return logs;
-                      const last = logs[logs.length - 1];
+              // ★ ログ更新（既存そのまま）
+              setPickLogs((logs) => {
+                if (logs.length === 0) return logs;
+                const last = logs[logs.length - 1];
+                return [
+                  ...logs.slice(0, -1),
+                  {
+                    ...last,
+                    revealed: true,
+                    revealAtSec: elapsed,
+                  },
+                ];
+              });
 
-                      return [
-                        ...logs.slice(0, -1),
-                        {
-                          ...last,
-                          revealed: true,
-                          revealAtSec: elapsed,
-                        },
-                      ];
-                    });
+              // ============================
+              // TTS OFF：従来仕様（英文の早出し）
+              // ============================
+              if (!ttsOn) {
+                setShowEn(true);
+                if (soundOn) playSe();
+                scheduleGoNext2s();
+                return;
+              }
 
-                    if (ttsOn && randomPhrase) {
-                      // ★ ここで「TTS or 音声認識」を分岐
-                      startSpeechFlow();   // ← 音声認識（新規・閉じた処理）
-                      setIsBusy(false);    // ← 音声側が進行を握る
-                      return;
-                    } else {
-                      if (soundOn) playSe();
-                      scheduleGoNext2s();
-                      setTimeout(() => { setIsBusy(false); }, 0);
-                    }
-                  }}
-                >
-                  {UI.english}
-                </button>
+              // ============================
+              // TTS ON：音声入力学習（追加仕様）
+              // ============================
+              // タイマー停止（表示ロジックは既存に任せる）
+              if (jpTimerRef.current !== null) {
+                clearInterval(jpTimerRef.current);
+                jpTimerRef.current = null;
+              }
+
+              // 録音初期化 → 録音開始
+              initSpeechRecognition();
+              startSpeechFlow();   // ★ ここで録音が始まる
+
+              // 進行は音声側に任せる
+            }}
+          >
+            {UI.english}
+          </button>
               {/* )} */}
         </div>
       )}
