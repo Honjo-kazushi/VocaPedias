@@ -37,19 +37,21 @@ export type PickLog = {
 
 
 export default function HomePage() {
-    // ===== Speech debug log =====
+      // ===== Speech debug log =====
 type SpeechLog = {
   time: number;
   event: string;
 };
-    const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
+  const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
 
   const pushSpeechLog = (event: string) => {
+    if (!debugMode) return;
     setSpeechLogs((logs) => [
       ...logs.slice(-9),
       { time: Date.now(), event },
     ]);
   };
+
   const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
   const [showEn, setShowEn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -126,7 +128,7 @@ type SpeechLog = {
   if (!ttsOn) return;
   if (recognitionRef.current) return;
 
-  pushSpeechLog("initSpeechRecognition()"); // log1
+    pushSpeechLog("initSpeechRecognition()"); // log1
 
   const SR =
     (window as any).SpeechRecognition ||
@@ -144,8 +146,8 @@ type SpeechLog = {
   rec.interimResults = false;
 
   rec.onstart = () => {
-    pushSpeechLog("onstart");               // log3
-    // setSpokenText(null);
+  pushSpeechLog("onstart");               // log3
+  // setSpokenText(null);
     setSpeechState("RECORDING");
   };
 
@@ -213,12 +215,12 @@ type SpeechLog = {
   recognitionRef.current = rec;
 }
 
-// const MAX_RECORD_MS = 6000;
+const MAX_RECORD_MS = 6000;
 const recordStartedAtRef = useRef<number>(0);
 const noSpeechRetryRef = useRef<number>(0);
 const MIN_NO_SPEECH_MS = 1800; // ★ 1.8秒未満は「早すぎ」
 
-/* function startSpeechFlow() {
+function startSpeechFlow() {
   
 pushSpeechLog("startSpeechFlow()");
 if (!ttsOn) {
@@ -266,7 +268,7 @@ if (!recognitionRef.current) {
       setSpeechState("IDLE");
     }
   }
- */
+
 
   type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
   const [mode, setMode] = useState<Mode>("A");
@@ -1271,41 +1273,13 @@ useEffect(() => {
           <button
             className="btn btn-en"
             disabled={isBusy || isPaused}
-onClick={() => {
-  pushSpeechLog("🎤 clicked");
-
-  if (!ttsOn) return;
-  if (!randomPhrase) return;
-
-  // JP タイマー停止
-  if (jpTimerRef.current !== null) {
-    clearInterval(jpTimerRef.current);
-    jpTimerRef.current = null;
-  }
-
-  // 初期化
-  if (!recognitionRef.current) {
-    initSpeechRecognition();
-  }
-  if (!recognitionRef.current) {
-    pushSpeechLog("no recognitionRef");
-    return;
-  }
-
-  // ★ ここで直接 start（最重要）
-  try {
-    pushSpeechLog("recognition.start() [direct]");
-    recognitionRef.current.start();
-  } catch (e) {
-    pushSpeechLog("start() threw");
-  }
-}}
-
-
-/*               if (isBusy) return;
+            onClick={() => {
+              if (isBusy) return;
               if (!canAcceptInput()) return;
               if (!randomPhrase) return;
-
+              if (debugMode && ttsOn){
+                pushSpeechLog("🎤 clicked");
+              }
               // 停止中なら解除（既存仕様）
               if (isPaused) {
                 speechSynthesis.cancel();
@@ -1351,7 +1325,6 @@ onClick={() => {
 
               // 進行は音声側に任せる
             }}
- */          
           >
             {UI.english}
           </button>
@@ -1456,7 +1429,7 @@ onClick={() => {
       )}
 
 
-      {mode === "TRAIN" && !debugMode && (
+      {mode === "TRAIN" && debugMode && (
         <div
           style={{
             marginTop: 8,
