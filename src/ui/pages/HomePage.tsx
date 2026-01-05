@@ -213,12 +213,12 @@ type SpeechLog = {
   recognitionRef.current = rec;
 }
 
-const MAX_RECORD_MS = 6000;
+// const MAX_RECORD_MS = 6000;
 const recordStartedAtRef = useRef<number>(0);
 const noSpeechRetryRef = useRef<number>(0);
 const MIN_NO_SPEECH_MS = 1800; // ★ 1.8秒未満は「早すぎ」
 
-function startSpeechFlow() {
+/* function startSpeechFlow() {
   
 pushSpeechLog("startSpeechFlow()");
 if (!ttsOn) {
@@ -266,7 +266,7 @@ if (!recognitionRef.current) {
       setSpeechState("IDLE");
     }
   }
-
+ */
 
   type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
   const [mode, setMode] = useState<Mode>("A");

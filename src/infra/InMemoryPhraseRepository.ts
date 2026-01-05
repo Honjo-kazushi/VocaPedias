@@ -17,14 +17,12 @@ export class InMemoryPhraseRepository implements PhraseRepository {
   async search(q: PhraseQuery): Promise<Phrase[]> {
     const kw = (q.keyword ?? "").trim().toLowerCase();
     const tags = q.tags ?? [];
-    const scene = q.scene?.trim();
 
     return this.phrases.filter(p => {
       const hay = `${p.jp} ${p.en} ${p.tags.join(" ")}`.toLowerCase();
       const okKw = kw ? hay.includes(kw) : true;
       const okTags = tags.length ? tags.every(t => p.tags.includes(t)) : true;
-      const okScene = scene ? (p.scene === scene) : true;
-      return okKw && okTags && okScene;
+      return okKw && okTags;
     });
   }
 }
