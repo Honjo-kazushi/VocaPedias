@@ -299,7 +299,7 @@ if (!recognitionRef.current) {
           jpLearnMode ? "ja" : "en"
         );
       } else {
-        scheduleGoNext2s();
+        if (autoNext) scheduleGoNext2s();
       }
     }
   }
@@ -867,7 +867,7 @@ useEffect(() => {
       setElapsed((e) => {
         const next = e + 1;
 
-        if (next >= 5 && !showEn && autoNext && !isPaused) {
+        if (next >= 5 && !showEn && !isPaused) {
 
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
@@ -889,26 +889,29 @@ useEffect(() => {
           }
 
           // ★ 自動発声（ぼーっとモード）
-          if (autoSpeakOnTimeout) {
+          if (autoSpeakOnTimeout && randomPhrase) {
             setShowEn(true);
 
-            if (ttsOn && randomPhrase) {
+            if (ttsOn) {
               const gen = speakGenRef.current;
               speakEn(
                 jpLearnMode ? randomPhrase.jp : randomPhrase.en,
                 () => {
                   if (speakGenRef.current !== gen) return;
-                  requestGoNext();
+                  if (autoNext) requestGoNext();   // ★ autoNext ガード
                 },
                 jpLearnMode ? "ja" : "en"
               );
             } else {
-              scheduleGoNext2s();
+              // TTSなし：英語は出すが
+              if (autoNext) {
+                scheduleGoNext2s();               // ★ autoNext ガード
+              }
             }
-          } else {
-            requestGoNext();
           }
 
+        // autoSpeakOnTimeout === OFF の場合
+        // → 何もしない（止まる）
           return 0;
         }
 
@@ -1366,7 +1369,7 @@ useEffect(() => {
               if (!ttsOn) {
                 setShowEn(true);
                 if (soundOn) playSe();
-                scheduleGoNext2s();
+                if (autoNext) scheduleGoNext2s();
                 return;
               }
 
