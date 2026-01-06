@@ -42,12 +42,15 @@ type SpeechLog = {
   time: number;
   event: string;
 };
-  const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
+  const speechFailureRef = useRef<"NONE" | "NO_SPEECH" | "NO_FUNCTION" | "ERROR">("NONE");
 
+  const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
   const pushSpeechLog = (event: string) => {
     if (!debugMode) return;
+    const MAX_SPEECH_LOGS = 7;
+
     setSpeechLogs((logs) => [
-      ...logs.slice(-9),
+      ...logs.slice(-(MAX_SPEECH_LOGS - 1)),
       { time: Date.now(), event },
     ]);
   };
@@ -136,9 +139,10 @@ type SpeechLog = {
 
   if (!SR) {
     console.warn("SpeechRecognition not supported");
-    pushSpeechLog("SR not supported");  // log2
+    setSpokenText(UI.recogNoFunction);
+    setSpeechState("IDLE");
     return;
-  }
+    }
 
   const rec = new SR();
   rec.lang = jpLearnMode ? "ja-JP" : "en-US";
@@ -180,11 +184,15 @@ type SpeechLog = {
     setSpeechState("RECOGNIZED");
 
     // ★ 無音・失敗時の補正（UI 文言をそのまま入れる）
-    setSpokenText((prev) =>
-      prev && prev.trim() !== ""
-        ? prev
-        : UI.recogNoSpeech
-    );
+  setSpokenText((prev) => {
+    if (prev && prev.trim() !== "") return prev;
+
+    if (speechFailureRef.current === "NO_SPEECH") {
+      return UI.recogNoSpeech;
+    }
+
+    return prev; // 何もしない
+  });
 
     recognitionRef.current = null;
     const gen = speakGenRef.current;
@@ -208,9 +216,20 @@ type SpeechLog = {
   rec.onerror = (e: any) => {
     pushSpeechLog(`error:${e.error}`);          // log6
     console.warn("SpeechRecognition error", e);
-    setSpokenText(UI.recogError);
-    setSpeechState("IDLE");
-  };
+    
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      speechFailureRef.current = "NO_FUNCTION";
+      setSpokenText(UI.recogNoFunction);
+    } else {
+      speechFailureRef.current = "ERROR";
+      setSpokenText(UI.recogError);
+    }
+        setSpeechState("IDLE");
+        // ★ 保険：error時も必ず続行
+        if (autoNext && !isPaused) {
+          requestGoNext();
+        }
+    };
 
   recognitionRef.current = rec;
 }
@@ -265,7 +284,23 @@ if (!recognitionRef.current) {
 
     } catch {
       pushSpeechLog("start() threw");
-      setSpeechState("IDLE");
+      setSpokenText(UI.recogNoFunction);
+      setSpeechState("RECOGNIZED");
+      setShowEn(true);
+
+      if (randomPhrase && ttsOn) {
+        const gen = ++speakGenRef.current;
+        speakEn(
+          jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+          () => {
+            if (speakGenRef.current !== gen) return;
+            if (autoNext && !isPaused) requestGoNext();
+          },
+          jpLearnMode ? "ja" : "en"
+        );
+      } else {
+        scheduleGoNext2s();
+      }
     }
   }
 
@@ -370,12 +405,14 @@ const practicePhrases = useMemo(() => {
   ? {
       next: "▷ Next",
       pause: "Ⅱ Pause",
-      english: "🎤Speak",
+      speak: "🎤Speak",
+      showAnswer: "Japanese",
       keyword: "Keyword (e.g. see / I see)",
       ready: "Ready?",
       recording: "Recording...",
       recogNoSpeech: "No speech detected",
       recogError: "Could not recognize speech",
+      recogNoFunction: "Speech recognition not supported",
       autoNext: "Auto Next",
       uiSounds: "UI Sounds",
       tts: "Voice (TTS)",
@@ -389,12 +426,14 @@ const practicePhrases = useMemo(() => {
   : {
       next: "▷ 次へ",
       pause: "Ⅱ 停止",
-      english: "🎤発声",
+      speak: "🎤発声",
+      showAnswer: "English",
       keyword: "キーワード（例: see / なるほど）",
       ready: "考えた？",
       recording: "録音中...",
       recogNoSpeech: "音声が検出されませんでした",
       recogError: "音声を認識できませんでした",
+      recogNoFunction: "音声認識はサポートされていません",
       autoNext: "自動で次へ",
       uiSounds: "操作音(SE）",
       tts: "英語の音声（TTS）",
@@ -850,15 +889,15 @@ useEffect(() => {
           }
 
           // ★ 自動発声（ぼーっとモード）
-          if (autoSpeakOnTimeout && randomPhrase) {
+          if (autoSpeakOnTimeout) {
             setShowEn(true);
 
-            if (ttsOn) {
+            if (ttsOn && randomPhrase) {
               const gen = speakGenRef.current;
               speakEn(
                 jpLearnMode ? randomPhrase.jp : randomPhrase.en,
                 () => {
-                  if (speakGenRef.current !== gen) return; // 古い発声の終端は無視
+                  if (speakGenRef.current !== gen) return;
                   requestGoNext();
                 },
                 jpLearnMode ? "ja" : "en"
@@ -963,27 +1002,30 @@ useEffect(() => {
 
                 {/* 0–3秒：カウント / 3秒：考えた？ 認識結果*/}
                 <div className="count-text">
-                  {speechState === "RECORDING" ? (
-                    <>
-                      <div>{UI.recording}</div>
-                      {spokenText && (
-                        <div style={speechTextStyle}>
-                          {spokenText}
-                        </div>
-                      )}
-                    </>
-                  ) : speechState === "RECOGNIZED" && spokenText ? (
-                    // ★ showEn 中でも表示される
-                    <div style={speechTextStyle}>
-                      {spokenText}
-                    </div>
-                  ) : !showEn ? (
-                    // ★ カウント表示だけ showEn に依存
-                    elapsed === 1 ? "3"
-                    : elapsed === 2 ? "2"
-                    : elapsed === 3 ? "1"
-                    : UI.ready
-                  ) : null}
+                  {isPaused ? null : (
+                    speechState === "RECORDING" ? (
+                      <>
+                        <div>{UI.recording}</div>
+                        {spokenText && (
+                          <div style={speechTextStyle}>
+                            {spokenText}
+                          </div>
+                        )}
+                      </>
+                    ) : speechState === "RECOGNIZED" && spokenText ? (
+                      // ★ showEn 中でも表示される
+                      <div style={speechTextStyle}>
+                        {spokenText}
+                      </div>
+                    ) : !showEn ? (
+                      // ★ カウント表示だけ showEn に依存
+                      elapsed === 0 ? null
+                      : elapsed === 1 ? "3"
+                      : elapsed === 2 ? "2"
+                      : elapsed === 3 ? "1"
+                      : UI.ready
+                    ) : null
+                  )}
                 </div>
 
                 {/* 英語表示 */}
@@ -1250,7 +1292,25 @@ useEffect(() => {
               if (isPaused) return;
               if (soundOn) playSe();
               setIsPaused(true);
-              requestGoNext();
+
+              // ★ 状態を完全リセット
+              setElapsed(0);
+              setShowEn(false);
+              setSpeechState("IDLE");
+              setSpokenText(null);
+
+              // タイマー停止
+              if (jpTimerRef.current !== null) {
+                clearInterval(jpTimerRef.current);
+                jpTimerRef.current = null;
+              }
+              if (enTimerRef.current !== null) {
+                clearTimeout(enTimerRef.current);
+                enTimerRef.current = null;
+              }
+              // 音声停止
+              speechSynthesis.cancel();
+              // requestGoNext();
             }}
             >
             {UI.pause}
@@ -1326,8 +1386,7 @@ useEffect(() => {
               // 進行は音声側に任せる
             }}
           >
-            {UI.english}
-          </button>
+            {ttsOn ? UI.speak : UI.showAnswer}          </button>
               {/* )} */}
         </div>
       )}
@@ -1439,10 +1498,13 @@ useEffect(() => {
             paddingTop: 4,
           }}
         >
-          {speechLogs.map((l, i) => (
-            <div key={i}>
-              {new Date(l.time).toLocaleTimeString()} : {l.event}
-            </div>
+          {speechLogs
+            .slice()
+            .reverse()
+            .map((l, i) => (
+              <div key={i}>
+                {new Date(l.time).toLocaleTimeString()} : {l.event}
+              </div>
           ))}
         </div>
       )}
