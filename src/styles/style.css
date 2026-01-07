@@ -1,3 +1,37 @@
+/* ===== 画面全体（PC背景） ===== */
+.app-viewport {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  background: #f2f2f2;   /* PC時の余白背景 */
+}
+
+/* ===== 実アプリ領域（スマホ想定） ===== */
+.app-shell {
+  width: 100%;
+  max-width: 400px;     /* ← ご指定サイズ */
+  height: 100vh;
+  max-height: 858px;
+
+  background: #fff;
+  overflow: hidden;
+
+  /* PCでの見た目調整 */
+  box-shadow: 0 0 24px rgba(0,0,0,0.15);
+}
+
+/* ===== スマホ実機では余計な装飾を消す ===== */
+@media (max-width: 420px) {
+  .app-viewport {
+    background: #fff;
+  }
+
+  .app-shell {
+    max-width: none;
+    max-height: none;
+    box-shadow: none;
+  }
+}
 /* =========================
    Player controls
    ========================= */
@@ -133,7 +167,7 @@
    Settings button
    ========================= */
 .btn-settings {
-  position: fixed;
+  position: absolute;
   top: 8px;
   right: 8px;
   z-index: 1000;

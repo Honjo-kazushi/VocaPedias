@@ -927,8 +927,19 @@ useEffect(() => {
     };
   }, [mode,randomPhrase, showEn, autoNext, isPaused]);
 
+// Version表示
+const buildTimeJst = new Date(__BUILD_TIME__).toLocaleString("ja-JP", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
 
-  return (
+return (
+  <div className="app-viewport">
+    <div className="app-shell">
       <div style={{ position: "relative" }}>
         {/* 設定ボタン：センター箱の外・固定 */}
         <button
@@ -1470,6 +1481,9 @@ useEffect(() => {
             確認モード（開発用）
           </label>
 
+<div style={{ fontSize: "0.75em", color: "#666" }}>
+  Build: {buildTimeJst}
+</div>
           <button
             className="btn btn-close"
             onClick={() => {
@@ -1494,25 +1508,24 @@ useEffect(() => {
       {mode === "TRAIN" && debugMode && (
         <div
           style={{
-            marginTop: 8,
-            fontSize: "0.7em",
-            color: "#666",
+            marginTop: 12,
+            padding: 8,
+            fontSize: "0.8em",
+            color: "#555",
             borderTop: "1px dashed #ccc",
-            paddingTop: 4,
           }}
         >
-          {speechLogs
-            .slice()
-            .reverse()
-            .map((l, i) => (
-              <div key={i}>
-                {new Date(l.time).toLocaleTimeString()} : {l.event}
-              </div>
+          {speechLogs.map((l, i) => (
+            <div key={i}>
+              {new Date(l.time).toLocaleTimeString()} : {l.event}
+            </div>
           ))}
         </div>
       )}
 
+      </div>
     </div>
+  </div>
   );
 }
 

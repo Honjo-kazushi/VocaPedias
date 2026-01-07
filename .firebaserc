@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "tossaspeak"
-  }
+  },
+  "targets": {
+    "tossaspeak": {
+      "hosting": {
+        "tossaspeak": [
+          "tossaspeak"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
