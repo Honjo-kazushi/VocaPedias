@@ -65,6 +65,8 @@ type SpeechLog = {
   const [debugMode, setDebugMode] =
     useState<boolean>(() => readBool("debugMode", false));
   const STAR_KEY = "debugStarredPhraseIds";
+  const [starState, setStarState] = useState<Set<string>>(() => new Set());
+  const [practiceStars, setPracticeStars] = useState<Set<string>>(() => new Set());
 
   const [starredIds, setStarredIds] = useState<string[]>(() => {
     if (!debugMode) return [];
@@ -238,6 +240,164 @@ const MAX_RECORD_MS = 6000;
 const recordStartedAtRef = useRef<number>(0);
 const noSpeechRetryRef = useRef<number>(0);
 const MIN_NO_SPEECH_MS = 1800; // ★ 1.8秒未満は「早すぎ」
+
+function hasPracticeStar(logs: PickLog[], phraseId: string, copied: Set<string>) {
+  if (!copied.has(phraseId)) return false;
+  const r = logs.filter(l => l.phraseId === phraseId).slice(-3);
+  return r.length === 3 && r.every(l => !l.timeout && !l.revealed);
+}
+
+function onFail(phraseId: string) {
+  setStarState(prev => {
+    if (!prev.has(phraseId)) return prev;
+    const next = new Set(prev);
+    next.delete(phraseId);
+    return next;
+  });
+}
+
+ function isSpeechRecognizedOK() {
+   if (
+     speechState !== "RECOGNIZED" ||
+     !spokenText ||
+     speechFailureRef.current !== "NONE" ||
+     !randomPhrase
+   ) {
+     return false;
+   }
+
+  const answer = jpLearnMode
+    ? randomPhrase.jp
+    : randomPhrase.en;
+
+  return isRoughlyMatched(spokenText, answer, jpLearnMode);
+ }
+
+ // ★ 意味を持たない語（最小セット）
+const STOP_WORDS = new Set([
+  "a", "an", "the",
+  "to", "on", "in", "at", "for", "of",
+  "is", "are", "was", "were",
+  "be", "been", "being"
+]);
+
+function normalizeEnglish(s: string): string[] {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .split(/\s+/)
+    .filter(w => w && !STOP_WORDS.has(w));
+}
+
+function normalizeJapanese(s: string): string[] {
+  return s
+    // ★ 絵文字・記号・英数字をすべて除去
+    .replace(
+      /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu,
+      ""
+    )
+    .replace(/[A-Za-z0-9]/g, "")
+    .replace(/[。、，．・：；！？!?「」『』（）()\[\]【】\s]/g, "")
+    .split("")
+    .filter(Boolean);
+}
+
+// ★ 数量・年齢などを含むか（簡易）
+function extractNumbers(s: string): string[] {
+  return (
+    s
+      .normalize("NFKC")
+      .match(/[0-9一二三四五六七八九十百千万億]+/g)
+      ?? []
+  );
+}
+
+// ★ debug用：発話と正解を「判定を締める」
+/* 判定ルール（英語）
+1.一致率 ≥ 70%
+2.一致語数 ≥ max(2, 正解主要語数 × 0.6)
+3.正解フレーズの「最後の主要語」を含んでいること
+判定ルール（日本語）
+1. 一致率（文字）
+2. 最低一致文字数
+3. 数量・数詞がある場合は必須
+*/
+function isRoughlyMatched(
+  spoken: string,
+  answer: string,
+  isJapanese: boolean
+): boolean {
+  if (isJapanese) {
+    const a = normalizeJapanese(answer);
+    const b = normalizeJapanese(spoken);
+
+    if (a.length === 0 || b.length === 0) return false;
+
+    // 一致文字数
+    let hit = 0;
+    const bSet = new Set(b);
+    for (const ch of a) {
+      if (bSet.has(ch)) hit++;
+    }
+
+    // ---------- 日本語 ----------
+    if (isJapanese) {
+      // ===== 数字チェック（意味差分防止）=====
+      const numsA = extractNumbers(answer);
+      const numsB = extractNumbers(spoken);
+      if (numsA.length > 0 || numsB.length > 0) {
+        if (numsA.join(",") !== numsB.join(",")) {
+          return false; // ★ 数字が違えば即 NG
+        }
+      }
+      const a = normalizeJapanese(answer);
+      const b = normalizeJapanese(spoken);
+
+      if (a.length === 0 || b.length === 0) return false;
+
+      let hit = 0;
+      const bSet = new Set(b);
+      for (const ch of a) {
+        if (bSet.has(ch)) hit++;
+      }
+
+      const ratio = hit / a.length;
+
+      // ★ 最低条件（緩め）
+      return ratio >= 0.5 && hit >= 3;
+
+      // ★ 最低一致文字数（短文対策）
+      // const minHits = Math.max(3, Math.ceil(a.length * 0.6));
+
+      // ★ 数量トークンがある場合は必須一致
+/*       const answerNums = extractNumberTokens(answer);
+      const spokenNums = extractNumberTokens(spoken);
+      const hasAllNums =
+        answerNums.length === 0 ||
+        answerNums.every(n => spokenNums.includes(n));
+
+      return ratio >= 0.6 && hit >= minHits && hasAllNums;
+ */    }
+  }
+
+  // ===== 英語（既存ロジック） =====
+  const answerWords = normalizeEnglish(answer);
+  const spokenWords = new Set(normalizeEnglish(spoken));
+
+  if (answerWords.length === 0) return false;
+
+  let hit = 0;
+  for (const w of answerWords) {
+    if (spokenWords.has(w)) hit++;
+  }
+
+  const ratio = hit / answerWords.length;
+  const minHits = Math.max(2, Math.ceil(answerWords.length * 0.6));
+  const lastKeyWord = answerWords[answerWords.length - 1];
+
+  return ratio >= 0.7 && hit >= minHits && spokenWords.has(lastKeyWord);
+}
+
 
 function startSpeechFlow() {
   
@@ -464,6 +624,12 @@ const practicePhrases = useMemo(() => {
         E: "判断",
         F: "配慮",
       };
+
+useEffect(() => {
+  if (mode !== "TRAIN") {
+    setPracticeStars(new Set(starState));
+  }
+}, [mode, starState]);
 
 
 useEffect(() => {
@@ -705,7 +871,8 @@ useEffect(() => {
       const result = await getNextPhrase(
         repo,
         randomPhrase?.id,
-        pickLogs
+        pickLogs,
+        starState        // ★渡す
       );
 
       setRandomPhrase(result.phrase);
@@ -720,7 +887,8 @@ useEffect(() => {
       const result = await getNextPhrase(
         repo,
         randomPhrase?.id,
-        pickLogs
+        pickLogs,
+        starState        // ★渡す
       );
 
       // ===== 新しい問題をセット =====
@@ -872,6 +1040,9 @@ useEffect(() => {
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
             const last = logs[logs.length - 1];
+            // ★ 失敗確定（timeout）
+            onFail(last.phraseId);
+
             return [
               ...logs.slice(0, -1),
               {
@@ -1007,6 +1178,21 @@ return (
             return (
               <div className="train-question"> 
                 <div className="prompt-text">
+
+                  {/* ★ 認識成功マーク（debug時のみ） */}
+                  {debugMode && isSpeechRecognizedOK() && (
+                    <span
+                      style={{
+                        marginRight: 6,
+                        color: "#2ecc71",
+                        fontWeight: "bold",
+                      }}
+                      title="Speech recognized OK"
+                    >
+                      〇
+                    </span>
+                  )}
+
                   <span style={{ marginRight: 8 }}>
                     {TAG_EMOJI[randomPhrase.tags?.[0] ?? ""] ?? ""}
                   </span>
@@ -1127,6 +1313,21 @@ return (
             <div className="practice-item-jp" style={{ position: "relative" }}>
               {jpLearnMode ? p.en : p.jp}
 
+{/* ★ 実践用スター（学習★コピー + 直近3連続成功） */}
+  {hasPracticeStar(pickLogs, p.id, practiceStars) && (
+    <span
+      style={{
+        position: "absolute",
+        left: -20,
+        top: 0,
+        color: "#f5b301",
+        fontSize: "1.1em",
+      }}
+      title="Learned recently"
+    >
+      ★
+    </span>
+  )}
               {(debugMode || ttsOn) && (
                 <span
                   style={{
@@ -1351,6 +1552,11 @@ return (
               if (isBusy) return;
               if (!canAcceptInput()) return;
               if (!randomPhrase) return;
+              
+  // ★ debug時：即 英文表示（正解を発音するため）
+  if (debugMode) {
+    setShowEn(true);
+  }              
               if (debugMode && ttsOn){
                 pushSpeechLog("🎤 clicked");
               }
@@ -1364,6 +1570,9 @@ return (
               setPickLogs((logs) => {
                 if (logs.length === 0) return logs;
                 const last = logs[logs.length - 1];
+                // ★ 失敗確定（英語を見た）
+                onFail(last.phraseId);
+
                 return [
                   ...logs.slice(0, -1),
                   {

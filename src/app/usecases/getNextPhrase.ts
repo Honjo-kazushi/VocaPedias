@@ -15,12 +15,14 @@ export type PickResult = {
 export async function getNextPhrase(
   repo: PhraseRepository,
   lastPhraseId: string | undefined,
-  pickLogs: PickLog[]
+  pickLogs: PickLog[],
+  starState: Set<string>,
 ): Promise<PickResult> {
   const all = await repo.listAll();
   if (all.length === 0) {
     throw new Error("No phrases available");
   }
+
 
   // intent ごとに束ねる
   const intentBuckets = new Map<string, Phrase[]>();
@@ -71,7 +73,8 @@ const { phrase, lane } = (() => {
     }
 
     return {
-      phrase: reviewSource[Math.floor(Math.random() * reviewSource.length)],
+      phrase: pickWeighted(reviewSource, starState),
+      // phrase: reviewSource[Math.floor(Math.random() * reviewSource.length)],
       lane: "REVIEW" as const,
     };
   }
@@ -113,7 +116,8 @@ const { phrase, lane } = (() => {
   }
 
   return {
-    phrase: source[Math.floor(Math.random() * source.length)],
+    phrase: pickWeighted(source, starState),
+    // phrase: source[Math.floor(Math.random() * source.length)],
     lane: "MAIN" as const,
   };
 })();
@@ -133,6 +137,33 @@ const { phrase, lane } = (() => {
     };
   }
 
+function pickWeighted(
+  source: Phrase[],
+  starState: Set<string>,
+  starPenalty = 0.4
+): Phrase {
+  if (source.length === 1) return source[0];
+
+  // 重み合計
+  let total = 0;
+  const weights = source.map(p => {
+    const w = starState.has(p.id) ? starPenalty : 1.0;
+    total += w;
+    return w;
+  });
+
+  // total が 0 になることは想定しないが保険
+  if (total <= 0) {
+    return source[Math.floor(Math.random() * source.length)];
+  }
+
+  let r = Math.random() * total;
+  for (let i = 0; i < source.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return source[i];
+  }
+  return source[source.length - 1];
+}
 
 
 // Review を直近で出していないか？
