@@ -142,6 +142,18 @@ function pickWeighted(
   starState: Set<string>,
   starPenalty = 0.4
 ): Phrase {
+ 
+    console.group("🎯 pickWeighted");
+    source.forEach(p => {
+      const w = starState.has(p.id) ? starPenalty : 1.0;
+      console.log(
+        p.id,
+        starState.has(p.id) ? "★" : " ",
+        "weight:", w
+      );
+    });
+    console.groupEnd();
+
   if (source.length === 1) return source[0];
 
   // 重み合計

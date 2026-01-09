@@ -64,33 +64,30 @@ type SpeechLog = {
   const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
   const [debugMode, setDebugMode] =
     useState<boolean>(() => readBool("debugMode", false));
-  const STAR_KEY = "debugStarredPhraseIds";
+  const debugHoldTimerRef = useRef<number | null>(null);
+
   const [starState, setStarState] = useState<Set<string>>(() => new Set());
   const [practiceStars, setPracticeStars] = useState<Set<string>>(() => new Set());
 
-  const [starredIds, setStarredIds] = useState<string[]>(() => {
-    if (!debugMode) return [];
-    try {
-      return JSON.parse(localStorage.getItem(STAR_KEY) ?? "[]");
-    } catch {
-      return [];
-    }
-  });
+  // phraseId -> consecutive OK count
+  const [, setOkStreak] = useState<Record<string, number>>({});
 
-  const toggleStar = (id: string) => {
-    setStarredIds(prev => {
-      const next = prev.includes(id)
-        ? prev.filter(x => x !== id)
-        : [...prev, id];
-      localStorage.setItem(STAR_KEY, JSON.stringify(next));
-      return next;
-    });
-  };
+    const togglePracticeStar = (id: string) => {
+      setPracticeStars(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    };
 
-  const clearAllStars = () => {
-    setStarredIds([]);
-    localStorage.removeItem(STAR_KEY);
-  };
+    const clearAllStars = () => {
+      setPracticeStars(new Set());
+      localStorage.removeItem("practiceStars");
+    };
 
   const repo = useMemo(
     () => new InMemoryPhraseRepository(PHRASES_SEED),
@@ -274,19 +271,52 @@ function onFail(phraseId: string) {
  }
 
  // ★ 意味を持たない語（最小セット）
-const STOP_WORDS = new Set([
+/* const STOP_WORDS = new Set([
   "a", "an", "the",
   "to", "on", "in", "at", "for", "of",
   "is", "are", "was", "were",
   "be", "been", "being"
 ]);
+ */
+function normalizeEnglish(text: string): string[] {
+  let t = text.toLowerCase();
 
-function normalizeEnglish(s: string): string[] {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, "")
+  // ===== 口語・短縮形の正規化 =====
+  const replacements: Record<string, string> = {
+    "you're": "you are",
+    "youre": "you are",
+    "i'm": "i am",
+    "it's": "it is",
+    "he's": "he is",
+    "she's": "she is",
+    "they're": "they are",
+    "we're": "we are",
+
+    "gonna": "going to",
+    "wanna": "want to",
+    "gotta": "got to",
+    "lemme": "let me",
+    "kinda": "kind of",
+    "sorta": "sort of",
+    // ★ 追加：同義語吸収
+    "ok": "okay",
+    "alright": "okay",
+    "all right": "okay",
+
+  };
+
+  for (const [k, v] of Object.entries(replacements)) {
+    t = t.replace(new RegExp(`\\b${k}\\b`, "g"), v);
+  }
+
+  // ===== 記号除去 =====
+  t = t.replace(/[^\w\s]/g, " ");
+
+  // ===== 分割 =====
+  return t
     .split(/\s+/)
-    .filter(w => w && !STOP_WORDS.has(w));
+    .map(w => w.trim())
+    .filter(Boolean);
 }
 
 function normalizeJapanese(s: string): string[] {
@@ -327,65 +357,56 @@ function isRoughlyMatched(
   answer: string,
   isJapanese: boolean
 ): boolean {
+  if (!spoken || !answer) return false;
+
+  // =====================================================
+  // ★ 数字チェック（言語非依存・最優先）
+  //   数字が含まれる場合は「完全一致」必須
+  // =====================================================
+  const numsA = extractNumbers(answer);
+  const numsB = extractNumbers(spoken);
+
+  if (numsA.length > 0 || numsB.length > 0) {
+    if (numsA.join(",") !== numsB.join(",")) {
+      return false; // ★ 数字が違えば即 NG
+    }
+  }
+
+  // =====================================================
+  // ★ 日本語判定
+  // =====================================================
   if (isJapanese) {
     const a = normalizeJapanese(answer);
     const b = normalizeJapanese(spoken);
 
     if (a.length === 0 || b.length === 0) return false;
 
-    // 一致文字数
     let hit = 0;
     const bSet = new Set(b);
     for (const ch of a) {
       if (bSet.has(ch)) hit++;
     }
 
-    // ---------- 日本語 ----------
-    if (isJapanese) {
-      // ===== 数字チェック（意味差分防止）=====
-      const numsA = extractNumbers(answer);
-      const numsB = extractNumbers(spoken);
-      if (numsA.length > 0 || numsB.length > 0) {
-        if (numsA.join(",") !== numsB.join(",")) {
-          return false; // ★ 数字が違えば即 NG
-        }
-      }
-      const a = normalizeJapanese(answer);
-      const b = normalizeJapanese(spoken);
+    const ratio = hit / a.length;
 
-      if (a.length === 0 || b.length === 0) return false;
-
-      let hit = 0;
-      const bSet = new Set(b);
-      for (const ch of a) {
-        if (bSet.has(ch)) hit++;
-      }
-
-      const ratio = hit / a.length;
-
-      // ★ 最低条件（緩め）
-      return ratio >= 0.5 && hit >= 3;
-
-      // ★ 最低一致文字数（短文対策）
-      // const minHits = Math.max(3, Math.ceil(a.length * 0.6));
-
-      // ★ 数量トークンがある場合は必須一致
-/*       const answerNums = extractNumberTokens(answer);
-      const spokenNums = extractNumberTokens(spoken);
-      const hasAllNums =
-        answerNums.length === 0 ||
-        answerNums.every(n => spokenNums.includes(n));
-
-      return ratio >= 0.6 && hit >= minHits && hasAllNums;
- */    }
+    // 最低条件（実用寄り・緩め）
+    return ratio >= 0.5 && hit >= 3;
   }
 
-  // ===== 英語（既存ロジック） =====
+  // =====================================================
+  // ★ 英語判定（既存ロジック）
+  // =====================================================
   const answerWords = normalizeEnglish(answer);
-  const spokenWords = new Set(normalizeEnglish(spoken));
+  const spokenWordsArr = normalizeEnglish(spoken);
+  const spokenWords = new Set(spokenWordsArr);
 
   if (answerWords.length === 0) return false;
 
+  // ★ 1単語フレーズは「その単語が言えているか」だけを見る
+  if (answerWords.length === 1) {
+    return spokenWords.has(answerWords[0]);
+  }
+  
   let hit = 0;
   for (const w of answerWords) {
     if (spokenWords.has(w)) hit++;
@@ -395,7 +416,11 @@ function isRoughlyMatched(
   const minHits = Math.max(2, Math.ceil(answerWords.length * 0.6));
   const lastKeyWord = answerWords[answerWords.length - 1];
 
-  return ratio >= 0.7 && hit >= minHits && spokenWords.has(lastKeyWord);
+  return (
+    ratio >= 0.7 &&
+    hit >= minHits &&
+    spokenWords.has(lastKeyWord)
+  );
 }
 
 
@@ -506,14 +531,14 @@ const PRACTICE_SUB_ORDER: Record<Mode, string[]> = {
 
 const practiceMainJp = mode !== "TRAIN" ? PRACTICE_MAIN_JP[mode] : null;
 
-const getModeLabelWithSubs = (mode: Mode) => {
+/* const getModeLabelWithSubs = (mode: Mode) => {
   if (mode === "TRAIN") return MODE_LABELS.TRAIN;
 
   const main = MODE_LABELS[mode];
   const subs = PRACTICE_SUB_ORDER[mode];
 
   return `${main}（${subs.join("・")}）`;
-};
+}; */
 
 const practiceMainPhrases = useMemo(() => {
   if (!practiceMainJp) return [];
@@ -606,6 +631,26 @@ const practicePhrases = useMemo(() => {
     };
 
     const MODE_LABELS = jpLearnMode
+  ? {
+      TRAIN: "Training",
+      A: "Respond",
+      B: "Express feelings",
+      C: "Describe the situation",
+      D: "Ask for action",
+      E: "Share judgement",
+      F: "Be considerate",
+    }
+  : {
+      TRAIN: "脳トレ",
+      A: "話を受ける",
+      B: "感情を表す",
+      C: "今を伝える",
+      D: "動いてほしい",
+      E: "考えを伝える",
+      F: "柔らかく言う",
+    };
+
+/*     const MODE_LABELS = jpLearnMode
     ? {
         TRAIN: "Training",
         A: "Conversation",
@@ -624,6 +669,62 @@ const practicePhrases = useMemo(() => {
         E: "判断",
         F: "配慮",
       };
+ */
+// ★ デバッグモード時、認識成功で自動的にスター付与
+useEffect(() => {
+  if (!debugMode) return;
+  if (speechState !== "RECOGNIZED") return;
+  if (!randomPhrase) return;
+
+  const id = randomPhrase.id;
+  const ok = isSpeechRecognizedOK();
+
+  if (ok) {
+    setOkStreak(prev => {
+      const nextCount = (prev[id] ?? 0) + 1;
+
+      // ===== ログ（連続成功）=====
+      console.log("[LEARN OK]", {
+        phraseId: id,
+        streak: nextCount,
+      });
+
+      // ★ 3回連続で付与
+      if (nextCount >= 3) {
+        setStarState(starPrev => {
+          if (starPrev.has(id)) return starPrev;
+          const next = new Set(starPrev);
+          next.add(id);
+
+          console.log("[LEARN ★ SET]", {
+            phraseId: id,
+            jp: randomPhrase.jp,
+            en: randomPhrase.en,
+          });
+
+          return next;
+        });
+      }
+
+      return { ...prev, [id]: nextCount };
+    });
+  } else {
+    // ===== 失敗：連続カウントリセット =====
+    setOkStreak(prev => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+
+      console.log("[LEARN FAIL]", {
+        phraseId: id,
+        action: "streak reset",
+      });
+
+      return next;
+    });
+  }
+}, [speechState]);
+
 
 useEffect(() => {
   if (mode !== "TRAIN") {
@@ -1159,13 +1260,20 @@ return (
             onChange={(e) => setMode(e.target.value as Mode)}
           >
             <option value="TRAIN">{MODE_LABELS.TRAIN}</option>
-            <option value="A">{getModeLabelWithSubs("A")}</option>
+            <option value="A">{MODE_LABELS.A}</option>
+            <option value="B">{MODE_LABELS.B}</option>
+            <option value="C">{MODE_LABELS.C}</option>
+            <option value="D">{MODE_LABELS.D}</option>
+            <option value="E">{MODE_LABELS.E}</option>
+            <option value="F">{MODE_LABELS.F}</option>
+
+{/*             <option value="A">{getModeLabelWithSubs("A")}</option>
             <option value="B">{getModeLabelWithSubs("B")}</option>
             <option value="C">{getModeLabelWithSubs("C")}</option>
             <option value="D">{getModeLabelWithSubs("D")}</option>
             <option value="E">{getModeLabelWithSubs("E")}</option>
             <option value="F">{getModeLabelWithSubs("F")}</option>
-          </select>
+ */}          </select>
         </div>
 
         {/* ===== メインUI：センター1列 ===== */}
@@ -1272,7 +1380,6 @@ return (
         );
       })}
 
-      {debugMode && (
         <button
           className="practice-subtab debug-clear"
           onClick={() => {
@@ -1283,7 +1390,7 @@ return (
           <span className="practice-subtab-emoji">★</span>
           <span className="practice-subtab-label">Clear</span>
         </button>
-      )}
+      )
     </div>
 
     {/* ===== リスト枠（可変高） ===== */}
@@ -1299,6 +1406,7 @@ return (
       {/* ===== 実際にスクロールする部分 ===== */}
       <div className="practice-list" ref={practiceListRef}>
         {practicePhrases.map((p) => (
+        
           <div
             key={p.id}
             className={`practice-item ${
@@ -1344,24 +1452,42 @@ return (
                   }}
                   onClick={(e) => e.stopPropagation()} // 親クリック防止
                 >
-                  {/* ID + ★（debug時） */}
+                  {/* ID（debug時のみ） */}
                   {debugMode && (
-                    <>
-                      <span>{p.id}</span>
-                      
-                      <span
-                        className={`debug-star ${starredIds.includes(p.id) ? "on" : ""}`}
-                        style={{
-                          fontSize: "1.2em",
-                          transform: "scale(1.4)",
-                          transformOrigin: "right top",
-                          lineHeight: 1,
-                        }}
-                      >
-                        ★
-                      </span>
-                    </>
+                    <span
+                      style={{
+                        fontSize: "0.7em",
+                        color: "#999",
+                        marginRight: 4,
+                      }}
+                    >
+                      {p.id}
+                    </span>
                   )}
+
+                  {/* ★（ユーザー用：常時表示） */}
+                  <span
+                    className={`practice-star ${practiceStars.has(p.id) ? "on" : ""}`}
+                    style={{
+                      cursor: "pointer",
+                      color: practiceStars.has(p.id) ? "#f5b301" : "#ccc",
+                      fontSize: "1.2em",
+                      transform: "scale(1.4)",
+                      transformOrigin: "right top",
+                      lineHeight: 1,
+                    }}
+                    title="Bookmark"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPracticeStars(prev => {
+                        const next = new Set(prev);
+                        next.has(p.id) ? next.delete(p.id) : next.add(p.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    ★
+                  </span>
 
                   {/* 🔊（TTSオン時） */}
                   {ttsOn && (
@@ -1432,49 +1558,45 @@ return (
             }}
           >
             {/* 上段（主表示） */}
-            <div>
+            <div style={{ position: "relative" }}>
               {jpLearnMode ? p.en : p.jp}
 
-              {debugMode && (
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 0,
-                    fontSize: "0.7em",
-                    color: "#999",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  {p.tags2?.main && p.tags2?.sub && (
-                      <span style={{ color: "#777" }}>
-                        （{p.tags2.main}−{p.tags2.sub}）
-                      </span>
-                    )}
-                  {p.id}
-
-                  <span
-                    style={{
-                      cursor: "pointer",
-                      opacity: starredIds.includes(p.id) ? 1 : 0.3,
-                      color: starredIds.includes(p.id) ? "#f5b301" : undefined,
-                      fontSize: "1.2em",
-                      transform: "scale(1.4)",
-                      transformOrigin: "right top",
-                      lineHeight: 1,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleStar(p.id);
-                    }}
-                  >
-                    ★
-                  </span>
+            <span>
+              {/* tags2 表示は debug のまま */}
+              {debugMode && p.tags2?.main && p.tags2?.sub && (
+                <span style={{ color: "#777" }}>
+                  （{p.tags2.main}−{p.tags2.sub}）
                 </span>
               )}
-            </div>
+
+              {/* ID は debug のまま */}
+              {debugMode && <span>{p.id}</span>}
+
+              {/* ★ は常に表示 */}
+              <span
+                style={{
+                  position: "absolute",
+                  right: 6,
+                  top: 2,
+
+                  cursor: "pointer",
+                  opacity: practiceStars.has(p.id) ? 1 : 0.3,
+                  color: practiceStars.has(p.id) ? "#f5b301" : undefined,
+                  fontSize: "1.2em",
+                  transform: "scale(1.4)",
+                  transformOrigin: "right top",
+                  lineHeight: 1,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePracticeStar(p.id);
+                }}
+                title="お気に入り"
+              >
+                ★
+              </span>
+            </span>
+          </div>
 
             {/* 下段（補助表示） */}
             <div style={{ fontSize: "0.9em", color: "#555" }}>
@@ -1553,10 +1675,6 @@ return (
               if (!canAcceptInput()) return;
               if (!randomPhrase) return;
               
-  // ★ debug時：即 英文表示（正解を発音するため）
-  if (debugMode) {
-    setShowEn(true);
-  }              
               if (debugMode && ttsOn){
                 pushSpeechLog("🎤 clicked");
               }
@@ -1681,13 +1799,42 @@ return (
             Japanese Learning Mode
           </label>
 
-          <label>
+          <label
+            style={{
+              display: "block",
+              marginTop: 8,
+              color: "#bbb",
+              fontSize: "0.85em",
+              userSelect: "none",
+            }}
+            onPointerDown={() => {
+              debugHoldTimerRef.current = window.setTimeout(() => {
+                const next = !debugMode;
+                setDebugMode(next);
+                localStorage.setItem("debugMode", JSON.stringify(next));
+                console.log("[DEBUG MODE]", next ? "ON" : "OFF");
+              }, 900); // ★ 長押し 900ms
+            }}
+            onPointerUp={() => {
+              if (debugHoldTimerRef.current !== null) {
+                clearTimeout(debugHoldTimerRef.current);
+                debugHoldTimerRef.current = null;
+              }
+            }}
+            onPointerLeave={() => {
+              if (debugHoldTimerRef.current !== null) {
+                clearTimeout(debugHoldTimerRef.current);
+                debugHoldTimerRef.current = null;
+              }
+            }}
+          >
             <input
               type="checkbox"
               checked={debugMode}
-              onChange={(e) => setDebugMode(e.target.checked)}
+              readOnly
+              style={{ pointerEvents: "none" }}
             />
-            確認モード（開発用）
+            開発者モード
           </label>
 
 <div style={{ fontSize: "0.75em", color: "#666" }}>
