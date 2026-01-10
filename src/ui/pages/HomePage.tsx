@@ -641,7 +641,7 @@ const practicePhrases = useMemo(() => {
       F: "Be considerate",
     }
   : {
-      TRAIN: "脳トレ",
+      TRAIN: "学習する",
       A: "話を受ける",
       B: "感情を表す",
       C: "今を伝える",
@@ -1235,10 +1235,10 @@ return (
   {!jpLearnMode ? (
     <>
       <div>
-        「<strong>脳トレ</strong>」を選んだ状態で「<strong>次へ</strong>」を押す：学習スタート
+        「<strong>学習する</strong>」を選んだ状態で「<strong>次へ</strong>」を押す：学習スタート
       </div>
       <div style={{ marginTop: 4 }}>
-        「脳トレ」以外を選ぶ：フレーズ集の閲覧
+        「学習する」以外を選ぶ：フレーズ集の閲覧
       </div>
     </>
   ) : (
@@ -1390,7 +1390,7 @@ return (
           <span className="practice-subtab-emoji">★</span>
           <span className="practice-subtab-label">Clear</span>
         </button>
-      )
+     
     </div>
 
     {/* ===== リスト枠（可変高） ===== */}
