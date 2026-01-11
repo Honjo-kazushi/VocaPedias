@@ -114,6 +114,38 @@
   pointer-events: none;
 }
 
+/* mode-select と同じ幅・同じ寄せ方 */
+.mode-description {
+  width: 92%;
+  max-width: 420px;
+  margin: 0 auto 8px;
+  padding: 0;
+  font-size: 0.85em;
+  color: #666;
+}
+
+/* 説明文は中央 */
+.mode-text {
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* 下段は右寄せ */
+.mode-switch-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn-mode-switch {
+  font-size: 0.85em;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+
 .app-description {
   margin: 4px 16px 10px;   /* ← 左右だけ 16px */
   font-size: 0.85em;
@@ -161,6 +193,32 @@
 .train-question .answer-text {
   margin-left: auto;
   margin-right: auto;
+}
+
+/* ===== TRAIN 囲み ===== */
+.train-box {
+  margin: 8px auto 12px;
+  padding: 12px 10px;
+
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+
+  max-width: 360px;
+}
+
+/* 中身がまだ無いときの高さ確保 */
+.train-placeholder {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.train-hint {
+  font-size: 0.85em;
+  color: #999;
+  text-align: center;
 }
 
 /* =========================
