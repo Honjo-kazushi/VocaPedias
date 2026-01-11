@@ -1,12 +1,24 @@
+// =====================================================
+// imports / types
+// =====================================================
 import "../../styles/style.css";
-import { useEffect, useState, useMemo, useRef} from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import type { Phrase } from "../../app/ports/PhraseRepository";
 import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn";
-import { createPortal } from "react-dom";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
+
+import type { Mode } from "../static/uiStatic";
+import {
+  UI_TEXT,
+  MODE_LABELS,
+  PRACTICE_CONFIG,
+  TAG_EMOJI,
+} from "../static/uiStatic";
 
 
 export type PickLog = {
@@ -34,14 +46,74 @@ export type PickLog = {
   consecutiveSameTag: number;   // 同じタグが連続何回目か
 };
 
-
-
+// =====================================================
+// HomePage
+// =====================================================
 export default function HomePage() {
-      // ===== Speech debug log =====
-type SpeechLog = {
-  time: number;
-  event: string;
-};
+
+  // =====================================================
+  // 1. 共通（設定・モード・共用 state）
+  // =====================================================
+  const [mode, setMode] = useState<Mode>("A");
+
+  const [soundOn, setSoundOn] = useState<boolean>(() => readBool("soundOn", true));
+  const [ttsOn, setTtsOn] = useState<boolean>(() => readBool("ttsOn", true));
+  const [jpLearnMode, setJpLearnMode] = useState<boolean>(() => readBool("jpLearnMode", false));
+  const [autoNext, setAutoNext] = useState<boolean>(() => readBool("autoNext", true));
+  const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] =
+    useState<boolean>(() => readBool("autoSpeakOnTimeout", false));
+
+  const [debugMode, setDebugMode] =
+    useState<boolean>(() => readBool("debugMode", false));
+  const debugHoldTimerRef = useRef<number | null>(null);
+
+  const [showSettings, setShowSettings] = useState(false);
+
+  const playClickSe = () => {
+    if (soundOn) playSe();
+  };
+
+  function readBool(key: string, def: boolean) {
+    const v = localStorage.getItem(key);
+    if (v === null) return def;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return def;
+    }
+  }
+
+    // =====================================================
+  // 2. 学習モード（TRAIN）
+  // =====================================================
+
+  // ---------- state ----------
+  const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
+  const [showEn, setShowEn] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [goNext, setGoNext] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const jpTimerRef = useRef<number | null>(null);
+  const enTimerRef = useRef<number | null>(null);
+  const speakGenRef = useRef(0);
+
+  const repo = useMemo(
+    () => new InMemoryPhraseRepository(PHRASES_SEED),
+    []
+  );
+
+  const [pickLogs, setPickLogs] = useState<PickLog[]>([]);
+  const [starState, setStarState] = useState<Set<string>>(() => new Set());
+  const [, setOkStreak] = useState<Record<string, number>>({});
+
+  // ===== Speech debug log =====
+  type SpeechLog = {
+    time: number;
+    event: string;
+  };
+
   const speechFailureRef = useRef<"NONE" | "NO_SPEECH" | "NO_FUNCTION" | "ERROR">("NONE");
 
   const [speechLogs, setSpeechLogs] = useState<SpeechLog[]>([]);
@@ -55,47 +127,73 @@ type SpeechLog = {
     ]);
   };
 
-  const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
-  const [showEn, setShowEn] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [goNext, setGoNext] = useState(false);
-  const [autoNext, setAutoNext] = useState<boolean>(() => readBool("autoNext", true));
-  const [soundOn, setSoundOn] = useState<boolean>(() => readBool("soundOn", true));
-  const [ttsOn, setTtsOn]     = useState<boolean>(() => readBool("ttsOn", true));
-  const [debugMode, setDebugMode] =
-    useState<boolean>(() => readBool("debugMode", false));
-  const debugHoldTimerRef = useRef<number | null>(null);
 
-  const [starState, setStarState] = useState<Set<string>>(() => new Set());
+  // =====================================================
+  // 3. 実践モード（PRACTICE）
+  // =====================================================
   const [practiceStars, setPracticeStars] = useState<Set<string>>(() => new Set());
+  const [practiceSub, setPracticeSub] = useState<string | null>(null);
+  const [activeMeaningGroup, setActiveMeaningGroup] = useState<string | null>(null);
+  const practiceListRef = useRef<HTMLDivElement | null>(null);
 
-  // phraseId -> consecutive OK count
-  const [, setOkStreak] = useState<Record<string, number>>({});
+  const practiceMainJp =
+    mode !== "TRAIN" ? PRACTICE_CONFIG.mainJp[mode] : null;
 
-    const togglePracticeStar = (id: string) => {
-      setPracticeStars(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    };
+  const practiceMainPhrases = useMemo(() => {
+    if (!practiceMainJp) return [];
+    return PHRASES_SEED.filter(p => p.tags2?.main === practiceMainJp);
+  }, [practiceMainJp]);
 
-    const clearAllStars = () => {
-      setPracticeStars(new Set());
-      localStorage.removeItem("practiceStars");
-    };
+  const practiceSubStats = useMemo(() => {
+    // sub -> count（出現順を維持）
+    const map = new Map<string, number>();
+    for (const p of practiceMainPhrases) {
+      const sub = p.tags2?.sub?.trim();
+      if (!sub) continue;
+      map.set(sub, (map.get(sub) ?? 0) + 1);
+    }
+  const order = PRACTICE_CONFIG.subOrder[mode] ?? [];
+  return order
+    .filter(sub => map.has(sub))
+    .map(sub => ({ sub, count: map.get(sub)! }));
+  }, [practiceMainPhrases, mode]);
 
-  const repo = useMemo(
-    () => new InMemoryPhraseRepository(PHRASES_SEED),
-    []
-  );
-  const [pickLogs, setPickLogs] = useState<PickLog[]>([]);
-  const [isBusy, setIsBusy] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+  // =====================================================
+  // 4. UI 文言
+  // =====================================================
+  const UI = jpLearnMode ? UI_TEXT.en : UI_TEXT.jp;
+  const MODE_LABELS_VIEW = jpLearnMode ? MODE_LABELS.en : MODE_LABELS.jp;
+
+  // =====================================================
+  // 5. JSX
+  // =====================================================
+  // Version表示
+  const buildTimeJst = new Date(__BUILD_TIME__).toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+
+  const togglePracticeStar = (id: string) => {
+    setPracticeStars(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearAllStars = () => {
+    setPracticeStars(new Set());
+    localStorage.removeItem("practiceStars");
+  };
 
   const canAcceptInput = () => {
     if (isPaused) return false;
@@ -104,15 +202,6 @@ type SpeechLog = {
     if (!showEn && autoNext && elapsed >= 4.5) return false;
     return true;
   };
-
-  const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] =
-    useState<boolean>(() => readBool("autoSpeakOnTimeout", false));
-  const [jpLearnMode, setJpLearnMode] =
-    useState<boolean>(() => readBool("jpLearnMode", false));
-
-  const jpTimerRef = useRef<number | null>(null);
-  const enTimerRef = useRef<number | null>(null);
-  const speakGenRef = useRef(0); // TTSコールバック持ち越し防止（フラグ増殖ではなく世代番号1本）
 
   // ===== Speech Recognition =====
   const recognitionRef = useRef<any>(null);
@@ -490,13 +579,8 @@ if (!recognitionRef.current) {
   }
 
 
-  type Mode = "TRAIN" | "A" | "B" | "C" | "D" | "E" | "F";
-  const [mode, setMode] = useState<Mode>("A");
-  // const [mode, setMode] = useState<Mode>("TRAIN");
 
-  const [activeMeaningGroup, setActiveMeaningGroup] =
-  useState<string | null>(null);
-
+  
   const relatedPhrases = useMemo(() => {
     if (!activeMeaningGroup) return [];
     return PHRASES_SEED
@@ -505,61 +589,9 @@ if (!recognitionRef.current) {
       .sort((a, b) => a.jp.localeCompare(b.jp, "ja"));
   }, [activeMeaningGroup]);
 
-  const [practiceSub, setPracticeSub] = useState<string | null>(null);
   const sortByJapanese = (a: Phrase, b: Phrase) =>
     a.jp.localeCompare(b.jp, "ja");
 
-const PRACTICE_MAIN_JP: Record<Mode, string | null> = {
-  TRAIN: null,
-    A: "会話",
-    B: "感情",
-    C: "状態",
-    D: "行動",
-    E: "判断",
-    F: "配慮",
-};
-
-const PRACTICE_SUB_ORDER: Record<Mode, string[]> = {
-  TRAIN: [],
-  A: ["質問", "確認", "促し", "応答", "挨拶"],
-  B: ["喜び", "怒り", "悲哀", "驚き", "共感"],
-  C: ["体調", "状況", "進行", "環境", "能力"],
-  D: ["依頼", "提案", "指示", "制止", "拒否"],
-  E: ["同意", "否定", "保留", "許可", "期待"],
-  F: ["前置", "安心", "配慮", "教訓", "雑談"],
-};
-
-const practiceMainJp = mode !== "TRAIN" ? PRACTICE_MAIN_JP[mode] : null;
-
-/* const getModeLabelWithSubs = (mode: Mode) => {
-  if (mode === "TRAIN") return MODE_LABELS.TRAIN;
-
-  const main = MODE_LABELS[mode];
-  const subs = PRACTICE_SUB_ORDER[mode];
-
-  return `${main}（${subs.join("・")}）`;
-}; */
-
-const practiceMainPhrases = useMemo(() => {
-  if (!practiceMainJp) return [];
-  return PHRASES_SEED.filter(p => p.tags2?.main === practiceMainJp);
-}, [practiceMainJp]);
-
-const practiceSubStats = useMemo(() => {
-  // sub -> count（出現順を維持）
-  const map = new Map<string, number>();
-  for (const p of practiceMainPhrases) {
-    const sub = p.tags2?.sub?.trim();
-    if (!sub) continue;
-    map.set(sub, (map.get(sub) ?? 0) + 1);
-  }
-
-const order = PRACTICE_SUB_ORDER[mode] ?? [];
-
-return order
-  .filter(sub => map.has(sub))
-  .map(sub => ({ sub, count: map.get(sub)! }));
-}, [practiceMainPhrases, mode]);
 
 const [speakingPhraseId, setSpeakingPhraseId] = useState<string | null>(null);
 const speakPractice = (p: Phrase) => {
@@ -586,90 +618,7 @@ const practicePhrases = useMemo(() => {
   return list.slice().sort(sortByJapanese);
 }, [practiceMainPhrases, practiceSub]);
 
-  const UI = jpLearnMode
-  ? {
-      next: "▷ Next",
-      pause: "Ⅱ Pause",
-      speak: "🎤Speak",
-      showAnswer: "Japanese",
-      keyword: "Keyword (e.g. see / I see)",
-      ready: "Ready?",
-      recording: "Recording...",
-      recogNoSpeech: "No speech detected",
-      recogError: "Could not recognize speech",
-      recogNoFunction: "Speech recognition not supported",
-      autoNext: "Auto Next",
-      uiSounds: "UI Sounds",
-      tts: "Voice (TTS)",
-      autoSpeak: "Show Answer on Timeout",
-      close: "Close",
-      settings: "Settings",
-      related: "Related phrases",
-      practiceGuide:
-        "Tap the bold phrases to view related phrases.",
-    }
-  : {
-      next: "▷ 次へ",
-      pause: "Ⅱ 停止",
-      speak: "🎤発声",
-      showAnswer: "English",
-      keyword: "キーワード（例: see / なるほど）",
-      ready: "考えた？",
-      recording: "録音中...",
-      recogNoSpeech: "音声が検出されませんでした",
-      recogError: "音声を認識できませんでした",
-      recogNoFunction: "音声認識はサポートされていません",
-      autoNext: "自動で次へ",
-      uiSounds: "操作音(SE）",
-      tts: "英語の音声（TTS）",
-      autoSpeak: "タイムアップ時に自動で英語を表す",
-      close: "閉じる",
-      settings: "設定",
-      related: "関連フレーズ",
-      practiceGuide:
-        "太文字フレーズを押すと関連フレーズを見れます",
-    };
 
-    const MODE_LABELS = jpLearnMode
-  ? {
-      TRAIN: "Training",
-      A: "Respond",
-      B: "Express feelings",
-      C: "Describe the situation",
-      D: "Ask for action",
-      E: "Share judgement",
-      F: "Be considerate",
-    }
-  : {
-      TRAIN: "学習する",
-      A: "話を受ける",
-      B: "感情を表す",
-      C: "今を伝える",
-      D: "動いてほしい",
-      E: "考えを伝える",
-      F: "柔らかく言う",
-    };
-
-/*     const MODE_LABELS = jpLearnMode
-    ? {
-        TRAIN: "Training",
-        A: "Conversation",
-        B: "Emotion",
-        C: "State",
-        D: "Action",
-        E: "Judgement",
-        F: "Consideration",
-      }
-    : {
-        TRAIN: "脳トレ",
-        A: "会話",
-        B: "感情",
-        C: "状態",
-        D: "行動",
-        E: "判断",
-        F: "配慮",
-      };
- */
 // ★ デバッグモード時、認識成功で自動的にスター付与
 useEffect(() => {
   if (!debugMode) return;
@@ -748,142 +697,7 @@ useEffect(() => {
   localStorage.setItem("debugMode", JSON.stringify(debugMode));
 }, [debugMode]);
 
-  const TAG_EMOJI: Record<string, string> = {
-  // 行動・進行
-  出発: "🚶",
-  到着: "📍",
-  終了: "🏁",
-  促し: "👉",
-  指示: "📣",
-  依頼: "🙏",
-  確認: "❓",
-  質問: "❔",
 
-  // 判断・状態
-  許可: "👍",
-  保留: "⏸️",
-  拒否: "✋",
-  強調: "❗",
-  評価: "⭐",
-  一致: "🎯",
-  変化: "🔄",
-
-  // 感情・心理
-  感情: "❤️",
-  安心: "😌",
-  心配: "🤔",
-  非難: "😠",
-  配慮: "🤝",
-  期待: "🤞",
-  助言: "💡",
-  任せて: "🙋",
-  思考: "🧠",
-  状態: "🔍",
-  快諾: "✅",
-  謝罪: "🙏",
-
-  // 注意・警告
-  注意: "⚠️",
-  トラブル: "🚨",
-  予防: "🛡️",
-
-  // 会話・対人
-  挨拶: "👋",
-  応答: "💬",
-  近況: "🗣️",
-  理由: "🧠",
-
-  // 実務・生活
-  支払い: "💰",
-  接客: "🙇",
-  天気: "🌧️",
-
-  // 感情・反応
-提案: "💡",
-喜び: "😊",
-怒り: "😠",
-悲哀: "😢",
-驚き: "😲",
-共感: "🤝",
-残念: "😞",
-
-// 状態・状況
-体調: "🤒",
-状況: "📍",
-進行: "🔄",
-環境: "🌍",
-能力: "💪",
-不確実: "🤔",
-
-// 会話アクション
-制止: "✋",
-申し出: "🙋",
-同意: "👍",
-否定: "❌",
-前置: "☝️",
-教訓: "📘",
-雑談: "💬",
-
-// === 追加定義（未定義分） ===
-曖昧: "🤷",
-断り: "🚫",
-反応: "😮",
-医療: "🩺",
-仕事: "💼",
-買い物: "🛒",
-量: "📏",
-順番: "🔢",
-映画: "🎬",
-場所: "📍",
-事実: "📄",
-突然: "⚡",
-順序: "➡️",
-前置き: "☝️",
-注意喚起: "⚠️",
-時間: "⏰",
-予定: "📅",
-食事: "🍽️",
-説明: "📖",
-諦め: "😔",
-// 会話・発話ニュアンス
-聞き返し: "🔁",
-話題転換: "🔀",
-
-// 感情・心理（細分）
-落胆: "😞",
-困惑: "😕",
-納得: "😌",
-違和感: "😵‍💫",
-覚悟: "🔥",
-自信: "😎",
-強気: "😤",
-称賛: "👏",
-励まし: "📣",
-応援: "🎉",
-
-// 状態・変化
-喪失: "💔",
-完了: "✔️",
-開始: "🚀",
-移動: "➡️",
-頻度: "🔁",
-
-// 判断・認識
-不満: "😒",
-警告: "🚫",
-決断: "⚡",
-
-  };
-
-  function readBool(key: string, def: boolean) {
-    const v = localStorage.getItem(key);
-    if (v === null) return def;
-    try {
-      return JSON.parse(v);
-    } catch {
-      return def;
-    }
-  }
 
   function RecentLogs({ logs }: { logs: PickLog[] }) {
     const recent = logs.slice(-5).reverse();
@@ -916,13 +730,7 @@ useEffect(() => {
     );
   }
 
-  const [showSettings, setShowSettings] = useState(false);
 
-  const playClickSe = () => {
-    if (soundOn) playSe();
-  };
-
-  const practiceListRef = useRef<HTMLDivElement | null>(null);
 
   const resetTrainingState = () => {
     // JP タイマー
@@ -1199,15 +1007,6 @@ useEffect(() => {
     };
   }, [mode,randomPhrase, showEn, autoNext, isPaused]);
 
-// Version表示
-const buildTimeJst = new Date(__BUILD_TIME__).toLocaleString("ja-JP", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
 
 return (
   <div className="app-viewport">
@@ -1259,21 +1058,14 @@ return (
             value={mode}
             onChange={(e) => setMode(e.target.value as Mode)}
           >
-            <option value="TRAIN">{MODE_LABELS.TRAIN}</option>
-            <option value="A">{MODE_LABELS.A}</option>
-            <option value="B">{MODE_LABELS.B}</option>
-            <option value="C">{MODE_LABELS.C}</option>
-            <option value="D">{MODE_LABELS.D}</option>
-            <option value="E">{MODE_LABELS.E}</option>
-            <option value="F">{MODE_LABELS.F}</option>
-
-{/*             <option value="A">{getModeLabelWithSubs("A")}</option>
-            <option value="B">{getModeLabelWithSubs("B")}</option>
-            <option value="C">{getModeLabelWithSubs("C")}</option>
-            <option value="D">{getModeLabelWithSubs("D")}</option>
-            <option value="E">{getModeLabelWithSubs("E")}</option>
-            <option value="F">{getModeLabelWithSubs("F")}</option>
- */}          </select>
+            <option value="TRAIN">{MODE_LABELS_VIEW.TRAIN}</option>
+            <option value="A">{MODE_LABELS_VIEW.A}</option>
+            <option value="B">{MODE_LABELS_VIEW.B}</option>
+            <option value="C">{MODE_LABELS_VIEW.C}</option>
+            <option value="D">{MODE_LABELS_VIEW.D}</option>
+            <option value="E">{MODE_LABELS_VIEW.E}</option>
+            <option value="F">{MODE_LABELS_VIEW.F}</option>
+          </select>
         </div>
 
         {/* ===== メインUI：センター1列 ===== */}
