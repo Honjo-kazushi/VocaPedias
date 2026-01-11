@@ -83,7 +83,7 @@ export default function HomePage() {
     }
   }
 
-    // =====================================================
+  // =====================================================
   // 2. 学習モード（TRAIN）
   // =====================================================
 
@@ -1007,7 +1007,9 @@ useEffect(() => {
     };
   }, [mode,randomPhrase, showEn, autoNext, isPaused]);
 
-
+{/* =====================================================
+          UI　表示
+    ===================================================== */} 
 return (
   <div className="app-viewport">
     <div className="app-shell">
@@ -1029,6 +1031,10 @@ return (
           alt="tossa"
           className="app-logo"
         />
+
+{/* =====================================================
+          使い方説明　表示
+    ===================================================== */} 
 
 <div className="app-description">
   {!jpLearnMode ? (
@@ -1052,6 +1058,10 @@ return (
   )}
 </div>
 
+{/* =====================================================
+          コンボボックス　表示
+    ===================================================== */} 
+
         <div className="mode-select-wrap">
           <select
             className="mode-select"
@@ -1067,6 +1077,10 @@ return (
             <option value="F">{MODE_LABELS_VIEW.F}</option>
           </select>
         </div>
+
+        {/* =====================================================
+                  学習モード　表示
+            ===================================================== */} 
 
         {/* ===== メインUI：センター1列 ===== */}
         <div className="app-main">
@@ -1140,11 +1154,13 @@ return (
       </div>
 
 
-
+{/* =====================================================
+          実践モード　表示
+    ===================================================== */} 
 {/* ===== PRACTICE（仕上げ） ===== */}
 {mode !== "TRAIN" && (
   <>
-    {/* ===== サブタグ：コンボ直下・固定 ===== */}
+    {/* ===== サブタグボタン：コンボ直下・固定 ===== */}
     <div className="practice-subtabs-fixed">
       {practiceSubStats.map(({ sub, count }) => {
         const selected = sub === practiceSub;
@@ -1313,6 +1329,10 @@ return (
   </>
 )}
 
+{/* =====================================================
+          関連フレーズ　表示
+    ===================================================== */} 
+
 {activeMeaningGroup && (
   <div
     style={{
@@ -1406,6 +1426,10 @@ return (
     </div>
   </div>
 )}
+
+{/* =====================================================
+          学習モード　出題・回答　表示
+    ===================================================== */} 
 
         {/* 上部の余白（将来：アプリイラスト／ガイド） */}
       <div className={`spacer-top ${mode === "TRAIN" ? "train" : ""}`} />
@@ -1525,151 +1549,151 @@ return (
       )}
 
     
+      {/* =====================================================
+                設定モード表示
+          ===================================================== */} 
+      {showSettings &&
+        createPortal(
+              <div
+                style={{
+                  position: "fixed",
+                  top: 44,
+                  right: 8,
+                  zIndex: 9999,
 
-    {showSettings &&
-      createPortal(
-        <div
-          style={{
-            position: "fixed",
-            top: 44,
-            right: 8,
-            zIndex: 9999,
+                  padding: 12,
+                  border: "1px solid #ddd",
+                  background: "#fafafa",
+                  width: 260,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}
+              >
+                {mode === "TRAIN" && (
+                  <label style={{ display: "block", marginBottom: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={autoNext}
+                      onChange={(e) => setAutoNext(e.target.checked)}
+                    />
+                    {UI.autoNext}
+                  </label>
+                )}
 
-            padding: 12,
-            border: "1px solid #ddd",
-            background: "#fafafa",
-            width: 260,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          }}
-        >
-          {mode === "TRAIN" && (
-            <label style={{ display: "block", marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={autoNext}
-                onChange={(e) => setAutoNext(e.target.checked)}
-              />
-              {UI.autoNext}
-            </label>
+                <label style={{ display: "block", marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={soundOn}
+                    onChange={(e) => setSoundOn(e.target.checked)}
+                  />
+                  {UI.uiSounds}
+                </label>
+
+                <label style={{ display: "block" }}>
+                  <input
+                    type="checkbox"
+                    checked={ttsOn}
+                    onChange={(e) => setTtsOn(e.target.checked)}
+                  />
+                  {UI.tts}
+                </label>
+
+                {mode === "TRAIN" && (
+                  <label style={{ display: "block", marginBottom: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={autoSpeakOnTimeout}
+                      onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
+                    />
+                    {UI.autoSpeak}
+                  </label>
+                )}
+
+                <label style={{ display: "block", marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={jpLearnMode}
+                    onChange={(e) => setJpLearnMode(e.target.checked)}
+                  />
+                  Japanese Learning Mode
+                </label>
+
+                <label
+                  style={{
+                    display: "block",
+                    marginTop: 8,
+                    color: "#bbb",
+                    fontSize: "0.85em",
+                    userSelect: "none",
+                  }}
+                  onPointerDown={() => {
+                    debugHoldTimerRef.current = window.setTimeout(() => {
+                      const next = !debugMode;
+                      setDebugMode(next);
+                      localStorage.setItem("debugMode", JSON.stringify(next));
+                      console.log("[DEBUG MODE]", next ? "ON" : "OFF");
+                    }, 900); // ★ 長押し 900ms
+                  }}
+                  onPointerUp={() => {
+                    if (debugHoldTimerRef.current !== null) {
+                      clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = null;
+                    }
+                  }}
+                  onPointerLeave={() => {
+                    if (debugHoldTimerRef.current !== null) {
+                      clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = null;
+                    }
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={debugMode}
+                    readOnly
+                    style={{ pointerEvents: "none" }}
+                  />
+                  開発者モード
+                </label>
+
+      <div style={{ fontSize: "0.75em", color: "#666" }}>
+        Build: {buildTimeJst}
+      </div>
+                <button
+                  className="btn btn-close"
+                  onClick={() => {
+                    if (soundOn) playSe();
+                    setShowSettings(false);
+                  }}
+                  
+                >
+                  {UI.close}
+                </button>
+
+              </div>,
+              document.body
+          )
+        }
+          
+        {mode === "TRAIN" && debugMode && (
+              <RecentLogs logs={pickLogs} />
           )}
-
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <input
-              type="checkbox"
-              checked={soundOn}
-              onChange={(e) => setSoundOn(e.target.checked)}
-            />
-            {UI.uiSounds}
-          </label>
-
-          <label style={{ display: "block" }}>
-            <input
-              type="checkbox"
-              checked={ttsOn}
-              onChange={(e) => setTtsOn(e.target.checked)}
-            />
-            {UI.tts}
-          </label>
-
-          {mode === "TRAIN" && (
-            <label style={{ display: "block", marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={autoSpeakOnTimeout}
-                onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
-              />
-              {UI.autoSpeak}
-            </label>
+        {mode === "TRAIN" && debugMode && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 8,
+                  fontSize: "0.8em",
+                  color: "#555",
+                  borderTop: "1px dashed #ccc",
+                }}
+              >
+                {speechLogs.map((l, i) => (
+                  <div key={i}>
+                    {new Date(l.time).toLocaleTimeString()} : {l.event}
+                  </div>
+                ))}
+              </div>
           )}
-
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <input
-              type="checkbox"
-              checked={jpLearnMode}
-              onChange={(e) => setJpLearnMode(e.target.checked)}
-            />
-            Japanese Learning Mode
-          </label>
-
-          <label
-            style={{
-              display: "block",
-              marginTop: 8,
-              color: "#bbb",
-              fontSize: "0.85em",
-              userSelect: "none",
-            }}
-            onPointerDown={() => {
-              debugHoldTimerRef.current = window.setTimeout(() => {
-                const next = !debugMode;
-                setDebugMode(next);
-                localStorage.setItem("debugMode", JSON.stringify(next));
-                console.log("[DEBUG MODE]", next ? "ON" : "OFF");
-              }, 900); // ★ 長押し 900ms
-            }}
-            onPointerUp={() => {
-              if (debugHoldTimerRef.current !== null) {
-                clearTimeout(debugHoldTimerRef.current);
-                debugHoldTimerRef.current = null;
-              }
-            }}
-            onPointerLeave={() => {
-              if (debugHoldTimerRef.current !== null) {
-                clearTimeout(debugHoldTimerRef.current);
-                debugHoldTimerRef.current = null;
-              }
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={debugMode}
-              readOnly
-              style={{ pointerEvents: "none" }}
-            />
-            開発者モード
-          </label>
-
-<div style={{ fontSize: "0.75em", color: "#666" }}>
-  Build: {buildTimeJst}
-</div>
-          <button
-            className="btn btn-close"
-            onClick={() => {
-              if (soundOn) playSe();
-              setShowSettings(false);
-            }}
-            
-          >
-            {UI.close}
-          </button>
-
-        </div>,
-        document.body
-      )
-    }
-    
-      {mode === "TRAIN" && debugMode && (
-        <RecentLogs logs={pickLogs} />
-      )}
-
-
-      {mode === "TRAIN" && debugMode && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: 8,
-            fontSize: "0.8em",
-            color: "#555",
-            borderTop: "1px dashed #ccc",
-          }}
-        >
-          {speechLogs.map((l, i) => (
-            <div key={i}>
-              {new Date(l.time).toLocaleTimeString()} : {l.event}
-            </div>
-          ))}
-        </div>
-      )}
 
       </div>
     </div>
