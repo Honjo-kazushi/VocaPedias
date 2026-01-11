@@ -77,7 +77,7 @@
 .app-main {
   max-width: 360px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 0;
 
   /* ★ 中央寄せをやめる */
   text-align: left;
@@ -124,9 +124,10 @@
   color: #666;
 }
 
-/* 説明文は中央 */
 .mode-text {
-  text-align: center;
+  text-align: left;
+}
+.mode-text div {
   line-height: 1.4;
 }
 
@@ -174,7 +175,7 @@
 .mode-select-wrap {
   display: flex;
   justify-content: center;
-  margin: 8px 0 10px;  /* もとは 12px 0 16px */
+  margin: 4px 0 6px;  /* もとは 12px 0 16px */
 }
 
 /* =========================
@@ -198,6 +199,7 @@
 /* ===== TRAIN 囲み ===== */
 .train-box {
   margin: 8px auto 12px;
+  margin-top: 24px;
   padding: 12px 10px;
 
   border: 1px solid #ddd;
@@ -236,10 +238,13 @@
   padding: 4px;
 }
 
-.mode-select-wrap {
-  display: flex;
-  justify-content: center;
-  margin: 12px 0 8px;
+
+label {
+  white-space: pre-line; /* ← \n をそのまま表示 */
+}
+.setting-label {
+  white-space: pre-line;
+  line-height: 1.4;
 }
 
 .mode-select {
@@ -273,7 +278,7 @@
 .practice-guide {
   font-size: 0.85em;
   color: #666;
-  margin: 2px 12px 2px;
+  margin: 0px 12px 2px;
   text-align: left;
 }
 
@@ -282,7 +287,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr); /* 上3固定 */
   gap: 6px 8px;                          /* 縦 横 */
-  margin: 6px 0 8px;
+  margin: 2px 0 4px;
 
   padding: 0 16px;
 }
@@ -402,4 +407,26 @@
 
 .practice-subtab.debug-clear {
   opacity: 0.6;
+}
+
+.practice-empty{
+  padding: 16px 0;
+  font-size: 0.9em;
+  color: #777;
+  text-align: center;
+}
+
+/* ★ STAR モード：上に詰める */
+.practice-subtabs-fixed.star-only {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+/* リスト全体も少し詰める */
+.practice-subtabs-fixed.star-only + .practice-list-wrap {
+  margin-top: 0;
+}
+
+.practice-subtabs-fixed:not(.star-only) {
+  margin-top: 2px;
 }

@@ -1,11 +1,39 @@
 // uiStatic.ts
 // UIで使う「完全に固定の定義」だけを集約する
-export const MODES = ["TRAIN", "A", "B", "C", "D", "E", "F"] as const;
+export const MODES = ["TRAIN", "A", "B", "C", "D", "E", "F", "STAR"] as const;
 export type Mode = typeof MODES[number];
 
 /* ===============================
    UI 文言
    =============================== */
+export const MODE_DESCRIPTIONS = {
+  practice: {
+    jp: [
+      "そのときの気分や場面に合わせてフレーズを選べます",
+      "★ ブックマークで、よく使う表現を集められます",
+      "発音を聞いて、そのまま口に出せます",
+    ],
+    en: [
+      "Choose phrases based on how you feel or the situation",
+      "Bookmark useful phrases with ★ for quick access",
+      "Listen to the pronunciation and say it out loud",
+    ],
+  },
+
+  train: {
+    jp: [
+      "自分の発音を録音し、正解と聞き比べて練習できます",
+      "日本語で考える学習にも切り替えられます",
+      "聞き流しでも、自然にフレーズが身につきます",
+    ],
+    en: [
+      "Record your voice and compare it with the correct pronunciation",
+      "Switch to Japanese-based learning if you prefer",
+      "Learn naturally by listening without active input",
+    ],
+  },
+} as const;
+
 export const UI_TEXT = {
   jp: {
     next: "▷ 次へ",
@@ -18,20 +46,26 @@ export const UI_TEXT = {
     recogNoSpeech: "音声が検出されませんでした",
     recogError: "音声を認識できませんでした",
     recogNoFunction: "音声認識はサポートされていません",
-    autoNext: "自動で次へ",
-    uiSounds: "操作音(SE）",
-    tts: "英語の音声（TTS）",
-    autoSpeak: "タイムアップ時に自動で英語を表す",
+
+    autoNext: "自動で次へ\n(自動で次のフレーズへ進みます)",
+    uiSounds: "操作音\n(ボタン操作時に効果音が鳴ります)",
+    tts: "英文録音＆読み上げ（TTS）\n(録音した英語を正解音声と聞き比べます)",
+    autoSpeak: "自動で英語を表示\n(時間切れになると英語を表示します)",
+
     close: "閉じる",
     settings: "設定",
     related: "関連フレーズ",
+
     practiceGuide:
-      "太文字フレーズを押すと関連フレーズを見れます",
+      "太文字フレーズを押すと\n関連フレーズを見られます",
+
+    confirmClearStars: "★ をすべて消しますか？",
   },
+
   en: {
     next: "▷ Next",
     pause: "Ⅱ Pause",
-    speak: "🎤Speak",
+    speak: "🎤 Speak",
     showAnswer: "Japanese",
     keyword: "Keyword (e.g. see / I see)",
     ready: "Ready?",
@@ -39,15 +73,20 @@ export const UI_TEXT = {
     recogNoSpeech: "No speech detected",
     recogError: "Could not recognize speech",
     recogNoFunction: "Speech recognition not supported",
-    autoNext: "Auto Next",
-    uiSounds: "UI Sounds",
-    tts: "Voice (TTS)",
-    autoSpeak: "Show Answer on Timeout",
+
+    autoNext: "Auto Next\n(Move to the next phrase automatically)",
+    uiSounds: "UI Sounds\n(Play sounds when tapping buttons)",
+    tts: "Record & Play English (TTS)\n(Compare your English with the correct audio)",
+    autoSpeak: "Auto-show English\n(Show English automatically when time runs out)",
+
     close: "Close",
     settings: "Settings",
     related: "Related phrases",
+
     practiceGuide:
-      "Tap the bold phrases to view related phrases.",
+      "Tap bold phrases\n to view related phrases",
+
+    confirmClearStars: "Remove all bookmarked phrases?",
   },
 } as const;
 
@@ -63,6 +102,7 @@ export const MODE_LABELS = {
     D: "動いてほしい",
     E: "考えを伝える",
     F: "柔らかく言う",
+    STAR: "★フレーズを見る",
   },
   en: {
     TRAIN: "Training",
@@ -72,6 +112,7 @@ export const MODE_LABELS = {
     D: "Ask for action",
     E: "Share judgement",
     F: "Be considerate",
+    STAR: "★View bookmarked phrases",
   },
 } as const;
 
@@ -90,6 +131,7 @@ export const PRACTICE_CONFIG: {
     D: "行動",
     E: "判断",
     F: "配慮",
+    STAR: "★",
   },
   subOrder: {
     TRAIN: [],
@@ -99,6 +141,7 @@ export const PRACTICE_CONFIG: {
     D: ["依頼", "提案", "指示", "制止", "拒否"],
     E: ["同意", "否定", "保留", "許可", "期待"],
     F: ["前置", "安心", "配慮", "教訓", "雑談"],
+    STAR:   [],
   },
 };
 
