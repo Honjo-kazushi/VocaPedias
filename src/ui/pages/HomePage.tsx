@@ -137,9 +137,16 @@ export default function HomePage() {
   // =====================================================
   // 3. 実践モード（PRACTICE）
   // =====================================================
-  const [practiceStars, setPracticeStars] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [practiceStars, setPracticeStars] = useState<Set<string>>(() => {
+    const raw = localStorage.getItem("practiceStars");
+    if (!raw) return new Set();
+    try {
+      return new Set(JSON.parse(raw));
+    } catch {
+      return new Set();
+    }
+  });
+
   const [practiceSub, setPracticeSub] = useState<string | null>(null);
   const [activeMeaningGroup, setActiveMeaningGroup] = useState<string | null>(
     null
@@ -619,6 +626,14 @@ export default function HomePage() {
       jpLearnMode ? "ja" : "en"
     );
   };
+
+  useEffect(() => {
+    localStorage.setItem(
+      "practiceStars",
+      JSON.stringify(Array.from(practiceStars))
+    );
+  }, [practiceStars]);
+
 
   // ★ デバッグモード時、認識成功で自動的にスター付与
   useEffect(() => {
