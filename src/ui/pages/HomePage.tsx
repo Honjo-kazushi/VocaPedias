@@ -96,6 +96,8 @@ export default function HomePage() {
   // =====================================================
 
   // ---------- state ----------
+  type TrainPhase = "QUESTION" | "ANSWER_SHOWN" | "RECORDING";
+  const [trainPhase, setTrainPhase] = useState<TrainPhase>("QUESTION");
   const [randomPhrase, setRandomPhrase] = useState<Phrase | null>(null);
   const [showEn, setShowEn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -238,6 +240,8 @@ export default function HomePage() {
 
   // ===== Speech Recognition =====
   const recognitionRef = useRef<any>(null);
+  // ★ 録音開始時点の「問題」を固定する（TTSズレ防止）
+  const recordingPhraseRef = useRef<Phrase | null>(null);
   const [speechState, setSpeechState] = useState<
     "IDLE" | "RECORDING" | "RECOGNIZED"
   >("IDLE");
@@ -306,7 +310,6 @@ export default function HomePage() {
 
       // ===== 認識完了 =====
       speechSynthesis.cancel();
-      speakGenRef.current += 1;
       setSpeechState("RECOGNIZED");
 
       // ★ 無音・失敗時の補正（UI 文言をそのまま入れる）
@@ -321,18 +324,27 @@ export default function HomePage() {
       });
 
       recognitionRef.current = null;
-      const gen = speakGenRef.current;
 
       // ★ 認識後は必ず「正解表示」
       setShowEn(true);
+      setTrainPhase("ANSWER_SHOWN");
 
-      // ★ 正解 TTS
-      if (randomPhrase) {
+    // ★ 正解TTSは「録音開始時点の問題」を読む（ズレ防止）
+      const phrase = recordingPhraseRef.current;
+      if (phrase) {
+        // ★ ここで世代を固定（callback持ち越し防止）
+        const gen = ++speakGenRef.current;
+
         speakEn(
-          jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+          jpLearnMode ? phrase.jp : phrase.en,
           () => {
             if (speakGenRef.current !== gen) return;
-            if (autoNext && !isPaused) requestGoNext();
+
+            // autoNext ON のときだけ次へ（OFFならここで止まる）
+            if (autoNext && !isPaused) {
+              // requestGoNext() 直呼びより安全に 2秒遅延へ
+              scheduleGoNext2s();
+            }
           },
           jpLearnMode ? "ja" : "en"
         );
@@ -553,6 +565,12 @@ export default function HomePage() {
       pushSpeechLog("blocked:not IDLE");
       return;
     }
+    // ★ 録音対象の問題を固定（ここが最重要）
+    recordingPhraseRef.current = randomPhrase;
+    if (!recordingPhraseRef.current) {
+      pushSpeechLog("no phrase to record");
+      return;
+    }
     if (!recognitionRef.current) {
       pushSpeechLog("no recognitionRef");
     }
@@ -588,10 +606,11 @@ export default function HomePage() {
       setSpeechState("RECOGNIZED");
       setShowEn(true);
 
-      if (randomPhrase && ttsOn) {
+      const phrase = recordingPhraseRef.current;
+      if (phrase && ttsOn) {
         const gen = ++speakGenRef.current;
         speakEn(
-          jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+          jpLearnMode ? phrase.jp : phrase.en,
           () => {
             if (speakGenRef.current !== gen) return;
             if (autoNext && !isPaused) requestGoNext();
@@ -769,7 +788,7 @@ export default function HomePage() {
 
   const startQuestion = async () => {
     if (isBusy) return;
-
+    setTrainPhase("QUESTION");
     // ===== 既存：EN/TTS/タイマーの後始末 =====
     clearEnTriggers();
 
@@ -969,23 +988,23 @@ export default function HomePage() {
 
           // ★ 自動発声（ぼーっとモード）
           if (autoSpeakOnTimeout && randomPhrase) {
+            setTrainPhase("ANSWER_SHOWN");
+            const phrase = randomPhrase; // ★ 固定
             setShowEn(true);
 
             if (ttsOn) {
-              const gen = speakGenRef.current;
+              const gen = ++speakGenRef.current; // ★ ここで世代確定
+
               speakEn(
-                jpLearnMode ? randomPhrase.jp : randomPhrase.en,
+                jpLearnMode ? phrase.jp : phrase.en,
                 () => {
                   if (speakGenRef.current !== gen) return;
-                  if (autoNext) requestGoNext(); // ★ autoNext ガード
+                  if (autoNext) scheduleGoNext2s(); // ★ autoNext OFFなら止まる
                 },
                 jpLearnMode ? "ja" : "en"
               );
             } else {
-              // TTSなし：英語は出すが
-              if (autoNext) {
-                scheduleGoNext2s(); // ★ autoNext ガード
-              }
+              if (autoNext) scheduleGoNext2s();
             }
           }
 
@@ -1544,12 +1563,23 @@ export default function HomePage() {
                 className="btn btn-en"
                 disabled={isBusy || isPaused}
                 onClick={() => {
+                  // autoNext ON + ANSWER_SHOWN は完全に無視
+                  if (autoNext && trainPhase === "ANSWER_SHOWN") {
+                    return;
+                  }
+
                   if (isBusy) return;
                   if (!canAcceptInput()) return;
                   if (!randomPhrase) return;
 
                   if (debugMode && ttsOn) {
-                    pushSpeechLog("🎤 clicked");
+                    const isReviewAfterAnswer = showEn === true;
+                    if (!isReviewAfterAnswer) {
+                      pushSpeechLog("🎤 clicked");
+                    } else {
+                      // ★ 復習録音：ログは触らない（任意で別ログを出すならここ）
+                      pushSpeechLog("review speak");
+                    }
                   }
                   // 停止中なら解除（既存仕様）
                   if (isPaused) {
@@ -1594,8 +1624,14 @@ export default function HomePage() {
                   }
 
                   // 録音初期化 → 録音開始
+                  if (autoNext && trainPhase === "ANSWER_SHOWN") {
+                    return;
+                  }
+
+                  // ここから先は QUESTION or autoNext=OFF のみ
                   initSpeechRecognition();
-                  startSpeechFlow(); // ★ ここで録音が始まる
+                  setTrainPhase("RECORDING");
+                  startSpeechFlow();
 
                   // 進行は音声側に任せる
                 }}
