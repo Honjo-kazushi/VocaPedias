@@ -361,6 +361,7 @@ export default function HomePage() {
 
     rec.onend = () => {
       pushSpeechLog("onend"); // log5
+
       const dur = Date.now() - recordStartedAtRef.current;
       const hasSpeech = !!(spokenText && spokenText.trim() !== "");
 
@@ -383,7 +384,6 @@ export default function HomePage() {
       // ===== 認識完了 =====
       speechSynthesis.cancel();
       setSpeechState("RECOGNIZED");
-
       // ★ 無音・失敗時の補正（UI 文言をそのまま入れる）
       setSpokenText((prev) => {
         if (prev && prev.trim() !== "") return prev;
@@ -416,6 +416,8 @@ export default function HomePage() {
             if (autoNext && !isPaused) {
               // requestGoNext() 直呼びより安全に 2秒遅延へ
               scheduleGoNext2s();
+            } else {
+              setSpeechState("IDLE");
             }
           },
           jpLearnMode ? "ja" : "en"
