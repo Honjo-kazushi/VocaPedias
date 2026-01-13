@@ -66,10 +66,7 @@ export default function HomePage() {
   const [autoNext, setAutoNext] = useState<boolean>(() =>
     readBool("autoNext", true)
   );
-  const [autoSpeakOnTimeout, setAutoSpeakOnTimeout] = useState<boolean>(() =>
-    readBool("autoSpeakOnTimeout", false)
-  );
-
+  
   const [debugMode, setDebugMode] = useState<boolean>(() =>
     readBool("debugMode", false)
   );
@@ -230,14 +227,6 @@ export default function HomePage() {
     localStorage.removeItem("practiceStars");
   };
 
-  const canAcceptInput = () => {
-    if (isPaused) return false;
-    if (isBusy) return false;
-    // if (elapsed < 0.5) return false;
-    if (!showEn && autoNext && elapsed >= 4.5) return false;
-    return true;
-  };
-
   // ===== Speech Recognition =====
   const recognitionRef = useRef<any>(null);
   // ★ 録音開始時点の「問題」を固定する（TTSズレ防止）
@@ -245,6 +234,26 @@ export default function HomePage() {
   const [speechState, setSpeechState] = useState<
     "IDLE" | "RECORDING" | "RECOGNIZED"
   >("IDLE");
+  const canUseSpeak =
+    mode === "TRAIN" &&
+    !isBusy &&
+    !isPaused &&
+    randomPhrase !== null &&
+    (
+      ttsOn
+        ? (
+            // TTS ON：IDLE かつ QUESTION、または復習(ANSWER_SHOWN)は autoNext OFF のときだけ
+            speechState === "IDLE" &&
+            (
+              trainPhase === "QUESTION" ||
+              (trainPhase === "ANSWER_SHOWN" && !autoNext)
+            )
+          )
+        : (
+            // TTS OFF：QUESTION のときだけ（待機中に青で押せる問題を潰す）
+            trainPhase === "QUESTION"
+          )
+    );
   const [spokenText, setSpokenText] = useState<string | null>(null);
   const speechTextStyle: React.CSSProperties = {
     fontSize: "0.85em",
@@ -252,6 +261,69 @@ export default function HomePage() {
     marginTop: 4,
     lineHeight: 1.3,
   };
+
+  const canUseNext =
+    mode === "TRAIN" &&
+    !isBusy &&
+    speechState === "IDLE" &&
+    (trainPhase === "QUESTION" || trainPhase === "ANSWER_SHOWN");
+
+  const canUseStop =
+    mode === "TRAIN" &&
+    !isPaused &&
+    randomPhrase !== null &&
+    (
+      trainPhase === "QUESTION" ||
+      trainPhase === "RECORDING" ||
+      trainPhase === "ANSWER_SHOWN"
+    );
+
+  function hardStopToIdle() {
+    // =========================
+    // ★ 録音中なら即中断（最優先）
+    // =========================
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+
+    // =========================
+    // タイマー全停止
+    // =========================
+    if (jpTimerRef.current !== null) {
+      clearInterval(jpTimerRef.current);
+      jpTimerRef.current = null;
+    }
+    if (enTimerRef.current !== null) {
+      clearTimeout(enTimerRef.current);
+      enTimerRef.current = null;
+    }
+
+    // =========================
+    // 音声すべて停止
+    // =========================
+    speechSynthesis.cancel();
+    speakGenRef.current += 1; // callback 無効化
+
+    // =========================
+    // 状態を「待機」に固定
+    // =========================
+    setSpeechState("IDLE");
+    setRandomPhrase(null);
+    setTrainPhase("QUESTION");
+    setShowEn(false);
+    setSpokenText(null);
+    setElapsed(0);
+
+    setIsBusy(false);
+    setIsPaused(true); // 停止状態
+  }
+
 
   function initSpeechRecognition() {
     if (!ttsOn) return;
@@ -329,7 +401,7 @@ export default function HomePage() {
       setShowEn(true);
       setTrainPhase("ANSWER_SHOWN");
 
-    // ★ 正解TTSは「録音開始時点の問題」を読む（ズレ防止）
+      // ★ 正解TTSは「録音開始時点の問題」を読む（ズレ防止）
       const phrase = recordingPhraseRef.current;
       if (phrase) {
         // ★ ここで世代を固定（callback持ち越し防止）
@@ -653,7 +725,6 @@ export default function HomePage() {
     );
   }, [practiceStars]);
 
-
   // ★ デバッグモード時、認識成功で自動的にスター付与
   useEffect(() => {
     if (!debugMode) return;
@@ -711,7 +782,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (mode === "TRAIN") return;
-
+    hardStopToIdle();
     // Practiceに入ったら、ポップアップは閉じる
     setActiveMeaningGroup(null);
 
@@ -924,13 +995,6 @@ export default function HomePage() {
   }, [autoNext]);
 
   useEffect(() => {
-    localStorage.setItem(
-      "autoSpeakOnTimeout",
-      JSON.stringify(autoSpeakOnTimeout)
-    );
-  }, [autoSpeakOnTimeout]);
-
-  useEffect(() => {
     localStorage.setItem("jpLearnMode", JSON.stringify(jpLearnMode));
   }, [jpLearnMode]);
 
@@ -964,10 +1028,12 @@ export default function HomePage() {
         const next = e + 1;
 
         if (next >= 5 && !showEn && !isPaused) {
+          // ===== timeout ログ =====
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
             const last = logs[logs.length - 1];
-            // ★ 失敗確定（timeout）
+
+            // ★ 失敗確定
             onFail(last.phraseId);
 
             return [
@@ -980,43 +1046,40 @@ export default function HomePage() {
             ];
           });
 
-          // ★ JP → EN 遷移点（ここで必ず①を止める）
+          // ★ JPタイマー停止（最重要）
           if (jpTimerRef.current !== null) {
             clearInterval(jpTimerRef.current);
             jpTimerRef.current = null;
           }
 
-          // ★ 自動発声（ぼーっとモード）
-          if (autoSpeakOnTimeout && randomPhrase) {
-            setTrainPhase("ANSWER_SHOWN");
-            const phrase = randomPhrase; // ★ 固定
-            setShowEn(true);
+          // ===== ANSWER_SHOWN に遷移 =====
+          setTrainPhase("ANSWER_SHOWN");
+          setShowEn(true);
 
-            if (ttsOn) {
-              const gen = ++speakGenRef.current; // ★ ここで世代確定
+          const phrase = randomPhrase; // ★ 固定
 
-              speakEn(
-                jpLearnMode ? phrase.jp : phrase.en,
-                () => {
-                  if (speakGenRef.current !== gen) return;
-                  if (autoNext) scheduleGoNext2s(); // ★ autoNext OFFなら止まる
-                },
-                jpLearnMode ? "ja" : "en"
-              );
-            } else {
-              if (autoNext) scheduleGoNext2s();
-            }
+          if (ttsOn && phrase) {
+            const gen = ++speakGenRef.current;
+            speakEn(
+              jpLearnMode ? phrase.jp : phrase.en,
+              () => {
+                if (speakGenRef.current !== gen) return;
+                if (autoNext) scheduleGoNext2s();
+              },
+              jpLearnMode ? "ja" : "en"
+            );
+          } else {
+            if (autoNext) scheduleGoNext2s();
           }
 
-          // autoSpeakOnTimeout === OFF の場合
-          // → 何もしない（止まる）
-          return 0;
+          return 0; // ★ ここで確実に打ち切る
         }
 
         return next;
       });
     }, 1000);
 
+    // ===== cleanup（useEffectのreturn）=====
     return () => {
       if (jpTimerRef.current !== null) {
         clearInterval(jpTimerRef.current);
@@ -1025,7 +1088,7 @@ export default function HomePage() {
     };
   }, [mode, randomPhrase, showEn, autoNext, isPaused]);
 
-  //=====================================================
+//=====================================================
   //      UI　表示
   //===================================================== */
   return (
@@ -1190,8 +1253,8 @@ export default function HomePage() {
           </div>
 
           {/* =====================================================
-        実践モード　表示
-    ===================================================== */}
+                  実践モード　表示
+              ===================================================== */}
           {/* ===== PRACTICE（仕上げ） ===== */}
           {mode !== "TRAIN" && (
             <>
@@ -1512,33 +1575,14 @@ export default function HomePage() {
           {mode === "TRAIN" && (
             <div className="player-controls">
               <button
-                className="btn btn-stop"
-                disabled={isBusy || isPaused}
+                className={`btn btn-stop ${canUseStop ? "btn-text-active" : "btn-text-disabled"}`}
+                disabled={!canUseStop}
+                style={{
+                    color: canUseStop ? "#444" : "#aaa",
+                  }}
                 onClick={() => {
-                  if (showEn) return;
-                  if (isBusy) return;
-                  if (isPaused) return;
-                  if (soundOn) playSe();
-                  setIsPaused(true);
-
-                  // ★ 状態を完全リセット
-                  setElapsed(0);
-                  setShowEn(false);
-                  setSpeechState("IDLE");
-                  setSpokenText(null);
-
-                  // タイマー停止
-                  if (jpTimerRef.current !== null) {
-                    clearInterval(jpTimerRef.current);
-                    jpTimerRef.current = null;
-                  }
-                  if (enTimerRef.current !== null) {
-                    clearTimeout(enTimerRef.current);
-                    enTimerRef.current = null;
-                  }
-                  // 音声停止
-                  speechSynthesis.cancel();
-                  // requestGoNext();
+                if (soundOn) playSe();
+                hardStopToIdle();
                 }}
               >
                 {UI.pause}
@@ -1547,11 +1591,15 @@ export default function HomePage() {
               {/* 次へ */}
               <button
                 className="btn btn-next"
+                disabled={!canUseNext}
+                style={{
+                    color: canUseNext ? "#2563eb" : "#9ca3af",
+                  }}
                 onClick={() => {
+                  if (!canUseNext) return;
                   if (soundOn) playSe();
                   if (isBusy) return;
                   setIsPaused(false);
-                  if (!canAcceptInput()) return;
                   requestGoNext();
                 }}
               >
@@ -1560,20 +1608,18 @@ export default function HomePage() {
 
               {/* 認識実行／英語を見る（必要なときだけ） */}
               <button
-                className="btn btn-en"
-                disabled={isBusy || isPaused}
-                onClick={() => {
-                  // autoNext ON + ANSWER_SHOWN は完全に無視
-                  if (autoNext && trainPhase === "ANSWER_SHOWN") {
-                    return;
-                  }
-
+                  className="btn btn-en"
+                  disabled={!canUseSpeak}
+                  style={{
+                    color: canUseSpeak ? "#eb6425" : "#9ca3af",
+                  }}
+                  onClick={() => {
+                  if (!canUseSpeak) return;
                   if (isBusy) return;
-                  if (!canAcceptInput()) return;
                   if (!randomPhrase) return;
 
                   if (debugMode && ttsOn) {
-                    const isReviewAfterAnswer = showEn === true;
+                    const isReviewAfterAnswer = showEn;
                     if (!isReviewAfterAnswer) {
                       pushSpeechLog("🎤 clicked");
                     } else {
@@ -1605,12 +1651,21 @@ export default function HomePage() {
                   });
 
                   // ============================
-                  // TTS OFF：従来仕様（英文の早出し）
+                  // TTS OFF：英文の早出し（スキップ）
                   // ============================
                   if (!ttsOn) {
+                    // ★ カウントダウン中なら必ず止める
+                    if (jpTimerRef.current !== null) {
+                      clearInterval(jpTimerRef.current);
+                      jpTimerRef.current = null;
+                    }
+                    // ★ 状態を確定させる（ここが抜けていた）
                     setShowEn(true);
+                    setTrainPhase("ANSWER_SHOWN");
                     if (soundOn) playSe();
-                    if (autoNext) scheduleGoNext2s();
+                    if (autoNext) {
+                      scheduleGoNext2s();
+                    }
                     return;
                   }
 
@@ -1689,17 +1744,6 @@ export default function HomePage() {
                   />
                   {UI.tts}
                 </label>
-
-                {mode === "TRAIN" && (
-                  <label style={{ display: "block", marginBottom: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={autoSpeakOnTimeout}
-                      onChange={(e) => setAutoSpeakOnTimeout(e.target.checked)}
-                    />
-                    {UI.autoSpeak}
-                  </label>
-                )}
 
                 <label style={{ display: "block", marginBottom: 8 }}>
                   <input

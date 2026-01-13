@@ -71,6 +71,23 @@
   width: 100%;
 }
 
+/* 録音（English） */
+/* ===== 有効状態（文字色だけ変更） ===== */
+.player-controls .btn.btn-active {
+  color: #3b82f6;   /* blue-500 → 少し抑えめ */
+}
+
+/* ===== 録音中（少し注意を引く色） ===== */
+.player-controls .btn.btn-recording {
+  color: #ea580c;   /* オレンジ（強すぎない） */
+}
+
+/* ===== 無効状態（今と同じ or わずかに薄く） ===== */
+.player-controls .btn.btn-disabled {
+  color: #9ca3af;   /* グレー */
+  cursor: not-allowed;
+}
+
 /* =========================
    HomePage styles（統一）
    ========================= */
