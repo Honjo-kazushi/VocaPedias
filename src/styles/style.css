@@ -482,7 +482,8 @@ label {
   color: #f5b301;
 }
 
-.practice-subtab.debug-clear {
+.practice-subtab.debug-clear .practice-subtab-emoji{
+  color: #f5b301;   /* ★と同じ黄色 */
   opacity: 0.6;
 }
 

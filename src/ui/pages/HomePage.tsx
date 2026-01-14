@@ -222,7 +222,7 @@ export default function HomePage() {
   const clearAllStars = () => {
     const ok = window.confirm(UI.confirmClearStars);
     if (!ok) return;
-
+    playClickSe();
     setPracticeStars(new Set());
     localStorage.removeItem("practiceStars");
   };
@@ -1265,7 +1265,9 @@ export default function HomePage() {
                   <div className="practice-subtabs-fixed star-only">
                     <button
                       className="practice-subtab debug-clear"
-                      onClick={() => clearAllStars()}
+                      onClick={() => {
+                        clearAllStars();
+                      }}
                       title="Clear all stars"
                     >
                       <span className="practice-subtab-emoji">★</span>
@@ -1308,7 +1310,9 @@ export default function HomePage() {
                     {practiceStars.size > 0 && (
                       <button
                         className="practice-subtab debug-clear"
-                        onClick={() => clearAllStars()}
+                        onClick={() => {
+                          clearAllStars();
+                        }}
                         title="Clear all stars"
                       >
                         <span className="practice-subtab-emoji">★</span>
