@@ -275,6 +275,27 @@ label {
   background: #fff;
 }
 
+/* =========================
+   ★ Bookmark（確定仕様）
+   ========================= */
+
+.practice-star {
+  font-size: 1.4em;
+  line-height: 1;
+  cursor: pointer;
+
+  color: #cfcfcf;   /* OFF */
+  opacity: 0.7;
+
+  padding: 4px;
+  flex-shrink: 0;   /* ★が潰れない */
+}
+
+.practice-star.on {
+  color: #f5b301;   /* ON */
+  opacity: 1;
+}
+
 
 /* ===== Practice 全体（高さは持たせない） ===== */
 .practice-wrap {
@@ -307,6 +328,45 @@ label {
   margin: 2px 0 4px;
 
   padding: 0 16px;
+}
+
+/* =========================
+   PRACTICE ★ / 🔊 操作アイコン
+   ========================= */
+
+.practice-action-icons {
+  position: absolute;
+  right: 0;
+  top: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 3px;              /* ← ★ と 🔊 の間隔を広げる */
+  color: #999;
+}
+
+/* 共通：タップしやすく */
+.practice-action-icons span {
+  padding: 1px;           /* ← タップ領域拡張 */
+}
+
+/* ★ ブックマーク */
+.practice-action-icons .practice-star {
+  font-size: 1.35em;       /* ← 大きく */
+  cursor: pointer;
+}
+
+/* 🔊 スピーカー */
+.practice-action-icons .practice-speaker {
+  font-size: 1.3em;       /* ← 大きく */
+  cursor: pointer;
+}
+
+/* ★ ON 状態（最優先） */
+.practice-action-icons .practice-star.on {
+  color: #f5b301;   /* 黄色 */
 }
 
 /* サブタグボタン */
@@ -447,3 +507,151 @@ label {
 .practice-subtabs-fixed:not(.star-only) {
   margin-top: 2px;
 }
+
+/* =========================
+   Related phrases overlay
+   ========================= */
+
+.related-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 9999;
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.related-modal {
+  margin-top: 20%;
+  background: #fff;
+  width: 90%;
+  max-width: 400px;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.related-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.related-item {
+  margin-bottom: 4px;
+}
+
+/* メイン文 */
+.related-text {
+  font-weight: 600;
+}
+
+/* （会話−質問）など */
+.related-meta {
+  margin-left: 4px;
+  color: #777;
+  font-size: 0.85em;
+}
+
+/* ID */
+.related-id {
+  margin-left: 4px;
+  font-size: 0.75em;
+  color: #999;
+}
+
+.related-debug {
+  margin-left: 4px;
+  color: #777;
+  font-size: 0.85em;
+}
+
+.related-debug-id {
+  margin-left: 4px;
+  font-size: 0.75em;
+  color: #999;
+}
+
+
+/* 下段（英／日） */
+.related-sub {
+  font-size: 0.9em;
+  color: #555;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+
+/* ===== ★ ブックマーク ===== */
+.practice-star {
+  margin-left: 6px;      /* ← フレーズとの間 */
+  font-size: 1.4em;      /* ← 見やすいが主張しすぎない */
+  line-height: 1;
+  cursor: pointer;
+
+  color: #cfcfcf;        /* ← OFF時は薄いグレー */
+  opacity: 0.7;
+  transition: color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.practice-star:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.practice-star.on {
+  color: #f5b301;        /* ← ON時は黄色 */
+  opacity: 1;
+}
+
+/* =========================
+   Related phrases（上段のレイアウト）
+   ========================= */
+
+.related-main{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* 左：本文（長くても右を押し出す） */
+.related-text{
+  flex: 1;
+  font-weight: 600;
+  line-height: 1.4;
+  min-width: 0;              /* 省略/折り返しのための保険 */
+}
+
+/* 右：メタ + ID + ★ を1塊にする（割れない） */
+.related-right{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;       /* ★ ここが本命：右側が崩れない */
+  flex-shrink: 0;            /* 右塊が潰れない */
+}
+
+/* （会話−質問）など */
+.related-meta{
+  color: #777;
+  font-size: 0.85em;
+}
+
+/* t185 など */
+.related-id{
+  color: #999;
+  font-size: 0.75em;
+}
+
+/* ★：共通の on/off はそのまま使う想定 */
+.related-right .practice-star{
+  margin-left: 2px;          /* 右端の見た目調整（任意） */
+}
+
+/* ★が消える原因を除去：残ってたら必ず無効化 */
+.related-main .practice-star{
+  position: static !important;
+}
+
+

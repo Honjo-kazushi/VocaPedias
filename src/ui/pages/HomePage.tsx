@@ -1380,22 +1380,11 @@ export default function HomePage() {
                             </span>
                           )}
 
-                          {(debugMode || ttsOn) && (
-                            <span
-                              style={{
-                                position: "absolute",
-                                right: 0,
-                                top: 0,
-                                minWidth: 72,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "flex-end",
-                                gap: 6,
-                                fontSize: "0.75em",
-                                color: "#999",
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
+                            {(debugMode || ttsOn) && (
+                              <span
+                                className="practice-action-icons"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                               {debugMode && (
                                 <span
                                   style={{ fontSize: "0.7em", marginRight: 4 }}
@@ -1408,19 +1397,10 @@ export default function HomePage() {
                                 className={`practice-star ${
                                   practiceStars.has(p.id) ? "on" : ""
                                 }`}
-                                style={{
-                                  cursor: "pointer",
-                                  color: practiceStars.has(p.id)
-                                    ? "#f5b301"
-                                    : "#ccc",
-                                  fontSize: "1.2em",
-                                  transform: "scale(1.4)",
-                                  transformOrigin: "right top",
-                                  lineHeight: 1,
-                                }}
                                 title="Bookmark"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (soundOn) playClickSe();
                                   setPracticeStars((prev) => {
                                     const next = new Set(prev);
                                     next.has(p.id)
@@ -1435,15 +1415,9 @@ export default function HomePage() {
 
                               {ttsOn && (
                                 <span
-                                  style={{
-                                    cursor: "pointer",
-                                    fontSize: "1.2em",
-                                    opacity:
-                                      speakingPhraseId === p.id ? 0.5 : 1,
-                                    transform: "scale(1.4)",
-                                    transformOrigin: "right top",
-                                    lineHeight: 1,
-                                  }}
+                                  className={`practice-speaker ${
+                                    speakingPhraseId === p.id ? "speaking" : ""
+                                  }`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     speakPractice(p);
@@ -1468,97 +1442,66 @@ export default function HomePage() {
           )}
 
           {/* =====================================================
-                  関連フレーズ　表示
-              ===================================================== */}
-
+              関連フレーズ（Overlay）
+          ===================================================== */}
           {activeMeaningGroup && (
             <div
-              style={{
-                position: "fixed",
-                inset: 0,
-                background: "rgba(0,0,0,0.4)",
-                zIndex: 9999,
-              }}
+              className="related-overlay"
               onClick={() => setActiveMeaningGroup(null)}
             >
               <div
-                style={{
-                  background: "#fff",
-                  margin: "20% auto",
-                  padding: 16,
-                  width: "90%",
-                  maxWidth: 400,
-                  borderRadius: 8,
-                }}
-                onClick={() => {
+                className="related-modal"
+                onClick={(e) => {
+                  e.stopPropagation();
                   playClickSe();
-                  setActiveMeaningGroup(null);
                 }}
               >
-                <div style={{ fontWeight: "bold", marginBottom: 8 }}>
-                  {UI.related}
-                </div>
+                <div className="related-title">{UI.related}</div>
 
                 {relatedPhrases.map((p) => (
-                  <div
-                    key={p.id}
-                    style={{
-                      marginBottom: 2,
-                      position: "relative",
-                    }}
-                  >
-                    {/* 上段（主表示） */}
-                    <div style={{ position: "relative" }}>
-                      {jpLearnMode ? p.en : p.jp}
-
-                      <span>
-                        {/* tags2 表示は debug のまま */}
-                        {debugMode && p.tags2?.main && p.tags2?.sub && (
-                          <span style={{ color: "#777" }}>
-                            （{p.tags2.main}−{p.tags2.sub}）
-                          </span>
-                        )}
-
-                        {/* ID は debug のまま */}
-                        {debugMode && <span>{p.id}</span>}
-
-                        {/* ★ は常に表示 */}
-                        <span
-                          style={{
-                            position: "absolute",
-                            right: 6,
-                            top: 2,
-
-                            cursor: "pointer",
-                            opacity: practiceStars.has(p.id) ? 1 : 0.3,
-                            color: practiceStars.has(p.id)
-                              ? "#f5b301"
-                              : undefined,
-                            fontSize: "1.2em",
-                            transform: "scale(1.4)",
-                            transformOrigin: "right top",
-                            lineHeight: 1,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePracticeStar(p.id);
-                          }}
-                          title="お気に入り"
-                        >
-                          ★
+                  <div key={p.id} className="related-item">
+                    {/* 上段 */}
+                      <div className="related-main">
+                        {/* 左：本文 */}
+                        <span className="related-text">
+                          {jpLearnMode ? p.en : p.jp}
                         </span>
-                      </span>
-                    </div>
 
-                    {/* 下段（補助表示） */}
-                    <div style={{ fontSize: "0.9em", color: "#555" }}>
+                        {/* 右：メタ + ID + ★ を1塊で右に固める */}
+                        <span className="related-right">
+                          {debugMode && p.tags2?.main && p.tags2?.sub && (
+                            <span className="related-meta">
+                              （{p.tags2.main}−{p.tags2.sub}）
+                            </span>
+                          )}
+
+                          {debugMode && (
+                            <span className="related-id">{p.id}</span>
+                          )}
+
+                          <span
+                            className={`practice-star ${practiceStars.has(p.id) ? "on" : ""}`}
+                            title="お気に入り"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (soundOn) playClickSe();
+                              togglePracticeStar(p.id);
+                            }}
+                          >
+                            ★
+                          </span>
+                        </span>
+                      </div>
+
+                    {/* 下段 */}
+                    <div className="related-sub">
                       {jpLearnMode ? p.jp : p.en}
                     </div>
                   </div>
                 ))}
 
                 <button
-                  style={{ marginTop: 12 }}
+                  className="btn btn-close"
                   onClick={() => setActiveMeaningGroup(null)}
                 >
                   {UI.close}
