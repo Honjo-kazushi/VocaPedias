@@ -312,6 +312,39 @@ export default function HomePage() {
       trainPhase === "ANSWER_SHOWN"
     );
 
+  function speakEnSafe(
+    text: string,
+    onEnd: () => void,
+    lang: "en" | "ja",
+    opts?: { timeoutMs?: number }
+  ) {
+    const timeoutMs = opts?.timeoutMs ?? 3000;
+
+    let finished = false;
+
+    const finishOnce = () => {
+      if (finished) return;
+      finished = true;
+      onEnd();
+    };
+
+    // safety timeout（TTSが死んだ時の保険）
+    const safetyTimer = window.setTimeout(() => {
+      speechSynthesis.cancel();
+      finishOnce();
+    }, timeoutMs);
+
+    // 元の speakEn をそのまま使う
+    speakEn(
+      text,
+      () => {
+        clearTimeout(safetyTimer);
+        finishOnce();
+      },
+      lang
+    );
+  }
+
   function hardStopToIdle() {
     // =========================
     // ★ 録音中なら即中断（最優先）
@@ -441,7 +474,7 @@ export default function HomePage() {
         // ★ ここで世代を固定（callback持ち越し防止）
         const gen = ++speakGenRef.current;
 
-        speakEn(
+        speakEnSafe(
           jpLearnMode ? phrase.jp : phrase.en,
           () => {
             if (speakGenRef.current !== gen) return;
@@ -717,7 +750,7 @@ export default function HomePage() {
       const phrase = recordingPhraseRef.current;
       if (phrase && ttsOn) {
         const gen = ++speakGenRef.current;
-        speakEn(
+        speakEnSafe(
           jpLearnMode ? phrase.jp : phrase.en,
           () => {
             if (speakGenRef.current !== gen) return;
@@ -745,7 +778,7 @@ export default function HomePage() {
 
     setSpeakingPhraseId(p.id);
 
-    speakEn(
+    speakEnSafe(
       jpLearnMode ? p.jp : p.en,
       () => {
         setSpeakingPhraseId(null);
@@ -1096,7 +1129,7 @@ export default function HomePage() {
 
           if (ttsOn && phrase) {
             const gen = ++speakGenRef.current;
-            speakEn(
+            speakEnSafe(
               jpLearnMode ? phrase.jp : phrase.en,
               () => {
                 if (speakGenRef.current !== gen) return;
@@ -1779,7 +1812,7 @@ export default function HomePage() {
                   Build: {buildTimeJst}
                   {accessCount !== null && (
                     <span style={{ marginLeft: 8, color: "#999" }}>
-                      | {formatCount(accessCount)}
+                      {formatCount(accessCount)}
                     </span>
                   )}
                 </div>
