@@ -15,6 +15,9 @@ import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 import type { Mode } from "../static/uiStatic";
 import { MODE_DESCRIPTIONS } from "../static/uiStatic";
 
+import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
+import { db } from "../../firebase";
+
 import {
   UI_TEXT,
   MODE_LABELS,
@@ -206,6 +209,37 @@ export default function HomePage() {
     minute: "2-digit",
     second: "2-digit",
   });
+
+  const [accessCount, setAccessCount] = useState<number | null>(null);
+  function formatCount(n: number, digits = 4) {
+    return n.toString().padStart(digits, "0");
+  }
+
+  useEffect(() => {
+    const countUp = async () => {
+      const ref = doc(db, "counters", "vocapedias");
+
+      try {
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          // 初回
+          await setDoc(ref, { count: 1 });
+          setAccessCount(1);
+        } else {
+          await updateDoc(ref, { count: increment(1) });
+
+          const current = snap.data().count ?? 0;
+          setAccessCount(current + 1);
+        }
+      } catch (e) {
+        console.warn("access counter failed", e);
+      }
+    };
+
+    countUp();
+  }, []);
+
 
   const togglePracticeStar = (id: string) => {
     setPracticeStars((prev) => {
@@ -1700,7 +1734,7 @@ export default function HomePage() {
                     checked={jpLearnMode}
                     onChange={(e) => setJpLearnMode(e.target.checked)}
                   />
-                  Japanese Learning Mode (Japanese → English practice)
+                  Japanese Learning Mode (English → Japanese practice)
                 </label>
 
                 <label
@@ -1743,7 +1777,13 @@ export default function HomePage() {
 
                 <div style={{ fontSize: "0.75em", color: "#666" }}>
                   Build: {buildTimeJst}
+                  {accessCount !== null && (
+                    <span style={{ marginLeft: 8, color: "#999" }}>
+                      | {formatCount(accessCount)}
+                    </span>
+                  )}
                 </div>
+                
                 <button
                   className="btn btn-close"
                   onClick={() => {
