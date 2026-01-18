@@ -7,7 +7,7 @@ export type Phrase = {
     main: string;
     sub: string;
   };
-  meaningGroup?: string; // 同義束（Alt 展開の基点）
+  meaningGroup?: string | null; // 同義束（Alt 展開の基点）
 };
 
 export type PhraseQuery = {
