@@ -1299,7 +1299,10 @@ export default function HomePage() {
               <select
                 className="mode-select"
                 value={mode}
-                onChange={(e) => setMode(e.target.value as Mode)}
+                onChange={(e) => {
+                  playClickSe();
+                  setMode(e.target.value as Mode);
+                }}
               >
                 <option value="A">{MODE_LABELS_VIEW.A}</option>
                 <option value="B">{MODE_LABELS_VIEW.B}</option>

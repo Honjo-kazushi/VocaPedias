@@ -38,7 +38,7 @@ export const MODE_DESCRIPTIONS = {
 
   scene: {
     jp: [
-      "ホテルやレストランなど、場面別の定型フレーズを確認できます",
+      "いろいろな場面別の定型フレーズを確認できます",
       "必要な表現だけを素早く見つけて使えます",
       "海外でそのまま見せても使えるシンプルな一覧です",
     ],
@@ -55,9 +55,9 @@ export const MODE_DESCRIPTIONS = {
 
 export const MODE_SWITCH_TEXT = {
   jp: {
-    toPractice: "“フレーズを見て使う”に切り替える",
-    toLearn: "“フレーズを学習する”に切り替える",
-    toScene: "“場面で使えるフレーズ”に切り替える",
+    toPractice: "“フレーズを使う”に切替え",
+    toLearn: "“フレーズを学習する”に切替え",
+    toScene: "“場面で使うフレーズ”に切替え",
   },
   en: {
     toPractice: "Switch to “Use phrases in context”",

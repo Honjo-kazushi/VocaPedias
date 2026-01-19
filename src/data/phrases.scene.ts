@@ -13,6 +13,28 @@ export const PHRASES_SCENE: Phrase[] = [
 { id: "h109", jp: "到着が遅くなります。", en: "I'll be arriving late.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
 { id: "h110", jp: "予約をキャンセルできますか？", en: "Can I cancel my reservation?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
 
+{ id: "h151", jp: "お電話ありがとうございます。", en: "Thank you for calling.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h152", jp: "ご予約のお電話でしょうか？", en: "Is this a call about a reservation?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h153", jp: "少々お待ちください。", en: "Just a moment, please.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h154", jp: "お名前を伺ってもよろしいですか？", en: "May I have your name, please?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h155", jp: "ご用件を教えてください。", en: "May I ask what this is regarding?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+
+{ id: "h156", jp: "申し訳ありません。担当者は不在です。", en: "I'm sorry, the person in charge is not available.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h157", jp: "後ほど折り返しお電話いたします。", en: "We will call you back later.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h158", jp: "伝言をお預かりしましょうか？", en: "Would you like to leave a message?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h159", jp: "お電話番号を教えてください。", en: "May I have your phone number?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h160", jp: "折り返しご連絡いたします。", en: "We will get back to you.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+
+{ id: "h161", jp: "少々お待ちいただけますか？", en: "Could you hold on for a moment?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h162", jp: "確認してまいります。", en: "Let me check that for you.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h163", jp: "もう一度お名前をお願いできますか？", en: "Could you repeat your name, please?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h164", jp: "聞き取れませんでした。", en: "I'm sorry, I couldn't catch that.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h165", jp: "少しお待ちください。", en: "Please wait a moment.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+
+{ id: "h166", jp: "では、以上でよろしいでしょうか？", en: "Is there anything else?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+{ id: "h167", jp: "お電話ありがとうございました。", en: "Thank you for calling.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
+
+
 { id: "h111", jp: "1泊いくらですか？", en: "How much is it per night?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "料金" }, meaningGroup: null },
 { id: "h112", jp: "税金は含まれていますか？", en: "Is tax included?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "料金" }, meaningGroup: null },
 { id: "h113", jp: "▶ 朝食は料金に含まれています。", en: "Breakfast is included in the price.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "料金" }, meaningGroup: null },
@@ -67,6 +89,31 @@ export const PHRASES_SCENE: Phrase[] = [
 { id: "m208", jp: "どこで降りればいいですか？", en: "Where should I get off?", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
 { id: "m209", jp: "▶ 終点です。", en: "This is the last stop.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
 { id: "m210", jp: "空港に行きたいです。", en: "I'd like to go to the airport.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+
+{ id: "m251", jp: "まっすぐ行ってください。", en: "Go straight.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m252", jp: "この道をまっすぐです。", en: "Just go straight along this street.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m253", jp: "2つ目の角を右に曲がってください。", en: "Turn right at the second corner.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m254", jp: "最初の信号を左です。", en: "Turn left at the first traffic light.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m255", jp: "そのまま進んでください。", en: "Keep going.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+
+{ id: "m256", jp: "散髪屋を通り過ぎます。", en: "Pass the barber shop.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m257", jp: "コンビニが見えたら右です。", en: "Turn right when you see a convenience store.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m258", jp: "次の信号を左に曲がります。", en: "Turn left at the next traffic light.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m259", jp: "橋を渡ってください。", en: "Go across the bridge.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m260", jp: "大きな交差点まで行きます。", en: "Go to the big intersection.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+
+{ id: "m261", jp: "駅はその先です。", en: "The station is further ahead.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m262", jp: "駅は右側にあります。", en: "The station is on your right.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m263", jp: "5分くらい歩きます。", en: "It's about a five-minute walk.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m264", jp: "すぐ近くです。", en: "It's very close.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m265", jp: "少し遠いです。", en: "It's a bit far.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+
+{ id: "m266", jp: "この道で合っています。", en: "You're on the right way.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m267", jp: "道を渡らないでください。", en: "Don't cross the street.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m268", jp: "建物の裏にあります。", en: "It's behind the building.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m269", jp: "右手に見えます。", en: "You'll see it on your right.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+{ id: "m270", jp: "左側にあります。", en: "It's on the left side.", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
+
 
 { id: "m211", jp: "何時に出発しますか？", en: "What time does it leave?", tags: ["移動"], tags2: { main: "移動", sub: "時間" }, meaningGroup: null },
 { id: "m212", jp: "到着は何時ですか？", en: "What time will it arrive?", tags: ["移動"], tags2: { main: "移動", sub: "時間" }, meaningGroup: null },
