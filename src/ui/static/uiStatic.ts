@@ -2,6 +2,8 @@
 // UIで使う「完全に固定の定義」だけを集約する
 export const MODES = ["TRAIN", "A", "B", "C", "D", "E", "F", "STAR"] as const;
 export type Mode = typeof MODES[number];
+// ★ Scene で使う Mode（TRAIN / STAR を除外）
+export type SceneMode = Exclude<Mode, "TRAIN" | "STAR">;
 
 /* ===============================
    UI 文言
@@ -20,6 +22,7 @@ export const MODE_DESCRIPTIONS = {
     ],
   },
 
+  
   train: {
     jp: [
       "自分の発音を録音し、正解と聞き比べて練習できます",
@@ -31,6 +34,35 @@ export const MODE_DESCRIPTIONS = {
       "Switch to Japanese-based learning if you prefer",
       "Learn naturally by listening without active input",
     ],
+  },
+
+  scene: {
+    jp: [
+      "ホテルやレストランなど、場面別の定型フレーズを確認できます",
+      "必要な表現だけを素早く見つけて使えます",
+      "海外でそのまま見せても使えるシンプルな一覧です",
+    ],
+    en: [
+      "Browse fixed phrases organized by specific situations",
+      "Quickly find exactly what you need in each scene",
+      "A simple list you can even show directly while traveling",
+    ],
+  },
+
+} as const;
+
+// uiStatic.ts
+
+export const MODE_SWITCH_TEXT = {
+  jp: {
+    toPractice: "“フレーズを見て使う”に切り替える",
+    toLearn: "“フレーズを学習する”に切り替える",
+    toScene: "“場面で使えるフレーズ”に切り替える",
+  },
+  en: {
+    toPractice: "Switch to “Use phrases in context”",
+    toLearn: "Switch to “Learn phrases”",
+    toScene: "Switch to “Phrases for scenes”",
   },
 } as const;
 
@@ -96,25 +128,53 @@ export const UI_TEXT = {
 export const MODE_LABELS = {
   jp: {
     TRAIN: "学習する",
+
+    // ===== 実践モード（既存） =====
     A: "話を受ける",
     B: "感情を表す",
     C: "今を伝える",
     D: "動いてほしい",
     E: "考えを伝える",
     F: "柔らかく言う",
+
     STAR: "★フレーズを見る",
   },
+
   en: {
     TRAIN: "Training",
+
+    // ===== Practice =====
     A: "Respond",
     B: "Express feelings",
     C: "Describe the situation",
     D: "Ask for action",
     E: "Share judgement",
     F: "Be considerate",
+
     STAR: "★View bookmarked phrases",
   },
+
+  /* ★ 追加：場面モード用ラベル */
+  scene: {
+    jp: {
+      A: "ホテルで",
+      B: "移動で",
+      C: "レストランで",
+      D: "買い物で",
+      E: "会議で",
+      F: "病院で",
+    },
+    en: {
+      A: "At a hotel",
+      B: "While traveling",
+      C: "At a restaurant",
+      D: "Shopping",
+      E: "In a meeting",
+      F: "At a hospital",
+    },
+  },
 } as const;
+
 
 /* ===============================
    Practice モード固定定義
@@ -144,6 +204,30 @@ export const PRACTICE_CONFIG: {
     STAR:   [],
   },
 };
+
+export const SCENE_CONFIG: {
+  mainJp: Record<SceneMode, string>;
+  subOrder: Record<string, string[]>;
+} = {
+  mainJp: {
+    A: "ホテル",
+    B: "移動",
+    C: "レストラン",
+    D: "買い物",
+    E: "会議",
+    F: "病院",
+  },
+
+  subOrder: {
+    ホテル: ["予約", "料金", "部屋", "トラブル", "サービス"],
+    移動: ["行先", "時間", "料金", "乗換", "トラブル"],
+    レストラン: ["入店", "注文", "料理", "会計", "トラブル"],
+    買い物: ["商品", "サイズ", "価格", "支払", "トラブル"],
+    会議: ["開始", "確認", "提案", "調整", "締め"],
+    病院: ["受付", "症状", "診察", "薬", "トラブル"],
+  },
+};
+
 
 /* ===============================
    TAG → EMOJI
@@ -288,5 +372,36 @@ export const TAG_EMOJI: Record<string, string> = {
   申し出: "🙋",
   制度: "🏛️",
   反応: "😮", 
+
+  // ホテル
+  予約: "📅",
+  料金: "💳",
+  部屋: "🛏️",
+  サービス: "🛎️",
+
+  // 移動
+  行先: "📍",
+  乗換: "🔁",
+
+  // レストラン
+  入店: "🚪",
+  料理: "🍲",
+  会計: "💰",
+
+  // 買い物
+  商品: "📦",
+  サイズ: "📐",
+  価格: "🏷️",
+  支払: "💳",
+
+  // 会議
+  調整: "⚙️",
+  締め: "🏁",
+
+  // 病院
+  受付: "🧾",
+  症状: "🤒",
+  診察: "🩺",
+  薬: "💊",
 
 };

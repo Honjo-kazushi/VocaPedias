@@ -10,10 +10,13 @@ import type { Phrase } from "../../app/ports/PhraseRepository";
 import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn";
 import { PHRASES_SEED } from "../../data/phrases.seed";
+import { PHRASES_SCENE } from "../../data/phrases.scene";
+
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
 import type { Mode } from "../static/uiStatic";
 import { MODE_DESCRIPTIONS } from "../static/uiStatic";
+import { MODE_SWITCH_TEXT } from "../static/uiStatic";
 
 import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -22,6 +25,7 @@ import {
   UI_TEXT,
   MODE_LABELS,
   PRACTICE_CONFIG,
+  SCENE_CONFIG,
   TAG_EMOJI,
 } from "../static/uiStatic";
 
@@ -58,6 +62,7 @@ export default function HomePage() {
   // 1. 共通（設定・モード・共用 state）
   // =====================================================
   const [mode, setMode] = useState<Mode>("A");
+  const [sceneMode, setSceneMode] = useState<boolean>(false);
 
   const [soundOn, setSoundOn] = useState<boolean>(() =>
     readBool("soundOn", true)
@@ -69,7 +74,7 @@ export default function HomePage() {
   const [autoNext, setAutoNext] = useState<boolean>(() =>
     readBool("autoNext", true)
   );
-  
+
   const [debugMode, setDebugMode] = useState<boolean>(() =>
     readBool("debugMode", false)
   );
@@ -160,42 +165,75 @@ export default function HomePage() {
   const sortByJapanese = (a: Phrase, b: Phrase) =>
     a.jp.localeCompare(b.jp, "ja");
 
+  // ★ 場面モード用：A〜F → 「ホテル/移動/…」へ変換
+  const sceneMainJp =
+    sceneMode && mode !== "TRAIN" && mode !== "STAR"
+      ? SCENE_CONFIG.mainJp[mode]
+      : null;
+
   const practiceMainPhrases = useMemo(() => {
-    if (!practiceMainJp) return [];
-    return PHRASES_SEED.filter((p) => p.tags2?.main === practiceMainJp);
-  }, [practiceMainJp]);
-
-  const practicePhrases = useMemo(() => {
-    if (mode === "STAR") {
-      const list = PHRASES_SEED.filter((p) => practiceStars.has(p.id));
-      return list.slice().sort(sortByJapanese);
+    if (!sceneMode && mode === "STAR") {
+      return PHRASES_SEED.filter((p) => practiceStars.has(p.id));
     }
-    const list = practiceSub
-      ? practiceMainPhrases.filter((p) => p.tags2?.sub === practiceSub)
-      : practiceMainPhrases;
 
-    return list.slice().sort(sortByJapanese);
-  }, [mode, practiceStars, practiceMainPhrases, practiceSub]);
+    // ★ 場面モード
+    if (sceneMode) {
+      if (!sceneMainJp) return [];
+
+      // sub の順序は main（ホテル等）で引く
+      const subs = SCENE_CONFIG.subOrder[sceneMainJp] ?? [];
+
+      return PHRASES_SCENE.filter((p) => {
+        if (!p.tags2) return false;
+        if (p.tags2.main !== sceneMainJp) return false;
+
+        // subs が空なら「mainだけ一致」を通す（保険）
+        if (subs.length === 0) return true;
+
+        return subs.includes(p.tags2.sub);
+      });
+    }
+
+    // ★ 実践モード（元のまま）
+    if (!practiceMainJp) return [];
+    const list = PHRASES_SEED.filter((p) => p.tags2?.main === practiceMainJp);
+    return list.sort(sortByJapanese);
+  }, [sceneMode, mode, practiceMainJp, practiceStars, sceneMainJp]);
 
   const practiceSubStats = useMemo(() => {
-    // sub -> count（出現順を維持）
     const map = new Map<string, number>();
     for (const p of practiceMainPhrases) {
       const sub = p.tags2?.sub?.trim();
       if (!sub) continue;
       map.set(sub, (map.get(sub) ?? 0) + 1);
     }
-    const order = PRACTICE_CONFIG.subOrder[mode] ?? [];
-    return order
-      .filter((sub) => map.has(sub))
-      .map((sub) => ({ sub, count: map.get(sub)! }));
-  }, [practiceMainPhrases, mode]);
+
+    const order = sceneMode
+      ? sceneMainJp
+        ? (SCENE_CONFIG.subOrder[sceneMainJp] ?? [])
+        : []
+      : (PRACTICE_CONFIG.subOrder[mode] ?? []);
+
+    return order.map((sub) => ({ sub, count: map.get(sub) ?? 0 }));
+  }, [practiceMainPhrases, mode, sceneMode, sceneMainJp]);
 
   // =====================================================
   // 4. UI 文言
   // =====================================================
   const UI = jpLearnMode ? UI_TEXT.en : UI_TEXT.jp;
-  const MODE_LABELS_VIEW = jpLearnMode ? MODE_LABELS.en : MODE_LABELS.jp;
+  const MODE_LABELS_VIEW = sceneMode
+    ? jpLearnMode
+      ? MODE_LABELS.scene.en
+      : MODE_LABELS.scene.jp
+    : jpLearnMode
+      ? MODE_LABELS.en
+      : MODE_LABELS.jp;
+  const MODE_LABELS_STAR =
+    mode !== "TRAIN" && !sceneMode
+      ? jpLearnMode
+        ? MODE_LABELS.en.STAR
+        : MODE_LABELS.jp.STAR
+      : MODE_LABELS.jp.STAR;
 
   // =====================================================
   // 5. JSX
@@ -240,7 +278,6 @@ export default function HomePage() {
     countUp();
   }, []);
 
-
   const togglePracticeStar = (id: string) => {
     setPracticeStars((prev) => {
       const next = new Set(prev);
@@ -273,21 +310,13 @@ export default function HomePage() {
     !isBusy &&
     !isPaused &&
     randomPhrase !== null &&
-    (
-      ttsOn
-        ? (
-            // TTS ON：IDLE かつ QUESTION、または復習(ANSWER_SHOWN)は autoNext OFF のときだけ
-            speechState === "IDLE" &&
-            (
-              trainPhase === "QUESTION" ||
-              (trainPhase === "ANSWER_SHOWN" && !autoNext)
-            )
-          )
-        : (
-            // TTS OFF：QUESTION のときだけ（待機中に青で押せる問題を潰す）
-            trainPhase === "QUESTION"
-          )
-    );
+    (ttsOn
+      ? // TTS ON：IDLE かつ QUESTION、または復習(ANSWER_SHOWN)は autoNext OFF のときだけ
+        speechState === "IDLE" &&
+        (trainPhase === "QUESTION" ||
+          (trainPhase === "ANSWER_SHOWN" && !autoNext))
+      : // TTS OFF：QUESTION のときだけ（待機中に青で押せる問題を潰す）
+        trainPhase === "QUESTION");
   const [spokenText, setSpokenText] = useState<string | null>(null);
   const speechTextStyle: React.CSSProperties = {
     fontSize: "0.85em",
@@ -306,11 +335,9 @@ export default function HomePage() {
     mode === "TRAIN" &&
     !isPaused &&
     randomPhrase !== null &&
-    (
-      trainPhase === "QUESTION" ||
+    (trainPhase === "QUESTION" ||
       trainPhase === "RECORDING" ||
-      trainPhase === "ANSWER_SHOWN"
-    );
+      trainPhase === "ANSWER_SHOWN");
 
   function speakEnSafe(
     text: string,
@@ -390,7 +417,6 @@ export default function HomePage() {
     setIsBusy(false);
     setIsPaused(true); // 停止状態
   }
-
 
   function initSpeechRecognition() {
     if (!ttsOn) return;
@@ -887,8 +913,8 @@ export default function HomePage() {
             {l.revealed
               ? `見た:${l.revealAtSec}s`
               : l.timeout
-              ? "タイムアップ(5s)"
-              : "未判定"}
+                ? "タイムアップ(5s)"
+                : "未判定"}
           </div>
         ))}
       </div>
@@ -1157,7 +1183,7 @@ export default function HomePage() {
     };
   }, [mode, randomPhrase, showEn, autoNext, isPaused]);
 
-//=====================================================
+  //=====================================================
   //      UI　表示
   //===================================================== */
   return (
@@ -1183,34 +1209,85 @@ export default function HomePage() {
               ===================================================== */}
           <div className="mode-description">
             <div className="mode-text">
-              {(mode === "TRAIN"
+              {(sceneMode
                 ? jpLearnMode
-                  ? MODE_DESCRIPTIONS.train.en
-                  : MODE_DESCRIPTIONS.train.jp
-                : jpLearnMode
-                ? MODE_DESCRIPTIONS.practice.en
-                : MODE_DESCRIPTIONS.practice.jp
+                  ? MODE_DESCRIPTIONS.scene.en
+                  : MODE_DESCRIPTIONS.scene.jp
+                : mode === "TRAIN"
+                  ? jpLearnMode
+                    ? MODE_DESCRIPTIONS.train.en
+                    : MODE_DESCRIPTIONS.train.jp
+                  : jpLearnMode
+                    ? MODE_DESCRIPTIONS.practice.en
+                    : MODE_DESCRIPTIONS.practice.jp
               ).map((line, i) => (
                 <div key={i}>{line}</div>
               ))}
             </div>
 
             <div className="mode-switch-row">
-              <button
-                className="btn btn-mode-switch"
-                onClick={() => {
-                  if (soundOn) playSe();
-                  setMode(mode === "TRAIN" ? "A" : "TRAIN");
-                }}
-              >
-                {mode === "TRAIN"
-                  ? jpLearnMode
-                    ? "Switch to “Use phrases in context”"
-                    : "“フレーズを見て使う”に切り替える"
-                  : jpLearnMode
-                  ? "Switch to “Learn phrases”"
-                  : "“フレーズを学習する”に切り替える"}
-              </button>
+              {/* ===== 学習モード ===== */}
+              {mode === "TRAIN" && (
+                <button
+                  className="btn btn-mode-switch"
+                  onClick={() => {
+                    if (soundOn) playSe();
+                    setMode("A"); // 実践へ
+                  }}
+                >
+                  {jpLearnMode
+                    ? MODE_SWITCH_TEXT.en.toPractice
+                    : MODE_SWITCH_TEXT.jp.toPractice}
+                </button>
+              )}
+
+              {/* ===== 実践モード ===== */}
+              {mode !== "TRAIN" && !sceneMode && (
+                <>
+                  {/* ★ さりげない場面切替（追加） */}
+                  <button
+                    className="btn-sub"
+                    onClick={() => {
+                      if (soundOn) playSe();
+                      setSceneMode(true);
+                      setMode("A");
+                    }}
+                  >
+                    {jpLearnMode
+                      ? MODE_SWITCH_TEXT.en.toScene
+                      : MODE_SWITCH_TEXT.jp.toScene}
+                  </button>
+
+                  {/* 既存の学習切替ボタン（そのまま） */}
+                  <button
+                    className="btn btn-mode-switch"
+                    onClick={() => {
+                      if (soundOn) playSe();
+                      setMode("TRAIN");
+                    }}
+                  >
+                    {jpLearnMode
+                      ? MODE_SWITCH_TEXT.en.toLearn
+                      : MODE_SWITCH_TEXT.jp.toLearn}
+                  </button>
+                </>
+              )}
+
+              {/* ===== 場面モード ===== */}
+              {sceneMode && (
+                <button
+                  className="btn btn-mode-switch"
+                  onClick={() => {
+                    if (soundOn) playSe();
+                    setSceneMode(false); // 実践へ戻る
+                    setMode("A");
+                  }}
+                >
+                  {jpLearnMode
+                    ? MODE_SWITCH_TEXT.en.toPractice
+                    : MODE_SWITCH_TEXT.jp.toPractice}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1230,7 +1307,7 @@ export default function HomePage() {
                 <option value="D">{MODE_LABELS_VIEW.D}</option>
                 <option value="E">{MODE_LABELS_VIEW.E}</option>
                 <option value="F">{MODE_LABELS_VIEW.F}</option>
-                <option value="STAR">{MODE_LABELS_VIEW.STAR}</option>
+                {!sceneMode && <option value="STAR">{MODE_LABELS_STAR}</option>}
               </select>
             </div>
           )}
@@ -1322,38 +1399,35 @@ export default function HomePage() {
           </div>
 
           {/* =====================================================
-                  実践モード　表示
-              ===================================================== */}
-          {/* ===== PRACTICE（仕上げ） ===== */}
+                  実践モード 表示
+          ===================================================== */}
           {mode !== "TRAIN" && (
             <>
-              {mode === "STAR" ? (
-                practiceStars.size > 0 && (
-                  <div className="practice-subtabs-fixed star-only">
-                    <button
-                      className="practice-subtab debug-clear"
-                      onClick={() => {
-                        clearAllStars();
-                      }}
-                      title="Clear all stars"
-                    >
-                      <span className="practice-subtab-emoji">★</span>
-                      <span className="practice-subtab-label">All Clear</span>
-                    </button>
-                  </div>
-                )
-              ) : (
+              {/* ===== STAR モード ===== */}
+              {mode === "STAR" && !sceneMode && practiceStars.size > 0 && (
+                <div className="practice-subtabs-fixed star-only">
+                  <button
+                    className="practice-subtab debug-clear"
+                    onClick={clearAllStars}
+                    title="Clear all stars"
+                  >
+                    <span className="practice-subtab-emoji">★</span>
+                    <span className="practice-subtab-label">All Clear</span>
+                  </button>
+                </div>
+              )}
+
+              {/* ===== PRACTICE / SCENE 共通（STAR以外） ===== */}
+              {mode !== "STAR" && (
                 <>
-                  {/* ===== サブタグボタン：通常 PRACTICE ===== */}
+                  {/* ===== サブタグボタン ===== */}
                   <div className="practice-subtabs-fixed">
                     {practiceSubStats.map(({ sub, count }) => {
                       const selected = sub === practiceSub;
                       return (
                         <button
                           key={sub}
-                          className={`practice-subtab ${
-                            selected ? "active" : ""
-                          }`}
+                          className={`practice-subtab ${selected ? "active" : ""}`}
                           onClick={() => {
                             playClickSe();
                             setActiveMeaningGroup(null);
@@ -1373,13 +1447,11 @@ export default function HomePage() {
                       );
                     })}
 
-                    {/* ★ があるときだけ All Clear */}
-                    {practiceStars.size > 0 && (
+                    {/* ★ All Clear（sceneMode では出さない） */}
+                    {!sceneMode && practiceStars.size > 0 && (
                       <button
                         className="practice-subtab debug-clear"
-                        onClick={() => {
-                          clearAllStars();
-                        }}
+                        onClick={clearAllStars}
                         title="Clear all stars"
                       >
                         <span className="practice-subtab-emoji">★</span>
@@ -1390,23 +1462,32 @@ export default function HomePage() {
                 </>
               )}
 
-              {/* ===== リスト枠（可変高） ===== */}
+              {/* ===== リスト枠 ===== */}
               <div className="practice-list-wrap">
                 {/* 表題 */}
                 <div className="practice-title">
                   {mode === "STAR"
                     ? `${jpLearnMode ? "★ Bookmarked phrases" : "★ フレーズ"} ${
-                        practicePhrases.length
+                        practiceMainPhrases.length
                       }`
-                    : `${practiceSub ?? "—"} ${practicePhrases.length}`}
+                    : `${practiceSub ?? "—"} ${
+                        practiceSubStats.find((s) => s.sub === practiceSub)
+                          ?.count ?? 0
+                      }`}
                 </div>
 
-                {/* ===== PRACTICE ガイダンス ===== */}
-                <div className="practice-guide">{UI.practiceGuide}</div>
+                {/* ガイド（sceneModeでは出さない） */}
+                {!sceneMode && (
+                  <div className="practice-guide">
+                    {jpLearnMode
+                      ? UI_TEXT.en.practiceGuide
+                      : UI_TEXT.jp.practiceGuide}
+                  </div>
+                )}
 
-                {/* ===== 実際にスクロールする部分 ===== */}
+                {/* ===== リスト ===== */}
                 <div className="practice-list" ref={practiceListRef}>
-                  {mode === "STAR" && practicePhrases.length === 0 ? (
+                  {mode === "STAR" && practiceMainPhrases.length === 0 ? (
                     <div className="practice-empty">
                       {jpLearnMode
                         ? "★ No bookmarked phrases yet"
@@ -1414,21 +1495,18 @@ export default function HomePage() {
                     </div>
                   ) : (
                     (mode === "STAR"
-                      ? [...practicePhrases].sort((a, b) =>
+                      ? [...practiceMainPhrases].sort((a, b) =>
                           a.jp.localeCompare(b.jp, "ja")
                         )
-                      : practicePhrases
+                      : practiceMainPhrases.filter(
+                          (p) => !practiceSub || p.tags2?.sub === practiceSub
+                        )
                     ).map((p) => (
                       <div
                         key={p.id}
                         className={`practice-item ${
                           p.meaningGroup ? "clickable" : "disabled"
                         }`}
-                        onClick={() => {
-                          if (!p.meaningGroup) return;
-                          playClickSe();
-                          setActiveMeaningGroup(p.meaningGroup);
-                        }}
                       >
                         <div
                           className="practice-item-jp"
@@ -1445,17 +1523,16 @@ export default function HomePage() {
                                 color: "#f5b301",
                                 fontSize: "1.1em",
                               }}
-                              title="Learned recently"
                             >
                               ★
                             </span>
                           )}
 
-                            {(debugMode || ttsOn) && (
-                              <span
-                                className="practice-action-icons"
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                          {(debugMode || ttsOn) && (
+                            <span
+                              className="practice-action-icons"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {debugMode && (
                                 <span
                                   style={{ fontSize: "0.7em", marginRight: 4 }}
@@ -1464,25 +1541,21 @@ export default function HomePage() {
                                 </span>
                               )}
 
-                              <span
-                                className={`practice-star ${
-                                  practiceStars.has(p.id) ? "on" : ""
-                                }`}
-                                title="Bookmark"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (soundOn) playClickSe();
-                                  setPracticeStars((prev) => {
-                                    const next = new Set(prev);
-                                    next.has(p.id)
-                                      ? next.delete(p.id)
-                                      : next.add(p.id);
-                                    return next;
-                                  });
-                                }}
-                              >
-                                ★
-                              </span>
+                              {/* ★ ブックマーク（sceneModeでは出さない） */}
+                              {!sceneMode && (
+                                <span
+                                  className={`practice-star ${
+                                    practiceStars.has(p.id) ? "on" : ""
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    playClickSe();
+                                    togglePracticeStar(p.id);
+                                  }}
+                                >
+                                  ★
+                                </span>
+                              )}
 
                               {ttsOn && (
                                 <span
@@ -1532,37 +1605,37 @@ export default function HomePage() {
                 {relatedPhrases.map((p) => (
                   <div key={p.id} className="related-item">
                     {/* 上段 */}
-                      <div className="related-main">
-                        {/* 左：本文 */}
-                        <span className="related-text">
-                          {jpLearnMode ? p.en : p.jp}
-                        </span>
+                    <div className="related-main">
+                      {/* 左：本文 */}
+                      <span className="related-text">
+                        {jpLearnMode ? p.en : p.jp}
+                      </span>
 
-                        {/* 右：メタ + ID + ★ を1塊で右に固める */}
-                        <span className="related-right">
-                          {debugMode && p.tags2?.main && p.tags2?.sub && (
-                            <span className="related-meta">
-                              （{p.tags2.main}−{p.tags2.sub}）
-                            </span>
-                          )}
-
-                          {debugMode && (
-                            <span className="related-id">{p.id}</span>
-                          )}
-
-                          <span
-                            className={`practice-star ${practiceStars.has(p.id) ? "on" : ""}`}
-                            title="お気に入り"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (soundOn) playClickSe();
-                              togglePracticeStar(p.id);
-                            }}
-                          >
-                            ★
+                      {/* 右：メタ + ID + ★ を1塊で右に固める */}
+                      <span className="related-right">
+                        {debugMode && p.tags2?.main && p.tags2?.sub && (
+                          <span className="related-meta">
+                            （{p.tags2.main}−{p.tags2.sub}）
                           </span>
+                        )}
+
+                        {debugMode && (
+                          <span className="related-id">{p.id}</span>
+                        )}
+
+                        <span
+                          className={`practice-star ${practiceStars.has(p.id) ? "on" : ""}`}
+                          title="お気に入り"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (soundOn) playClickSe();
+                            togglePracticeStar(p.id);
+                          }}
+                        >
+                          ★
                         </span>
-                      </div>
+                      </span>
+                    </div>
 
                     {/* 下段 */}
                     <div className="related-sub">
@@ -1594,11 +1667,11 @@ export default function HomePage() {
                 className={`btn btn-stop ${canUseStop ? "btn-text-active" : "btn-text-disabled"}`}
                 disabled={!canUseStop}
                 style={{
-                    color: canUseStop ? "#444" : "#aaa",
-                  }}
+                  color: canUseStop ? "#444" : "#aaa",
+                }}
                 onClick={() => {
-                if (soundOn) playSe();
-                hardStopToIdle();
+                  if (soundOn) playSe();
+                  hardStopToIdle();
                 }}
               >
                 {UI.pause}
@@ -1609,8 +1682,8 @@ export default function HomePage() {
                 className="btn btn-next"
                 disabled={!canUseNext}
                 style={{
-                    color: canUseNext ? "#2563eb" : "#9ca3af",
-                  }}
+                  color: canUseNext ? "#2563eb" : "#9ca3af",
+                }}
                 onClick={() => {
                   if (!canUseNext) return;
                   if (soundOn) playSe();
@@ -1624,12 +1697,12 @@ export default function HomePage() {
 
               {/* 認識実行／英語を見る（必要なときだけ） */}
               <button
-                  className="btn btn-en"
-                  disabled={!canUseSpeak}
-                  style={{
-                    color: canUseSpeak ? "#eb6425" : "#9ca3af",
-                  }}
-                  onClick={() => {
+                className="btn btn-en"
+                disabled={!canUseSpeak}
+                style={{
+                  color: canUseSpeak ? "#eb6425" : "#9ca3af",
+                }}
+                onClick={() => {
                   if (!canUseSpeak) return;
                   if (isBusy) return;
                   if (!randomPhrase) return;
@@ -1816,7 +1889,7 @@ export default function HomePage() {
                     </span>
                   )}
                 </div>
-                
+
                 <button
                   className="btn btn-close"
                   onClick={() => {

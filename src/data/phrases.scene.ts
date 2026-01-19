@@ -1,6 +1,6 @@
 import type { Phrase } from "../app/ports/PhraseRepository";
 
-export const PHRASES_SCENE_SEED: Phrase[] = [
+export const PHRASES_SCENE: Phrase[] = [
 
 { id: "h101", jp: "ホテルを予約したいです。", en: "I'd like to make a reservation.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
 { id: "h102", jp: "空室はありますか？", en: "Do you have any rooms available?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "予約" }, meaningGroup: null },
@@ -46,6 +46,16 @@ export const PHRASES_SCENE_SEED: Phrase[] = [
 { id: "h139", jp: "▶ 別の部屋をご用意します。", en: "We'll prepare another room for you.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "トラブル" }, meaningGroup: null },
 { id: "h140", jp: "これは私のミスではありません。", en: "This isn't my mistake.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "トラブル" }, meaningGroup: null },
 
+{ id: "h141", jp: "ルームサービスをお願いできますか？", en: "Could I order room service?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h142", jp: "追加のタオルをお願いできますか？", en: "Could I get some extra towels?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h143", jp: "部屋の清掃をお願いしたいのですが。", en: "I'd like to request room cleaning.", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h144", jp: "アメニティを補充してもらえますか？", en: "Could you replenish the amenities?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h145", jp: "チェックアウトを少し延ばせますか？", en: "Could I have a late check-out?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h146", jp: "モーニングコールをお願いできますか？", en: "Could I request a wake-up call?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h147", jp: "荷物を預かってもらえますか？", en: "Could you store my luggage?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h148", jp: "Wi-Fiの接続方法を教えてください。", en: "Could you tell me how to connect to the Wi-Fi?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h149", jp: "近くのレストランを紹介してもらえますか？", en: "Could you recommend a nearby restaurant?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
+{ id: "h150", jp: "フロントに連絡してもいいですか？", en: "May I contact the front desk?", tags: ["ホテル"], tags2: { main: "ホテル", sub: "サービス" }, meaningGroup: null },
 
 { id: "m201", jp: "この電車は東京に行きますか？", en: "Does this train go to Tokyo?", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
 { id: "m202", jp: "このバスは空港に行きますか？", en: "Does this bus go to the airport?", tags: ["移動"], tags2: { main: "移動", sub: "行先" }, meaningGroup: null },
