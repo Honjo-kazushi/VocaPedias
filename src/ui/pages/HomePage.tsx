@@ -1510,6 +1510,11 @@ export default function HomePage() {
                         className={`practice-item ${
                           p.meaningGroup ? "clickable" : "disabled"
                         }`}
+                        onClick={() => {
+                          if (!p.meaningGroup) return;
+                          playClickSe();
+                          setActiveMeaningGroup(p.meaningGroup);
+                        }}
                       >
                         <div
                           className="practice-item-jp"
