@@ -179,7 +179,7 @@ function pickWeighted(
 
 
 // Review を直近で出していないか？
-function wasRecentReview(pickLogs: any[]): boolean {
+function wasRecentReview(pickLogs: PickLog[]): boolean {
   const last = pickLogs[pickLogs.length - 1];
   if (!last) return false;
 

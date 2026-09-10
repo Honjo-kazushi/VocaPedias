@@ -299,7 +299,7 @@ export default function HomePage() {
   };
 
   // ===== Speech Recognition =====
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<AppSpeechRecognition | null>(null);
   // ★ 録音開始時点の「問題」を固定する（TTSズレ防止）
   const recordingPhraseRef = useRef<Phrase | null>(null);
   const [speechState, setSpeechState] = useState<
@@ -382,7 +382,7 @@ export default function HomePage() {
         recognitionRef.current.onresult = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.stop();
-      } catch {}
+      } catch { /* Ignore errors from starting or stopping recognition. */ }
       recognitionRef.current = null;
     }
 
@@ -425,8 +425,8 @@ export default function HomePage() {
     pushSpeechLog("initSpeechRecognition()"); // log1
 
     const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
 
     if (!SR) {
       console.warn("SpeechRecognition not supported");
@@ -446,7 +446,7 @@ export default function HomePage() {
       setSpeechState("RECORDING");
     };
 
-    rec.onresult = (e: any) => {
+    rec.onresult = (e) => {
       pushSpeechLog("onresult"); // log4
       const text = e.results[0][0].transcript;
       setSpokenText(text);
@@ -469,7 +469,7 @@ export default function HomePage() {
 
         try {
           recognitionRef.current?.start();
-        } catch {}
+        } catch { /* Ignore errors from starting or stopping recognition. */ }
 
         return; // ★ 認識完了扱いにしない
       }
@@ -518,7 +518,7 @@ export default function HomePage() {
       }
     };
 
-    rec.onerror = (e: any) => {
+    rec.onerror = (e) => {
       pushSpeechLog(`error:${e.error}`); // log6
       console.warn("SpeechRecognition error", e);
 
@@ -632,7 +632,7 @@ export default function HomePage() {
         // ★ 絵文字・記号・英数字をすべて除去
         .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
         .replace(/[A-Za-z0-9]/g, "")
-        .replace(/[。、，．・：；！？!?「」『』（）()\[\]【】\s]/g, "")
+        .replace(/[。、，．・：；！？!?「」『』（）()[\]【】\s]/g, "")
         .split("")
         .filter(Boolean)
     );
@@ -765,7 +765,7 @@ export default function HomePage() {
       window.setTimeout(() => {
         try {
           recognitionRef.current?.stop();
-        } catch {}
+        } catch { /* Ignore errors from starting or stopping recognition. */ }
       }, MAX_RECORD_MS);
     } catch {
       pushSpeechLog("start() threw");
@@ -1184,7 +1184,7 @@ export default function HomePage() {
   }, [mode, randomPhrase, showEn, autoNext, isPaused]);
 
   //=====================================================
-  //      UI　表示
+  //      UI 表示
   //===================================================== */
   return (
     <div className="app-viewport">
@@ -1205,7 +1205,7 @@ export default function HomePage() {
           <img src="/images/tossa.png" alt="tossa" className="app-logo" />
 
           {/* =====================================================
-              使い方説明　表示
+              使い方説明 表示
               ===================================================== */}
           <div className="mode-description">
             <div className="mode-text">
@@ -1292,7 +1292,7 @@ export default function HomePage() {
           </div>
 
           {/* =====================================================
-              コンボボックス　表示
+              コンボボックス 表示
               ===================================================== */}
           {mode !== "TRAIN" && (
             <div className="mode-select-wrap">
@@ -1315,7 +1315,7 @@ export default function HomePage() {
             </div>
           )}
           {/* =====================================================
-                  学習モード　表示
+                  学習モード 表示
               ===================================================== */}
 
           {/* ===== メインUI：センター1列 ===== */}
@@ -1663,7 +1663,7 @@ export default function HomePage() {
           )}
 
           {/* =====================================================
-                  学習モード　出題・回答　表示
+                  学習モード 出題・回答 表示
               ===================================================== */}
 
           {/* 上部の余白（将来：アプリイラスト／ガイド） */}

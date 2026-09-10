@@ -1,8 +1,8 @@
 export default function SpeechTest() {
   const start = () => {
     const SR =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
 
     if (!SR) {
       console.log("❌ SpeechRecognition API がありません");
@@ -19,10 +19,10 @@ export default function SpeechTest() {
 
     rec.onstart = () => console.log("▶️ onstart: 録音開始");
     rec.onend = () => console.log("⏹ onend: 録音終了");
-    rec.onerror = (e: any) =>
+    rec.onerror = (e) =>
       console.log("❌ onerror:", e.error);
 
-    rec.onresult = (e: any) => {
+    rec.onresult = (e) => {
       const text = e.results[0][0].transcript;
       console.log("✅ 認識結果:", text);
       alert("認識結果: " + text);
