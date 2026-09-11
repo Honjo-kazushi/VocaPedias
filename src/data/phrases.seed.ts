@@ -549,5 +549,15 @@ export const PHRASES_SEED: Phrase[] = [
 { id: "t541", jp: "マイペースだね。", en: "You always take your time.", tags: ["評価"], tags2: { main: "判断", sub: "評価" }, meaningGroup: "" },
 { id: "t542", jp: "言いふらさないで。", en: "Don't spread it around.", tags: ["依頼"], tags2: { main: "行動", sub: "依頼" }, meaningGroup: "" },
 { id: "t543", jp: "なんとなく。", en: "Just because.", tags: ["理由"], tags2: { main: "判断", sub: "保留" }, meaningGroup: "" },
+{ id: "t544", jp: "あなたの好きなものでいいよ。", en: "Whatever you prefer.", tags: ["許可"], tags2: { main: "判断", sub: "許可" }, meaningGroup: "ALLOW_CHOICE" },
+{ id: "t545", jp: "何か気にかかってる？", en: "Is something bothering you?", tags: ["心配"], tags2: { main: "感情", sub: "心配" }, meaningGroup: "WHAT_IS_WRONG" },
+{ id: "t546", jp: "無理しすぎないで。", en: "Don't push yourself too hard.", tags: ["配慮"], tags2: { main: "配慮", sub: "配慮" }, meaningGroup: "EMOTIONAL_SUPPORT" },
+{ id: "t547", jp: "これなら間違いないよ。", en: "You can't go wrong with this.", tags: ["評価"], tags2: { main: "判断", sub: "評価" }, meaningGroup: "RECOMMEND_SAFELY" },
+{ id: "t548", jp: "くたくただよ。", en: "I'm exhausted.", tags: ["体調"], tags2: { main: "状態", sub: "体調" }, meaningGroup: "FEEL_EXHAUSTED" },
+{ id: "t549", jp: "もう、これにはうんざり。", en: "I'm so fed up with this.", tags: ["感情"], tags2: { main: "感情", sub: "怒り" }, meaningGroup: "FEEL_FED_UP" },
+{ id: "t550", jp: "やることが山ほどある。", en: "I've got a lot on my plate.", tags: ["状態"], tags2: { main: "状態", sub: "状況" }, meaningGroup: "TIED_UP" },
+{ id: "t551", jp: "それ、どういう意味？", en: "What's that supposed to mean?", tags: ["確認"], tags2: { main: "会話", sub: "確認" }, meaningGroup: "ASK_INTENT" },
+{ id: "t552", jp: "私、何か見落としてた？", en: "Did I miss something?", tags: ["確認"], tags2: { main: "会話", sub: "確認" }, meaningGroup: "CHECK_MISSING_INFORMATION" },
+{ id: "t553", jp: "もっと聞かせて。", en: "Tell me more.", tags: ["促し"], tags2: { main: "会話", sub: "促し" }, meaningGroup: "ASK_FOR_MORE" },
 
 ]
