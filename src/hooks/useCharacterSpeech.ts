@@ -343,5 +343,12 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     };
   }, []);
 
+  useEffect(() => {
+    const openSource = mouthOpenRef.current?.dataset.openSrc;
+    if (!openSource) return;
+    const preload = new Image();
+    preload.src = openSource;
+  }, [characterId]);
+
   return { isSpeaking, mouthOpenRef, speakAssistantMessage, speakCharacterItems, stopAssistantSpeech };
 }

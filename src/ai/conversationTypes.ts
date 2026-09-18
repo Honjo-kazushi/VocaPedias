@@ -24,6 +24,13 @@ export function mergeSpeechTranscript(current: string, next: string, language: "
   return `${left}${separator}${right}`.replace(/\s+/g, " ").trim();
 }
 
+export function mergeRecognitionResults(transcripts: readonly string[], language: "en" | "ja"): string {
+  return transcripts.reduce(
+    (current, transcript) => mergeSpeechTranscript(current, transcript, language),
+    "",
+  );
+}
+
 export type SpokenReviewPart = {
   lang: "ja-JP" | "en-US";
   text: string;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mergeRecognitionResults } from "../ai/conversationTypes";
 
 type Callbacks = {
   onStart: () => void;
@@ -123,22 +124,29 @@ export function useUserSpeechRecognition() {
       };
       recognition.onresult = (event) => {
         if (!current()) return;
-        // Rebuild from the cumulative result list so a final result is never appended twice.
+        // Android Chrome can expose cumulative hypotheses as separate result
+        // slots ("I", "I have", ...). Collapse those replacements instead of
+        // joining every slot and multiplying the same words.
         const results = Array.from(event.results);
-        const finalText = results
+        const language = lang === "ja-JP" ? "ja" : "en";
+        const finalChunks = results
           .filter((result) => result.isFinal)
-          .map((result) => result[0]?.transcript ?? "").join(" ").trim();
-        interimTranscriptRef.current = results
+          .map((result) => result[0]?.transcript ?? "");
+        const interimChunks = results
           .filter((result) => !result.isFinal)
-          .map((result) => result[0]?.transcript ?? "").join(" ").trim();
+          .map((result) => result[0]?.transcript ?? "");
+        const finalText = mergeRecognitionResults(finalChunks, language);
+        interimTranscriptRef.current = mergeRecognitionResults(interimChunks, language);
         if (finalText) {
           finalTranscriptRef.current = finalText;
           callbacks.onFinalTranscript?.(finalText);
         }
         debug("onresult", { final: finalText, interim: interimTranscriptRef.current, resultIndex: event.resultIndex });
         callbacks.onActivity?.("result");
-        callbacks.onTranscript([finalTranscriptRef.current, interimTranscriptRef.current]
-          .filter(Boolean).join(" "));
+        callbacks.onTranscript(mergeRecognitionResults(
+          [finalTranscriptRef.current, interimTranscriptRef.current],
+          language,
+        ));
         armSilenceTimer();
       };
       recognition.onend = () => {
