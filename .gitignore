@@ -26,3 +26,7 @@ dist-ssr
 # Firebase
 .firebase/
 firebase-debug.log
+
+# Local verification output and project reference materials
+tmp/
+tmp-*.log

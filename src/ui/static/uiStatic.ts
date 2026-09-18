@@ -1,9 +1,30 @@
 // uiStatic.ts
 // UIで使う「完全に固定の定義」だけを集約する
-export const MODES = ["TRAIN", "A", "B", "C", "D", "E", "F", "STAR"] as const;
+export const MODES = ["TRAIN", "A", "B", "C", "D", "E", "F", "STAR", "AI"] as const;
 export type Mode = typeof MODES[number];
 // ★ Scene で使う Mode（TRAIN / STAR を除外）
-export type SceneMode = Exclude<Mode, "TRAIN" | "STAR">;
+export type SceneMode = Exclude<Mode, "TRAIN" | "STAR" | "AI">;
+export type MainMode = "AI" | "DAILY" | "SCENE" | "TRAIN";
+
+export const MAIN_MODE_LABELS = {
+  jp: {
+    AI: "AIと会話",
+    DAILY: "日常フレーズ",
+    SCENE: "場面フレーズ",
+    TRAIN: "フレーズ学習",
+  },
+  en: {
+    AI: "AI Conversation",
+    DAILY: "Daily Phrases",
+    SCENE: "Scene Phrases",
+    TRAIN: "Learn Phrases",
+  },
+} as const;
+
+export const MAIN_MODE_NAV_LABELS = {
+  jp: "メイン機能",
+  en: "Main features",
+} as const;
 
 /* ===============================
    UI 文言
@@ -49,6 +70,19 @@ export const MODE_DESCRIPTIONS = {
     ],
   },
 
+  ai: {
+    jp: [
+      "AIキャラクターと英語で自然な会話を楽しめます",
+      "今日の話題に合わせて、好きな会話相手を選んでください",
+      "会話中は細かく訂正せず、最後にEmmaがまとめて振り返ります",
+    ],
+    en: [
+      "Enjoy natural English conversations with AI characters",
+      "Choose your favorite conversation partner for today's topic",
+      "Emma will review your English after the conversation",
+    ],
+  },
+
 } as const;
 
 // uiStatic.ts
@@ -86,6 +120,21 @@ export const UI_TEXT = {
 
     close: "閉じる",
     settings: "設定",
+    basicSettings: "基本設定",
+    learningModeSettings: "学習モード",
+    aiConversationSettings: "AIアバターとの会話",
+    developerSettings: "開発用",
+    uiSoundsLabel: "操作音",
+    uiSoundsDescription: "ボタン操作時に効果音が鳴ります",
+    ttsLabel: "英文録音＆読み上げ（TTS）",
+    ttsDescription: "録音した英語を正解音声と聞き比べます",
+    japaneseLearningMode: "Japanese Learning Mode",
+    japaneseLearningModeDescription: "English → Japanese practice",
+    developerMode: "開発者モード",
+    autoNextLabel: "自動で次へ",
+    autoNextDescription: "自動で次のフレーズへ進みます",
+    showConversationCaptions: "会話字幕を表示",
+    showConversationCaptionsDescription: "相手と自分の会話を文字で表示します。",
     related: "関連フレーズ",
 
     practiceGuide:
@@ -113,6 +162,21 @@ export const UI_TEXT = {
 
     close: "Close",
     settings: "Settings",
+    basicSettings: "Basic Settings",
+    learningModeSettings: "Learning Mode",
+    aiConversationSettings: "AI Avatar Conversation",
+    developerSettings: "Developer",
+    uiSoundsLabel: "UI Sounds",
+    uiSoundsDescription: "Play sounds when tapping buttons",
+    ttsLabel: "Record & Play English (TTS)",
+    ttsDescription: "Compare your English with the correct audio",
+    japaneseLearningMode: "Japanese Learning Mode",
+    japaneseLearningModeDescription: "English → Japanese practice",
+    developerMode: "Developer Mode",
+    autoNextLabel: "Auto Next",
+    autoNextDescription: "Move to the next phrase automatically",
+    showConversationCaptions: "Show conversation captions",
+    showConversationCaptionsDescription: "Display your conversation with the AI as text.",
     related: "Related phrases",
 
     practiceGuide:
@@ -138,6 +202,7 @@ export const MODE_LABELS = {
     F: "柔らかく言う",
 
     STAR: "★フレーズを見る",
+    AI: "AI英会話",
   },
 
   en: {
@@ -152,6 +217,7 @@ export const MODE_LABELS = {
     F: "Be considerate",
 
     STAR: "★View bookmarked phrases",
+    AI: "AI Conversation",
   },
 
   /* ★ 追加：場面モード用ラベル */
@@ -192,6 +258,7 @@ export const PRACTICE_CONFIG: {
     E: "判断",
     F: "配慮",
     STAR: "★",
+    AI: null,
   },
   subOrder: {
     TRAIN: [],
@@ -202,6 +269,7 @@ export const PRACTICE_CONFIG: {
     E: ["同意", "否定", "保留", "許可", "期待"],
     F: ["前置", "安心", "配慮", "教訓", "雑談"],
     STAR:   [],
+    AI: [],
   },
 };
 
@@ -226,6 +294,21 @@ export const SCENE_CONFIG: {
     会議: ["開始", "確認", "提案", "調整", "締め"],
     病院: ["受付", "症状", "診察", "薬", "トラブル"],
   },
+};
+
+export const SUB_LABELS_EN: Record<string, string> = {
+  質問: "Questions", 確認: "Confirm", 促し: "Prompts", 応答: "Responses", 挨拶: "Greetings",
+  喜び: "Joy", 怒り: "Anger", 悲哀: "Sadness", 驚き: "Surprise", 共感: "Empathy",
+  体調: "Health", 状況: "Situation", 進行: "Progress", 環境: "Environment", 能力: "Ability",
+  依頼: "Requests", 提案: "Suggestions", 指示: "Instructions", 制止: "Stopping", 拒否: "Refusals",
+  同意: "Agreement", 否定: "Disagreement", 保留: "Pending", 許可: "Permission", 期待: "Expectations",
+  前置: "Openers", 安心: "Reassurance", 配慮: "Consideration", 教訓: "Lessons", 雑談: "Small Talk",
+  予約: "Reservations", 料金: "Rates", 部屋: "Rooms", トラブル: "Problems", サービス: "Services",
+  行先: "Destinations", 時間: "Times", 乗換: "Transfers",
+  入店: "Arrival", 注文: "Ordering", 料理: "Food", 会計: "Payment",
+  商品: "Products", サイズ: "Sizes", 価格: "Prices", 支払: "Payment",
+  開始: "Opening", 調整: "Coordination", 締め: "Closing",
+  受付: "Reception", 症状: "Symptoms", 診察: "Examination", 薬: "Medicine",
 };
 
 

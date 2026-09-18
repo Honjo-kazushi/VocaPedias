@@ -14,7 +14,19 @@
       }
     ],
     "rewrites": [
+      { "source": "/api/ai-chat", "function": "aiChat" },
+      { "source": "/api/fresh-topics", "function": "freshTopics" },
       { "source": "**", "destination": "/index.html" }
     ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "emulators": {
+    "functions": { "host": "127.0.0.1", "port": 5001 },
+    "hosting": { "host": "127.0.0.1", "port": 5000 },
+    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+    "singleProjectMode": true
   }
 }

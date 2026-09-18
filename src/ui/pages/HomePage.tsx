@@ -11,12 +11,12 @@ import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
+import AiConversationUI from "../../components/AiConversationUI";
 
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
-import type { Mode } from "../static/uiStatic";
+import type { MainMode, Mode } from "../static/uiStatic";
 import { MODE_DESCRIPTIONS } from "../static/uiStatic";
-import { MODE_SWITCH_TEXT } from "../static/uiStatic";
 
 import { doc, getDoc, setDoc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -24,8 +24,11 @@ import { db } from "../../firebase";
 import {
   UI_TEXT,
   MODE_LABELS,
+  MAIN_MODE_LABELS,
+  MAIN_MODE_NAV_LABELS,
   PRACTICE_CONFIG,
   SCENE_CONFIG,
+  SUB_LABELS_EN,
   TAG_EMOJI,
 } from "../static/uiStatic";
 
@@ -61,7 +64,8 @@ export default function HomePage() {
   // =====================================================
   // 1. 共通（設定・モード・共用 state）
   // =====================================================
-  const [mode, setMode] = useState<Mode>("A");
+  const [mainMode, setMainMode] = useState<MainMode>("AI");
+  const [mode, setMode] = useState<Mode>("AI");
   const [sceneMode, setSceneMode] = useState<boolean>(false);
 
   const [soundOn, setSoundOn] = useState<boolean>(() =>
@@ -74,6 +78,9 @@ export default function HomePage() {
   const [autoNext, setAutoNext] = useState<boolean>(() =>
     readBool("autoNext", true)
   );
+  const [showConversationCaptions, setShowConversationCaptions] = useState<boolean>(() =>
+    readBool("showConversationCaptions", false)
+  );
 
   const [debugMode, setDebugMode] = useState<boolean>(() =>
     readBool("debugMode", false)
@@ -84,6 +91,13 @@ export default function HomePage() {
 
   const playClickSe = () => {
     if (soundOn) playSe();
+  };
+
+  const selectMainMode = (nextMainMode: MainMode) => {
+    playClickSe();
+    setMainMode(nextMainMode);
+    setSceneMode(nextMainMode === "SCENE");
+    setMode(nextMainMode === "DAILY" || nextMainMode === "SCENE" ? "A" : nextMainMode);
   };
 
   function readBool(key: string, def: boolean) {
@@ -161,13 +175,15 @@ export default function HomePage() {
   const practiceListRef = useRef<HTMLDivElement | null>(null);
 
   const practiceMainJp =
-    mode !== "TRAIN" && mode !== "STAR" ? PRACTICE_CONFIG.mainJp[mode] : null;
+    mode !== "TRAIN" && mode !== "STAR" && mode !== "AI"
+      ? PRACTICE_CONFIG.mainJp[mode]
+      : null;
   const sortByJapanese = (a: Phrase, b: Phrase) =>
     a.jp.localeCompare(b.jp, "ja");
 
   // ★ 場面モード用：A〜F → 「ホテル/移動/…」へ変換
   const sceneMainJp =
-    sceneMode && mode !== "TRAIN" && mode !== "STAR"
+    sceneMode && mode !== "TRAIN" && mode !== "STAR" && mode !== "AI"
       ? SCENE_CONFIG.mainJp[mode]
       : null;
 
@@ -1094,6 +1110,10 @@ export default function HomePage() {
   }, [jpLearnMode]);
 
   useEffect(() => {
+    localStorage.setItem("showConversationCaptions", JSON.stringify(showConversationCaptions));
+  }, [showConversationCaptions]);
+
+  useEffect(() => {
     if (!ttsOn) {
       speechSynthesis.cancel();
     }
@@ -1209,11 +1229,15 @@ export default function HomePage() {
               ===================================================== */}
           <div className="mode-description">
             <div className="mode-text">
-              {(sceneMode
+              {(mainMode === "SCENE"
                 ? jpLearnMode
                   ? MODE_DESCRIPTIONS.scene.en
                   : MODE_DESCRIPTIONS.scene.jp
-                : mode === "TRAIN"
+                : mainMode === "AI"
+                  ? jpLearnMode
+                    ? MODE_DESCRIPTIONS.ai.en
+                    : MODE_DESCRIPTIONS.ai.jp
+                  : mainMode === "TRAIN"
                   ? jpLearnMode
                     ? MODE_DESCRIPTIONS.train.en
                     : MODE_DESCRIPTIONS.train.jp
@@ -1225,76 +1249,28 @@ export default function HomePage() {
               ))}
             </div>
 
-            <div className="mode-switch-row">
-              {/* ===== 学習モード ===== */}
-              {mode === "TRAIN" && (
-                <button
-                  className="btn btn-mode-switch"
-                  onClick={() => {
-                    if (soundOn) playSe();
-                    setMode("A"); // 実践へ
-                  }}
-                >
-                  {jpLearnMode
-                    ? MODE_SWITCH_TEXT.en.toPractice
-                    : MODE_SWITCH_TEXT.jp.toPractice}
-                </button>
-              )}
-
-              {/* ===== 実践モード ===== */}
-              {mode !== "TRAIN" && !sceneMode && (
-                <>
-                  {/* ★ さりげない場面切替（追加） */}
-                  <button
-                    className="btn-sub"
-                    onClick={() => {
-                      if (soundOn) playSe();
-                      setSceneMode(true);
-                      setMode("A");
-                    }}
-                  >
-                    {jpLearnMode
-                      ? MODE_SWITCH_TEXT.en.toScene
-                      : MODE_SWITCH_TEXT.jp.toScene}
-                  </button>
-
-                  {/* 既存の学習切替ボタン（そのまま） */}
-                  <button
-                    className="btn btn-mode-switch"
-                    onClick={() => {
-                      if (soundOn) playSe();
-                      setMode("TRAIN");
-                    }}
-                  >
-                    {jpLearnMode
-                      ? MODE_SWITCH_TEXT.en.toLearn
-                      : MODE_SWITCH_TEXT.jp.toLearn}
-                  </button>
-                </>
-              )}
-
-              {/* ===== 場面モード ===== */}
-              {sceneMode && (
-                <button
-                  className="btn btn-mode-switch"
-                  onClick={() => {
-                    if (soundOn) playSe();
-                    setSceneMode(false); // 実践へ戻る
-                    setMode("A");
-                  }}
-                >
-                  {jpLearnMode
-                    ? MODE_SWITCH_TEXT.en.toPractice
-                    : MODE_SWITCH_TEXT.jp.toPractice}
-                </button>
-              )}
-            </div>
           </div>
+
+          <nav
+            className="main-mode-tabs"
+            aria-label={jpLearnMode ? MAIN_MODE_NAV_LABELS.en : MAIN_MODE_NAV_LABELS.jp}
+          >
+            {(["AI", "DAILY", "SCENE", "TRAIN"] as const).map((item) => (
+              <button
+                key={item}
+                className={mainMode === item ? "active" : ""}
+                aria-current={mainMode === item ? "page" : undefined}
+                onClick={() => selectMainMode(item)}
+              >
+                {(jpLearnMode ? MAIN_MODE_LABELS.en : MAIN_MODE_LABELS.jp)[item]}
+              </button>
+            ))}
+          </nav>
 
           {/* =====================================================
               コンボボックス 表示
               ===================================================== */}
-          {mode !== "TRAIN" && (
+          {(mainMode === "DAILY" || mainMode === "SCENE") && (
             <div className="mode-select-wrap">
               <select
                 className="mode-select"
@@ -1404,7 +1380,7 @@ export default function HomePage() {
           {/* =====================================================
                   実践モード 表示
           ===================================================== */}
-          {mode !== "TRAIN" && (
+          {mode !== "TRAIN" && mode !== "AI" && (
             <>
               {/* ===== STAR モード ===== */}
               {mode === "STAR" && !sceneMode && practiceStars.size > 0 && (
@@ -1444,7 +1420,7 @@ export default function HomePage() {
                             {TAG_EMOJI[sub] ?? "🔖"}
                           </span>
                           <span className="practice-subtab-label">
-                            {sub} {count}
+                            {jpLearnMode ? (SUB_LABELS_EN[sub] ?? sub) : sub} {count}
                           </span>
                         </button>
                       );
@@ -1473,7 +1449,7 @@ export default function HomePage() {
                     ? `${jpLearnMode ? "★ Bookmarked phrases" : "★ フレーズ"} ${
                         practiceMainPhrases.length
                       }`
-                    : `${practiceSub ?? "—"} ${
+                    : `${practiceSub ? (jpLearnMode ? (SUB_LABELS_EN[practiceSub] ?? practiceSub) : practiceSub) : "—"} ${
                         practiceSubStats.find((s) => s.sub === practiceSub)
                           ?.count ?? 0
                       }`}
@@ -1592,6 +1568,8 @@ export default function HomePage() {
               </div>
             </>
           )}
+
+          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} />}
 
           {/* =====================================================
               関連フレーズ（Overlay）
@@ -1810,53 +1788,55 @@ export default function HomePage() {
                   border: "1px solid #ddd",
                   background: "#fafafa",
                   width: 260,
+                  maxHeight: "calc(100vh - 60px)",
+                  overflowY: "auto",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                 }}
               >
-                {mode === "TRAIN" && (
-                  <label style={{ display: "block", marginBottom: 8 }}>
+                <section className="settings-group first" aria-labelledby="basic-settings-heading">
+                  <h2 id="basic-settings-heading">{UI.basicSettings}</h2>
+                  <label className="settings-item">
+                    <input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} />
+                    <span>{UI.uiSoundsLabel}<small>（{UI.uiSoundsDescription}）</small></span>
+                  </label>
+                  <label className="settings-item">
+                    <input type="checkbox" checked={ttsOn} onChange={(e) => setTtsOn(e.target.checked)} />
+                    <span>{UI.ttsLabel}<small>（{UI.ttsDescription}）</small></span>
+                  </label>
+                </section>
+
+                <section className="settings-group" aria-labelledby="learning-settings-heading">
+                  <h2 id="learning-settings-heading">{UI.learningModeSettings}</h2>
+                  {mode === "TRAIN" && (
+                    <label className="settings-item">
+                      <input type="checkbox" checked={autoNext} onChange={(e) => setAutoNext(e.target.checked)} />
+                      <span>{UI.autoNextLabel}<small>（{UI.autoNextDescription}）</small></span>
+                    </label>
+                  )}
+                  <label className="settings-item">
+                    <input type="checkbox" checked={jpLearnMode} onChange={(e) => setJpLearnMode(e.target.checked)} />
+                    <span>{UI.japaneseLearningMode}<small>（{UI.japaneseLearningModeDescription}）</small></span>
+                  </label>
+                </section>
+
+                <section className="settings-group" aria-labelledby="ai-conversation-settings-heading">
+                  <h2 id="ai-conversation-settings-heading">{UI.aiConversationSettings}</h2>
+                  <label className="settings-item">
                     <input
                       type="checkbox"
-                      checked={autoNext}
-                      onChange={(e) => setAutoNext(e.target.checked)}
+                      checked={showConversationCaptions}
+                      onChange={(event) => setShowConversationCaptions(event.target.checked)}
                     />
-                    {UI.autoNext}
+                    <span>{UI.showConversationCaptions}<small>（{UI.showConversationCaptionsDescription}）</small></span>
                   </label>
-                )}
+                </section>
 
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={soundOn}
-                    onChange={(e) => setSoundOn(e.target.checked)}
-                  />
-                  {UI.uiSounds}
-                </label>
-
-                <label style={{ display: "block" }}>
-                  <input
-                    type="checkbox"
-                    checked={ttsOn}
-                    onChange={(e) => setTtsOn(e.target.checked)}
-                  />
-                  {UI.tts}
-                </label>
-
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={jpLearnMode}
-                    onChange={(e) => setJpLearnMode(e.target.checked)}
-                  />
-                  Japanese Learning Mode (English → Japanese practice)
-                </label>
-
-                <label
+                <section className="settings-group" aria-labelledby="developer-settings-heading">
+                  <h2 id="developer-settings-heading">{UI.developerSettings}</h2>
+                  <label
+                  className="settings-item developer-setting"
                   style={{
-                    display: "block",
-                    marginTop: 8,
                     color: "#bbb",
-                    fontSize: "0.85em",
                     userSelect: "none",
                   }}
                   onPointerDown={() => {
@@ -1886,8 +1866,9 @@ export default function HomePage() {
                     readOnly
                     style={{ pointerEvents: "none" }}
                   />
-                  開発者モード
-                </label>
+                  <span>{UI.developerMode}</span>
+                  </label>
+                </section>
 
                 <div style={{ fontSize: "0.75em", color: "#666" }}>
                   Build: {buildTimeJst}

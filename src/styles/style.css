@@ -20,6 +20,14 @@
   box-shadow: 0 0 24px rgba(0,0,0,0.15);
 }
 
+/* Review can exceed the fixed app viewport; keep one scroll container for the page. */
+.app-shell:has(.ai-review),
+.app-shell:has(.partner-select),
+.app-shell:has(.scene-roleplay-select) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ===== スマホ実機では余計な装飾を消す ===== */
 @media (max-width: 420px) {
   .app-viewport {
@@ -98,6 +106,467 @@
 
   /* ★ 中央寄せをやめる */
   text-align: left;
+}
+
+/* =========================
+   AI conversation
+   ========================= */
+.main-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: calc(100% - 24px);
+  max-width: 420px;
+  margin: 10px auto 12px;
+}
+
+.main-mode-tabs button {
+  min-height: 48px;
+  padding: 7px 5px;
+  border: 1px solid #ccc;
+  border-radius: 9px;
+  color: #555;
+  background: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.main-mode-tabs button.active {
+  border-color: #555;
+  color: #fff;
+  background: #555;
+  font-weight: 700;
+}
+
+.ai-conversation {
+  width: calc(100% - 24px);
+  max-width: 360px;
+  margin: 8px auto 16px;
+  color: #333;
+}
+
+.ai-intro {
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  text-align: center;
+  background: #fff;
+}
+
+.ai-intro-portrait {
+  position: relative;
+  display: flex;
+  height: 250px;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  background-position: center 52%;
+  background-size: cover;
+}
+
+.ai-intro-portrait::before,
+.character-stage.with-scene-background::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(255, 255, 255, 0.14);
+  content: "";
+  pointer-events: none;
+}
+
+.ai-intro-portrait > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ai-intro-content {
+  position: relative;
+  z-index: 2;
+  margin-top: -34px;
+  padding: 14px 16px 20px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.96), #fff 28px);
+}
+
+.ai-intro h2 {
+  margin: 0 0 7px;
+}
+
+.ai-intro p {
+  margin: 0 0 15px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.ai-lesson-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ai-primary-button.secondary {
+  border: 1px solid #555;
+  color: #444;
+  background: #fff;
+}
+
+.character-stage {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+  margin-top: 10px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  text-align: center;
+  background: linear-gradient(#fffaf4, #fff);
+}
+
+.character-stage.with-scene-background {
+  background-position: center 55%;
+  background-size: cover;
+}
+
+.character-avatar-stack {
+  position: relative;
+  z-index: 1;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+}
+
+.character-avatar-stack .character-avatar {
+  position: absolute;
+  inset: 0;
+}
+
+.character-avatar-stack.avatar-miyabi,
+.character-avatar-stack.avatar-miyabi .character-avatar {
+  width: 230px;
+  height: 230px;
+}
+
+.character-avatar-stack.avatar-miyabi {
+  margin: -8px auto 0;
+}
+
+.character-mouth {
+  z-index: 1;
+}
+
+.character-stage.speaking:not(.with-scene-background) {
+  background: linear-gradient(#fff3df, #fff);
+}
+
+.character-avatar {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+  object-position: center top;
+}
+
+.character-avatar.intro {
+  width: min(210px, 72vw);
+  height: min(201px, 69vw);
+  object-fit: cover;
+  object-position: center bottom;
+}
+
+/* Emma's smile source is framed about 5% larger and slightly lower than neutral. */
+.character-avatar.intro-emma-smile {
+  transform: translateY(-3px) scale(0.95);
+}
+
+.ai-topic-header {
+  position: relative;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px 10px 0 0;
+  background: #fafafa;
+}
+
+.ai-topic-header span {
+  display: block;
+  color: #888;
+  font-size: 0.78rem;
+}
+
+.ai-topic-header strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.18rem;
+}
+
+.ai-topic-header time {
+  position: absolute;
+  top: 18px;
+  right: 14px;
+  color: #777;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-history {
+  max-height: min(30vh, 220px);
+  margin-top: 20px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ai-conversation-status {
+  margin: 8px 12px 0;
+}
+
+.partner-select {
+  padding: 14px 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 0 0 10px 10px;
+  text-align: center;
+  background: #fff;
+}
+
+.partner-select h2 {
+  margin: 0 0 5px;
+  font-size: 1.05rem;
+}
+
+.partner-select > p {
+  margin: 0 0 12px;
+  color: #666;
+  font-size: 0.82rem;
+}
+
+.scene-roleplay-select {
+  min-height: 0;
+  max-height: calc(100dvh - 245px);
+  padding: 14px 12px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #ddd;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+}
+
+.scene-roleplay-select > h2 {
+  margin: 0 0 5px;
+  font-size: 1.08rem;
+}
+
+.scene-roleplay-select > p {
+  margin: 0 0 12px;
+  color: #666;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.scene-roleplay-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scene-roleplay-card {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #d6d6d6;
+  border-radius: 9px;
+  color: #333;
+  text-align: left;
+  background: #fffaf4;
+  cursor: pointer;
+  font: inherit;
+}
+
+.scene-roleplay-card strong,
+.scene-roleplay-card span {
+  display: block;
+}
+
+.scene-roleplay-card strong {
+  margin-bottom: 4px;
+  font-size: 0.86rem;
+}
+
+.scene-roleplay-card span {
+  color: #666;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.partner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 9px;
+}
+
+.partner-card {
+  min-width: 0;
+  padding: 7px 5px 8px;
+  border: 1px solid #d6d6d6;
+  border-radius: 10px;
+  color: #333;
+  background: #fffaf4;
+  cursor: pointer;
+  font: inherit;
+}
+
+.partner-card img {
+  display: block;
+  width: 100%;
+  height: 82px;
+  object-fit: contain;
+}
+
+.partner-card span {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.partner-card:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.partner-card:not(:disabled):hover,
+.partner-card:not(:disabled):focus-visible {
+  border-color: #df8b22;
+  outline: 2px solid rgba(223, 139, 34, 0.22);
+}
+
+.ai-message {
+  margin-bottom: 14px;
+}
+
+.ai-message span {
+  display: block;
+  margin-bottom: 3px;
+  color: #777;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ai-message p {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ai-message.assistant p {
+  margin-right: 22px;
+  background: #f2f2f2;
+}
+
+.ai-message.user span {
+  text-align: right;
+}
+
+.ai-message.user p {
+  margin-left: 22px;
+  background: #fff4e8;
+}
+
+.ai-thinking,
+.ai-time-note,
+.ai-error {
+  font-size: 0.82rem;
+}
+
+.ai-thinking {
+  color: #888;
+}
+
+.ai-time-note {
+  margin: 8px 0 0;
+  color: #8a5b16;
+}
+
+.ai-error {
+  margin: 8px 0 0;
+  color: #b42318;
+}
+
+.ai-primary-button,
+.ai-end-button {
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ai-primary-button {
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 0;
+  color: #fff;
+  background: #444;
+}
+
+.ai-end-button {
+  width: 100%;
+  margin-top: 9px;
+  padding: 9px;
+  border: 1px solid #aaa;
+  color: #555;
+  background: #fff;
+}
+
+.ai-end-button.ready {
+  border-color: #df8b22;
+  color: #8a4f08;
+  font-weight: 600;
+}
+
+.ai-primary-button:disabled,
+.ai-end-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ai-review {
+  padding: 14px;
+  border: 1px solid #ddd;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+.ai-review h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.ai-review-sections {
+  margin-bottom: 14px;
+}
+
+.ai-review-section {
+  padding: 11px 12px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.ai-review-section + .ai-review-section {
+  margin-top: 10px;
+}
+
+.ai-review-section h3 {
+  margin: 0 0 7px;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.ai-review-section div {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 
@@ -275,6 +744,49 @@ label {
 .setting-label {
   white-space: pre-line;
   line-height: 1.4;
+}
+
+.settings-group {
+  margin: 14px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd;
+}
+
+.settings-group.first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.settings-group h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.settings-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-weight: 400;
+}
+
+.settings-item input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.settings-item small {
+  display: block;
+  margin-top: 2px;
+  color: #666;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.developer-setting {
+  font-size: 0.85em;
 }
 
 .mode-select {
