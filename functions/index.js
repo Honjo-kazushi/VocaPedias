@@ -1,8 +1,11 @@
 const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI } = require("@google/genai");
 
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
 function getClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = geminiApiKey.value();
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
   return new GoogleGenAI({ apiKey });
 }
@@ -58,7 +61,7 @@ function validateFreshTopics(value) {
 }
 
 exports.freshTopics = onRequest(
-  { region: "us-central1", timeoutSeconds: 45, memory: "256MiB" },
+  { region: "us-central1", timeoutSeconds: 45, memory: "256MiB", secrets: [geminiApiKey] },
   async (request, response) => {
     if (request.method !== "GET") {
       response.status(405).json({ error: "Method not allowed." });
@@ -105,7 +108,7 @@ Return JSON only in this exact shape:
 );
 
 exports.aiChat = onRequest(
-  { region: "us-central1", timeoutSeconds: 60, memory: "256MiB" },
+  { region: "us-central1", timeoutSeconds: 60, memory: "256MiB", secrets: [geminiApiKey] },
   async (request, response) => {
     if (request.method !== "POST") {
       response.status(405).json({ error: "Method not allowed." });
