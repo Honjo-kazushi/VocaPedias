@@ -105,7 +105,7 @@ test("Emma Review has a dedicated Emma speech path", () => {
 });
 
 test("conversation automatically alternates completed TTS and one final recognition result", () => {
-  assert.match(uiSource, /reason === "complete"\) scheduleMicrophoneStart\(token\)/);
+  assert.match(uiSource, /reason === "complete" && !lessonEndingRef\.current\) scheduleMicrophoneStart\(token\)/);
   assert.match(uiSource, /scheduleMicrophoneStart\(token, 100, true\)/);
   assert.match(uiSource, /onFinalTranscript:/);
   assert.match(uiSource, /microphoneFallback &&/);

@@ -229,11 +229,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech]);
 
   const scheduleMicrophoneStart = useCallback((token: number, delay = 250, continuation = false) => {
+    if (lessonEndingRef.current) return;
     if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
     speechDebug("recognition restart scheduled", { generation: token, userTurnId: userTurnIdRef.current, delay, continuation });
     recognitionRestartTimerRef.current = window.setTimeout(() => {
       recognitionRestartTimerRef.current = null;
-      if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current) return;
+      if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || lessonEndingRef.current) return;
       speechDebug("recognition restart executed", { generation: token, userTurnId: userTurnIdRef.current, continuation });
       startMicrophoneRef.current(continuation ? token : undefined);
     }, delay);
@@ -260,7 +261,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           speechDebug("TTS finish", { generation: token, userTurnId: userTurnIdRef.current, reason });
           setPartnerExpression("neutral");
           setPhase("idle");
-          if (reason === "complete") scheduleMicrophoneStart(token);
+          if (reason === "complete" && !lessonEndingRef.current) scheduleMicrophoneStart(token);
           else if (reason === "error") setError("音声を再生できませんでした。返答は会話履歴で確認できます。");
         },
       });
@@ -639,7 +640,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   const startMicrophone = (continuationToken?: number) => {
     const continuing = continuationToken !== undefined;
-    if ((!topic && !scene) || !partnerId || lessonStage !== "conversation" || review || requestBusyRef.current || (!continuing && recognitionActive)) return;
+    if ((!topic && !scene) || !partnerId || lessonStage !== "conversation" || review || lessonEndingRef.current || requestBusyRef.current || (!continuing && recognitionActive)) return;
     const token = continuationToken ?? ++startTokenRef.current;
     if (continuing) {
       if (startTokenRef.current !== token) return;
@@ -693,7 +694,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     };
     startRecognition({
       onStart: () => {
-        if (startTokenRef.current !== token) return;
+        if (startTokenRef.current !== token || lessonEndingRef.current) return;
         speechDebug("recognition start", { generation: token, userTurnId, continuing });
         setPhase("recognizing");
         setAwaitingUserInput(true);

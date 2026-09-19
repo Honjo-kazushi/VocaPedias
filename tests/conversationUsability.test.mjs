@@ -77,6 +77,14 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
   assert.doesNotMatch(uiSource, /onClick=\{\(\) => void endLesson\(\)\}[\s\S]{0,100}disabled=\{busy\}/);
 });
 
+test("conversation ending state blocks every path back to Listening", () => {
+  assert.match(uiSource, /const scheduleMicrophoneStart[\s\S]*if \(lessonEndingRef\.current\) return/);
+  assert.match(uiSource, /requestBusyRef\.current \|\| lessonEndingRef\.current\) return/);
+  assert.match(uiSource, /reason === "complete" && !lessonEndingRef\.current/);
+  assert.match(uiSource, /review \|\| lessonEndingRef\.current \|\| requestBusyRef\.current/);
+  assert.match(uiSource, /onStart: \(\) => \{[\s\S]*startTokenRef\.current !== token \|\| lessonEndingRef\.current/);
+});
+
 test("only Opening Emma moves up while Review and partner baselines stay unchanged", () => {
   assert.match(styleSource, /\.ai-intro-portrait \.character-avatar\.intro \{[\s\S]*translateY\(-10px\)/);
   assert.match(styleSource, /\.character-avatar-stack \{[\s\S]*translateY\(12px\)/);

@@ -27,7 +27,7 @@ test("rate multiplier stays within the session range", () => {
 });
 
 test("detects explicit English and Japanese conversation endings only", () => {
-  for (const phrase of ["Let's stop here.", "Let's finish here.", "Let's end here.", "Let's end the conversation.", "Let's end our conversation.", "Let's stop our conversation.", "That's enough for today.", "I'm done for today.", "See you.", "Bye."]) {
+  for (const phrase of ["Let's stop here.", "Let's finish here.", "Let's end here.", "Let's end the conversation.", "Let's end our conversation.", "Let us end our conversation.", "Let's end conversation.", "I want to end this conversation.", "I would like to finish our conversation.", "I'd like to end the conversation.", "Can we stop the conversation?", "Let's stop our conversation.", "That's enough for today.", "I'm done for today.", "See you.", "Bye."]) {
     assert.equal(isConversationEndIntent(phrase, "en"), true, phrase);
   }
   assert.equal(isConversationEndIntent("I finished my work.", "en"), false);
@@ -39,4 +39,6 @@ test("detects explicit English and Japanese conversation endings only", () => {
   assert.equal(isConversationEndIntent("The movie ended.", "en"), false);
   assert.equal(isConversationEndIntent('He said, "Let\'s end our conversation."', "en"), false);
   assert.equal(isConversationEndIntent("I said goodbye to my friend.", "en"), false);
+  assert.equal(isConversationEndIntent("We talked about ending the meeting.", "en"), false);
+  assert.equal(isConversationEndIntent("What do you say when you finish a conversation?", "en"), false);
 });
