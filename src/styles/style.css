@@ -235,7 +235,11 @@
   width: 150px;
   height: 150px;
   margin: 0 auto;
-  transform: translateY(6px);
+  transform: translateY(12px);
+}
+
+.ai-partner-list-end {
+  height: 1px;
 }
 
 .character-avatar-stack .character-avatar {

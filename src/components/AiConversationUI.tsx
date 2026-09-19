@@ -154,6 +154,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [microphoneFallback, setMicrophoneFallback] = useState(false);
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueMessage, setRescueMessage] = useState("");
+  const [awaitingUserInput, setAwaitingUserInput] = useState(false);
   const requestBusyRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
   const { active: recognitionActive, start: startRecognition, cancel: cancelRecognition } = useUserSpeechRecognition();
@@ -199,6 +200,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
   const speechRateMultiplierRef = useRef(1);
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
+  const partnerListEndRef = useRef<HTMLDivElement | null>(null);
 
   const stopInteraction = useCallback(() => {
     if (recognitionRestartTimerRef.current !== null) {
@@ -220,6 +222,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     stopAssistantSpeech();
     stopReviewSpeech();
     setPartnerExpression("neutral");
+    setAwaitingUserInput(false);
     setPhase("idle");
   }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech]);
 
@@ -474,15 +477,21 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   useEffect(() => {
     if (lessonStage !== "partnerSelect" || !partnerSelectionReady) return;
-    const cancelButton = partnerCancelRef.current;
-    if (!cancelButton) return;
-    const frame = window.requestAnimationFrame(() => {
-      const bounds = cancelButton.getBoundingClientRect();
-      if (bounds.bottom > window.innerHeight - 12 || bounds.top < 0) {
-        cancelButton.scrollIntoView({ behavior: "smooth", block: "end" });
-      }
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = partnerListEndRef.current ?? partnerCancelRef.current;
+        if (!target) return;
+        const bounds = target.getBoundingClientRect();
+        if (bounds.bottom > window.innerHeight - 12 || bounds.top < 0) {
+          target.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
+      });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
   }, [lessonStage, partnerSelectionReady]);
 
   useEffect(() => {
@@ -584,6 +593,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setMessages(nextMessages);
     setInterimCaption("");
     setRescueMessage("");
+    setAwaitingUserInput(false);
     setError(null);
     setBusy(true);
     speechDebug("Gemini send snapshot", { snapshotId: snapshot.id, generation: snapshot.generation, text: snapshot.text });
@@ -672,6 +682,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       softFinalizeTimerRef.current = hardFinalizeTimerRef.current = null;
       cancelRecognition();
       stopListening();
+      setAwaitingUserInput(false);
       void processUserTurn(snapshot);
     };
     const resetUserTurnTimers = (activity: string) => {
@@ -697,6 +708,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         if (startTokenRef.current !== token) return;
         speechDebug("recognition start", { generation: token, userTurnId, continuing });
         setPhase("recognizing");
+        setAwaitingUserInput(true);
         startListening();
       },
       onActivity: (activity) => {
@@ -710,6 +722,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         speechDebug("utterance buffer changed", { generation: token, userTurnId, before, after: utteranceBufferRef.current, final: text });
         if (showConversationCaptions) setInterimCaption(utteranceBufferRef.current);
         resetUserTurnTimers("final result");
+        if (isConversationEndIntent(utteranceBufferRef.current, conversationLanguage)) finalizeUserTurn("soft");
       },
       onSpeechStart: () => {
         if (startTokenRef.current === token) speechDebug("speechstart", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
@@ -764,6 +777,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
     stopInteraction();
+    setAwaitingUserInput(false);
     setRescueBusy(true);
     setRescueMessage("");
     setInterimCaption("");
@@ -832,7 +846,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const showTopicBackground = lessonStage === "conversation" && !review;
   const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
   const showRescueButton = lessonStage === "conversation" && conversationLanguage === "en" &&
-    phase === "recognizing" && recognitionActive && !busy && !rescueBusy && !review;
+    awaitingUserInput && !busy && !rescueBusy && !review;
 
   if (showIntro) {
     return (
@@ -964,6 +978,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           </div>
           {error && <p className="ai-error" role="alert">{error}</p>}
           <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
+          <div ref={partnerListEndRef} className="ai-partner-list-end" aria-hidden="true" />
         </div>
       ) : (
         <>
@@ -995,12 +1010,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           )}
           <div className="ai-listening-row">
             <p role="status" aria-live="polite">
-              {recognitionActive ? (phase === "recognizing"
+              {awaitingUserInput
                 ? conversationLanguage === "ja" ? "Listening... 日本語で話してください" : "Listening... 英語で話してください"
-                : "マイクを開始しています…") : ""}
+                : recognitionActive ? "マイクを開始しています…" : ""}
             </p>
             {showRescueButton && (
-              <button className="ai-help-button" type="button" onClick={() => void requestRescue()}>
+              <button className="ai-help-button" type="button" onClick={() => void requestRescue()} disabled={!recognitionActive}>
                 {uiLanguage === "en" ? "? Help" : "？ わからない"}
               </button>
             )}

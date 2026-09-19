@@ -8,7 +8,7 @@ const speechSource = await readFile(new URL("../src/sound/speakEn.ts", import.me
 const styleSource = await readFile(new URL("../src/styles/style.css", import.meta.url), "utf8");
 
 test("Help is an English-listening-only rescue event outside UserTurnSnapshot history", () => {
-  assert.match(uiSource, /conversationLanguage === "en"[\s\S]*phase === "recognizing"[\s\S]*recognitionActive[\s\S]*!rescueBusy/);
+  assert.match(uiSource, /conversationLanguage === "en"[\s\S]*awaitingUserInput[\s\S]*!rescueBusy/);
   assert.match(uiSource, /uiLanguage === "en" \? "\? Help" : "？ わからない"/);
   const rescueBlock = uiSource.slice(uiSource.indexOf("const requestRescue"), uiSource.indexOf("const endLesson"));
   assert.match(rescueBlock, /stopInteraction\(\)/);
@@ -36,12 +36,27 @@ test("partner selection scrolls by DOM position only when Cancel is outside the 
   assert.match(uiSource, /getBoundingClientRect\(\)/);
   assert.match(uiSource, /bounds\.bottom > window\.innerHeight - 12/);
   assert.match(uiSource, /scrollIntoView\(\{ behavior: "smooth", block: "end" \}\)/);
+  assert.match(uiSource, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame/);
+  assert.match(uiSource, /partnerListEndRef/);
   assert.doesNotMatch(uiSource, /window\.scrollTo/);
 });
 
 test("mobile scene spacing and character baseline are adjusted without resizing characters", () => {
   assert.match(styleSource, /\.scene-roleplay-select \{[\s\S]*max-height: calc\(100dvh - 225px\)[\s\S]*padding: 10px 12px 12px/);
-  assert.match(styleSource, /\.character-avatar-stack \{[\s\S]*transform: translateY\(6px\)/);
+  assert.match(styleSource, /\.character-avatar-stack \{[\s\S]*transform: translateY\(12px\)/);
+});
+
+test("Listening and Help stay rendered across recognition restarts until the turn is finalized", () => {
+  assert.match(uiSource, /const \[awaitingUserInput, setAwaitingUserInput\] = useState\(false\)/);
+  assert.match(uiSource, /onStart: \(\) => \{[\s\S]*setAwaitingUserInput\(true\)/);
+  assert.match(uiSource, /finalizeUserTurn[\s\S]*setAwaitingUserInput\(false\)/);
+  assert.match(uiSource, /\{awaitingUserInput[\s\S]*Listening/);
+});
+
+test("a finalized end phrase is handled immediately and skips the normal Gemini continuation", () => {
+  assert.match(uiSource, /onFinalTranscript:[\s\S]*isConversationEndIntent\(utteranceBufferRef\.current, conversationLanguage\)[\s\S]*finalizeUserTurn\("soft"\)/);
+  const endBranch = uiSource.slice(uiSource.indexOf('if (isConversationEndIntent(snapshot.text'), uiSource.indexOf('try {', uiSource.indexOf('if (isConversationEndIntent(snapshot.text')));
+  assert.doesNotMatch(endBranch, /continueTutorConversation|continueSceneRoleplay/);
 });
 
 test("AI conversation does not add a repeated application listening sound", () => {
