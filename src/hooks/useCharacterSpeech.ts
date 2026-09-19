@@ -343,17 +343,19 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     };
   }, []);
 
-  // Emma keeps the same characterId while the intro image is replaced by the
-  // speaking avatar. Preload when that actual mouth node mounts; otherwise the
-  // characterId effect never sees it, which is especially visible on Android.
+  // Emma needs this when the intro is replaced by the speaking avatar. Keep the
+  // callback character-specific as well: React reuses the same <img> when Emma
+  // changes to a partner, so a stable callback would not be attached again and
+  // the partner's newly assigned open frame would never be preloaded.
   const mouthOpenRef = useCallback((image: HTMLImageElement | null) => {
+    if (image && characterId && !image.closest(`.avatar-${characterId}`)) return;
     mouthImageRef.current = image;
     const openSource = image?.dataset.openSrc;
     if (!openSource) return;
     const preload = new Image();
     preload.src = openSource;
     void preload.decode?.().catch(() => {});
-  }, []);
+  }, [characterId]);
 
   return { isSpeaking, mouthOpenRef, speakAssistantMessage, speakCharacterItems, stopAssistantSpeech };
 }

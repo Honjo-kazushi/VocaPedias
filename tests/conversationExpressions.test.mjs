@@ -143,6 +143,7 @@ test("listening interjection TTS is disabled while silent listening visuals rema
 test("mouth animation preloads its open frame and remains time-based without boundary events", () => {
   assert.match(speechHookSource, /const mouthOpenRef = useCallback\(\(image:[\s\S]*const preload = new Image\(\);\s*preload\.src = openSource/);
   assert.match(speechHookSource, /mouthImageRef\.current = image/);
+  assert.match(speechHookSource, /const mouthOpenRef = useCallback\([\s\S]*\}, \[characterId\]\)/);
   assert.match(speechHookSource, /const runStep = \(\) => \{/);
   assert.match(speechHookSource, /mouthTimerRef\.current = window\.setTimeout\(runStep, scheduledDuration\)/);
   assert.match(speechHookSource, /onSentenceStart:[\s\S]*startMouthTimeline\(sentence, speechLocale\)/);
