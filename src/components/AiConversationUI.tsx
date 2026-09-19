@@ -850,7 +850,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         </div>
         <div className="ai-intro-content">
           <h2>Hi, I’m Emma!</h2>
-          <p>自由なトピック会話か、場面英会話を選んで始めましょう。</p>
+          <p>自由なトピック会話か、場面英会話を<br />選んで始めましょう。</p>
           <div className="ai-lesson-choices">
             <button className="ai-primary-button" onClick={() => void beginLesson(chooseTopic(freshTopics))}>
               Talk Topic

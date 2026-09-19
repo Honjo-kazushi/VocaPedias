@@ -102,6 +102,10 @@ test("only Opening Emma moves up while Review and partner baselines stay unchang
   assert.doesNotMatch(styleSource, /\.ai-review[^{]*\{[^}]*transform:/);
 });
 
+test("AI conversation intro keeps its Japanese guidance on two intentional lines", () => {
+  assert.match(uiSource, /自由なトピック会話か、場面英会話を<br \/>選んで始めましょう。/);
+});
+
 test("AI conversation does not add a repeated application listening sound", () => {
   assert.doesNotMatch(uiSource, /playSe|new Audio|start\.mp3/);
 });
