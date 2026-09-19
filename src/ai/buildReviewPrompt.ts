@@ -48,6 +48,8 @@ For detailedReview, use Japanese and these exact section headings:
 Be concise. Select no more than 3 points in the entire review: at most one Good, one Better, and one Try/another way. Each point must be one short sentence apart from the quoted learner statement and correction example. Never show the same learner statement in more than one section, repeat the user's sentences unnecessarily, review every turn, or repeat the same underlying issue. Prioritize one useful correction over many minor corrections. Do not explain basic grammar unless necessary. If the conversation was already natural, use only 1 or 2 points. Write no introduction, conclusion, general praise, score, or rank.
 
 Speech recognition guidance:
+- Evaluate each learner statement as spoken English transcribed by SpeechRecognition, not as typed composition.
+- Never treat capitalization, sentence-initial case, periods, commas, question marks, other punctuation, or simple written-format differences as learner errors or reasons for a correction.
 - When the transcript is odd but the surrounding conversation makes a likely intended phrase clear, consider both speech-recognition error and learner error.
 - You may suggest the likely intended phrase, but say 「音声認識の可能性があります」 or 「〜と言いたかった可能性があります」 when the evidence is not certain.
 - Never state with certainty which word the learner pronounced when the transcript and context do not establish it.
@@ -65,7 +67,7 @@ Choose at most 1 high-value correction from the whole conversation. Prioritize c
 あなた：（copy one exact complete statement from the authoritative list）
 修正例：（simple, natural English that preserves the likely intended meaning）
 ポイント：（one short, natural Japanese sentence; no detailed grammar lecture）
-If there are no important corrections, write exactly 「今回はありませんでした。」.
+If there are no important corrections, including when the only differences would be capitalization or punctuation, write exactly 「該当なし」.
 
 Rules for each ポイント:
 - Explain the specific problem in the recorded statement before giving a general grammar rule.

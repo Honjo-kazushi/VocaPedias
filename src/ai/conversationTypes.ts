@@ -14,6 +14,17 @@ export function mergeSpeechTranscript(current: string, next: string, language: "
   if (!right || left === right || left.endsWith(right)) return left;
   if (right.startsWith(left)) return right;
 
+  if (language === "ja") {
+    const comparable = (value: string) => value
+      .normalize("NFKC")
+      .replace(/[\s。、！？!?・，．]/g, "")
+      .toLocaleLowerCase();
+    const leftComparable = comparable(left);
+    const rightComparable = comparable(right);
+    if (leftComparable === rightComparable || leftComparable.endsWith(rightComparable)) return left;
+    if (rightComparable.startsWith(leftComparable)) return right;
+  }
+
   const separator = language === "ja" ? "" : " ";
   const maxOverlap = Math.min(left.length, right.length);
   for (let length = maxOverlap; length > 0; length -= 1) {

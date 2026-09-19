@@ -528,13 +528,27 @@
 .ai-help-button {
   flex: 0 0 auto;
   padding: 5px 9px;
-  border: 1px solid #bbb;
+  border: 1px solid #d2a315;
   border-radius: 7px;
-  color: #555;
-  background: #fff;
+  color: #4f3a00;
+  background: #ffd84d;
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ai-help-button:hover:not(:disabled) {
+  background: #ffcf24;
+}
+
+.ai-help-button:active:not(:disabled) {
+  background: #f2bd00;
+}
+
+.ai-help-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .ai-thinking {
@@ -597,6 +611,19 @@
 .ai-review h2 {
   margin: 0 0 10px;
   font-size: 1.05rem;
+}
+
+.ai-review-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+}
+
+.ai-review-actions .ai-primary-button,
+.ai-review-actions .ai-end-button {
+  flex: 1 1 0;
+  width: auto;
+  margin-top: 0;
 }
 
 .ai-review-sections {

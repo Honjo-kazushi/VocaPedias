@@ -10,7 +10,7 @@ import {
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
-import { applySpeechRateIntent, detectSpeechRateIntent, isConversationEndIntent } from "../ai/conversationControls";
+import { applySpeechRateIntent, detectSpeechRateIntent } from "../ai/conversationControls";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -610,13 +610,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       const rateIntent = detectSpeechRateIntent(snapshot.text);
       speechRateMultiplierRef.current = applySpeechRateIntent(speechRateMultiplierRef.current, rateIntent);
     }
-    if (isConversationEndIntent(snapshot.text, conversationLanguage)) {
-      // Reuse the same Review path as End Lesson. The user's farewell is the
-      // closing, so do not add another partner response or TTS delay.
-      lessonEndingRef.current = true;
-      void requestLessonReview(nextMessages, token);
-      return;
-    }
     try {
       const response = scene
         ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication)
@@ -711,7 +704,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         speechDebug("utterance buffer changed", { generation: token, userTurnId, before, after: utteranceBufferRef.current, final: text });
         if (showConversationCaptions) setInterimCaption(utteranceBufferRef.current);
         resetUserTurnTimers("final result");
-        if (isConversationEndIntent(utteranceBufferRef.current, conversationLanguage)) finalizeUserTurn("soft");
       },
       onSpeechStart: () => {
         if (startTokenRef.current === token) speechDebug("speechstart", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
@@ -906,13 +898,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         <div className="ai-review">
           <h2>Lesson Review</h2>
           <ReviewSections review={review} language={conversationLanguage} />
-          <button
-            className="ai-primary-button"
-            onClick={() => scene ? beginSceneSelection() : void beginLesson(chooseTopic(freshTopics))}
-            disabled={busy}
-          >
-            {scene ? "別のSceneを選ぶ" : "次のトピックへ"}
-          </button>
+          <div className="ai-review-actions">
+            <button
+              className="ai-primary-button"
+              onClick={() => scene ? beginSceneSelection() : void beginLesson(chooseTopic(freshTopics))}
+              disabled={busy}
+            >
+              {scene ? "別のSceneを選ぶ" : "次のトピックへ"}
+            </button>
+            <button className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
+          </div>
         </div>
       ) : lessonStage === "sceneSelect" ? (
         <div className="scene-roleplay-select" aria-labelledby="scene-roleplay-heading">

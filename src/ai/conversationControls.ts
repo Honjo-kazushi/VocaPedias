@@ -20,26 +20,3 @@ export function applySpeechRateIntent(current: number, intent: SpeechRateIntent)
   if (intent === "faster") return Math.min(1, Math.round((current + 0.1) * 10) / 10);
   return current;
 }
-
-export function isConversationEndIntent(text: string, language: "en" | "ja"): boolean {
-  if (language === "ja") {
-    const value = text.replace(/[\s。、！？!?]/g, "");
-    return /^(?:またね|じゃあまた|じゃあね|また今度|今日はここまで|この会話(?:を)?終わろう|もう終わりにしよう|今日は終わり|そろそろ終わろう|これで終わり)$/.test(value);
-  }
-  const value = normalizeEnglish(text);
-  return /^(?:let's|lets|let us) (?:stop|finish|end)(?: (?:(?:the|our|this) )?conversation)? here$/.test(value) ||
-    /^(?:let's|lets) end here$/.test(value) ||
-    /^(?:let's|lets|let us) (?:end|stop|finish) (?:(?:the|our|this) )?conversation$/.test(value) ||
-    /^i(?: want| would like|'d like) to (?:end|stop|finish) (?:(?:the|our|this) )?conversation$/.test(value) ||
-    /^(?:can|could) we (?:end|stop|finish) (?:(?:the|our|this) )?conversation$/.test(value) ||
-    /^(?:that's|thats|i think that's|i think thats) enough for today$/.test(value) ||
-    /^i(?:'m| am) done for today$/.test(value) ||
-    /^(?:let's|lets) call it a day$/.test(value) ||
-    /^(?:see you(?: later)?|bye|goodbye|talk to you later)$/.test(value);
-}
-
-export function conversationClosing(language: "en" | "ja"): string {
-  return language === "ja"
-    ? "はい、お疲れさまでした。お話しできてよかったです。"
-    : "Sure. It was nice talking with you.";
-}

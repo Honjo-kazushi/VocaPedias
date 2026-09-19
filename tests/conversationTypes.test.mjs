@@ -33,4 +33,16 @@ test("Android cumulative recognition slots replace interim hypotheses instead of
   assert.equal(mergeRecognitionResults(["but", "but I have", "but I have a plan"], "en"), "but I have a plan");
   assert.equal(mergeRecognitionResults(["I have a reservation", "for one night, please."], "en"), "I have a reservation for one night, please.");
   assert.equal(mergeRecognitionResults(["京都に", "京都に行きました"], "ja"), "京都に行きました");
+  assert.equal(
+    mergeRecognitionResults([
+      "うん、そうだね。やっぱり",
+      "うん そうだね やっぱり 日本",
+      "うん そうだね やっぱり 日本昔ばなしかな",
+    ], "ja"),
+    "うん そうだね やっぱり 日本昔ばなしかな",
+  );
+  assert.equal(
+    mergeSpeechTranscript("うん、そうだね。やっぱり", "うん そうだね やっぱり 日本昔ばなしかな", "ja"),
+    "うん そうだね やっぱり 日本昔ばなしかな",
+  );
 });

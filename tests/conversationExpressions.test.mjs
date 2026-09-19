@@ -153,6 +153,10 @@ test("review prompts require no more than three concise one-sentence points", ()
   assert.match(reviewPromptSource, /Choose at most 1 high-value correction/);
   assert.match(reviewPromptSource, /20 to 30 seconds of speech/);
   assert.match(reviewPromptSource, /最大3項目、各項目1文まで/);
+  assert.match(reviewPromptSource, /spoken English transcribed by SpeechRecognition, not as typed composition/);
+  assert.match(reviewPromptSource, /Never treat capitalization[\s\S]*punctuation[\s\S]*as learner errors/);
+  assert.match(reviewPromptSource, /only differences would be capitalization or punctuation/);
+  assert.match(reviewPromptSource, /write exactly 「該当なし」/);
 });
 
 test("partner selection can be cancelled without entering Review", () => {

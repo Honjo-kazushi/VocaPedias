@@ -33,9 +33,10 @@ test("session speech rate applies only to partner English TTS and resets for new
   assert.match(speechSource, /if \(!isJapanese\) utter\.rate \*=/);
 });
 
-test("voice ending skips a partner closing and uses the existing Review flow", () => {
-  assert.match(uiSource, /isConversationEndIntent\(snapshot\.text, conversationLanguage\)/);
-  assert.match(uiSource, /void requestLessonReview\(nextMessages, token\)/);
+test("spoken farewells remain normal conversation turns and do not auto-end the lesson", () => {
+  assert.doesNotMatch(uiSource, /isConversationEndIntent/);
+  assert.match(uiSource, /continueSceneRoleplay\(scene, nextMessages/);
+  assert.match(uiSource, /continueTutorConversation\(topic!, nextMessages/);
 });
 
 test("partner selection scrolls by DOM position only when Cancel is outside the viewport", () => {
@@ -59,13 +60,6 @@ test("Listening and Help stay rendered across recognition restarts until the tur
   assert.match(uiSource, /\{awaitingUserInput[\s\S]*Listening/);
 });
 
-test("a finalized end phrase is handled immediately and skips the normal Gemini continuation", () => {
-  assert.match(uiSource, /onFinalTranscript:[\s\S]*isConversationEndIntent\(utteranceBufferRef\.current, conversationLanguage\)[\s\S]*finalizeUserTurn\("soft"\)/);
-  const endBranch = uiSource.slice(uiSource.indexOf('if (isConversationEndIntent(snapshot.text'), uiSource.indexOf('try {', uiSource.indexOf('if (isConversationEndIntent(snapshot.text')));
-  assert.doesNotMatch(endBranch, /continueTutorConversation|continueSceneRoleplay/);
-  assert.doesNotMatch(endBranch, /speakAssistantMessage|queueAssistantSpeech|conversationClosing/);
-});
-
 test("End Lesson interrupts busy partner or rescue speech and invalidates stale callbacks", () => {
   const endLessonBlock = uiSource.slice(uiSource.indexOf("const endLesson"), uiSource.indexOf("const minutes"));
   assert.match(endLessonBlock, /lessonEndingRef\.current/);
@@ -75,6 +69,23 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
   assert.match(endLessonBlock, /setRescueBusy\(false\)/);
   assert.match(endLessonBlock, /requestLessonReview\(messages, token\)/);
   assert.doesNotMatch(uiSource, /onClick=\{\(\) => void endLesson\(\)\}[\s\S]{0,100}disabled=\{busy\}/);
+});
+
+test("Review actions keep next-topic behavior and Cancel returns to the AI conversation top", () => {
+  const reviewBlock = uiSource.slice(uiSource.indexOf("{review ? ("), uiSource.indexOf(') : lessonStage === "sceneSelect"'));
+  assert.match(reviewBlock, /scene \? beginSceneSelection\(\) : void beginLesson\(chooseTopic\(freshTopics\)\)/);
+  assert.match(reviewBlock, /onClick=\{cancelPartnerSelection\}>Cancel/);
+  assert.match(uiSource, /cancelPartnerSelection[\s\S]*\+\+startTokenRef\.current|cancelPartnerSelection[\s\S]*startTokenRef\.current \+= 1/);
+  assert.match(uiSource, /cancelPartnerSelection[\s\S]*stopInteraction\(\)/);
+  assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
+  assert.match(uiSource, /cancelPartnerSelection[\s\S]*setReview\(null\)/);
+  assert.doesNotMatch(reviewBlock, /chooseTopic\(freshTopics\)[\s\S]*onClick=\{cancelPartnerSelection\}[\s\S]*chooseTopic/);
+  assert.match(styleSource, /\.ai-review-actions \{[\s\S]*display: flex/);
+});
+
+test("Help button is yellow and bold without changing its rescue handler", () => {
+  assert.match(styleSource, /\.ai-help-button \{[\s\S]*background: #ffd84d;[\s\S]*font-weight: 700/);
+  assert.match(uiSource, /className="ai-help-button"[\s\S]*onClick=\{\(\) => void requestRescue\(\)\}/);
 });
 
 test("conversation ending state blocks every path back to Listening", () => {
