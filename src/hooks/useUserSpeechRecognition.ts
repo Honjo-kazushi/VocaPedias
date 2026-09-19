@@ -86,19 +86,15 @@ export function useUserSpeechRecognition() {
         if (!current()) return;
         debug("onstart");
         callbacks.onStart();
-        // Also prevents an entirely silent session from recording forever.
-        armSilenceTimer();
       };
       recognition.onaudiostart = () => {
         if (!current()) return;
         debug("onaudiostart");
-        armSilenceTimer();
         callbacks.onActivity?.("audio");
       };
       recognition.onsoundstart = () => {
         if (!current()) return;
         debug("onsoundstart");
-        armSilenceTimer();
         callbacks.onActivity?.("sound");
         callbacks.onSpeechStart?.();
       };

@@ -116,9 +116,14 @@ test("conversation automatically alternates completed TTS and one final recognit
   assert.match(recognitionHookSource, /mergeRecognitionResults\(interimChunks, language\)/);
   assert.doesNotMatch(recognitionHookSource, /finalAcceptedRef/);
   assert.doesNotMatch(recognitionHookSource, /if \(finalText\)[\s\S]{0,300}recognition\.stop\(\)/);
-  assert.match(recognitionHookSource, /recognition\.onaudiostart = \(\) => \{[\s\S]*armSilenceTimer\(\)/);
-  assert.match(recognitionHookSource, /recognition\.onsoundstart = \(\) => \{[\s\S]*armSilenceTimer\(\)/);
+  const recognitionStartBlock = recognitionHookSource.slice(recognitionHookSource.indexOf("recognition.onstart"), recognitionHookSource.indexOf("recognition.onaudiostart"));
+  const audioStartBlock = recognitionHookSource.slice(recognitionHookSource.indexOf("recognition.onaudiostart"), recognitionHookSource.indexOf("recognition.onsoundstart"));
+  const soundStartBlock = recognitionHookSource.slice(recognitionHookSource.indexOf("recognition.onsoundstart"), recognitionHookSource.indexOf("recognition.onspeechstart"));
+  assert.doesNotMatch(recognitionStartBlock, /armSilenceTimer\(\)/);
+  assert.doesNotMatch(audioStartBlock, /armSilenceTimer\(\)/);
+  assert.doesNotMatch(soundStartBlock, /armSilenceTimer\(\)/);
   assert.match(recognitionHookSource, /recognition\.onspeechstart = \(\) => \{[\s\S]*armSilenceTimer\(\)/);
+  assert.match(recognitionHookSource, /recognition\.onresult = \(event\) => \{[\s\S]*armSilenceTimer\(\)/);
   assert.match(recognitionHookSource, /\[TossaSpeak recognition\][\s\S]*timestamp: performance\.now\(\), session/);
 });
 
