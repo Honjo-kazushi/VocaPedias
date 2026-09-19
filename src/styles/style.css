@@ -279,9 +279,14 @@
   object-position: center bottom;
 }
 
+/* Opening Emma only: partner and Review avatars keep their lower baseline. */
+.ai-intro-portrait .character-avatar.intro {
+  transform: translateY(-10px);
+}
+
 /* Emma's smile source is framed about 5% larger and slightly lower than neutral. */
 .character-avatar.intro-emma-smile {
-  transform: translateY(-3px) scale(0.95);
+  transform: translateY(-10px) scale(0.95);
 }
 
 .ai-topic-header {

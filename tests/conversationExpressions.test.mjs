@@ -51,7 +51,7 @@ test("Emma opening changes calmly and ordinary prompts request short non-generic
   assert.doesNotMatch(uiSource, /introExpressionStageRef/);
   assert.match(styleSource, /\.character-avatar\.intro\s*\{[\s\S]*height: min\(201px, 69vw\);[\s\S]*object-fit: cover/);
   assert.match(avatarSource, /intro-\$\{character\.id\}-\$\{expression\}/);
-  assert.match(styleSource, /\.character-avatar\.intro-emma-smile\s*\{[\s\S]*translateY\(-3px\) scale\(0\.95\)/);
+  assert.match(styleSource, /\.character-avatar\.intro-emma-smile\s*\{[\s\S]*translateY\(-10px\) scale\(0\.95\)/);
   assert.doesNotMatch(uiSource, /index === 0 \? "neutral" : "smile"/);
   assert.match(promptSource, /one brief, natural reaction followed by one short question/);
   assert.match(promptSource, /Do not routinely begin with/);

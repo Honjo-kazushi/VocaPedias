@@ -26,10 +26,9 @@ test("session speech rate applies only to partner English TTS and resets for new
   assert.match(speechSource, /if \(!isJapanese\) utter\.rate \*=/);
 });
 
-test("voice ending uses a fixed closing and the existing Review flow", () => {
+test("voice ending skips a partner closing and uses the existing Review flow", () => {
   assert.match(uiSource, /isConversationEndIntent\(snapshot\.text, conversationLanguage\)/);
-  assert.match(uiSource, /conversationClosing\(conversationLanguage\)/);
-  assert.match(uiSource, /reason === "complete"\) void requestLessonReview\(nextMessages, token\)/);
+  assert.match(uiSource, /void requestLessonReview\(nextMessages, token\)/);
 });
 
 test("partner selection scrolls by DOM position only when Cancel is outside the viewport", () => {
@@ -57,6 +56,13 @@ test("a finalized end phrase is handled immediately and skips the normal Gemini 
   assert.match(uiSource, /onFinalTranscript:[\s\S]*isConversationEndIntent\(utteranceBufferRef\.current, conversationLanguage\)[\s\S]*finalizeUserTurn\("soft"\)/);
   const endBranch = uiSource.slice(uiSource.indexOf('if (isConversationEndIntent(snapshot.text'), uiSource.indexOf('try {', uiSource.indexOf('if (isConversationEndIntent(snapshot.text')));
   assert.doesNotMatch(endBranch, /continueTutorConversation|continueSceneRoleplay/);
+  assert.doesNotMatch(endBranch, /speakAssistantMessage|queueAssistantSpeech|conversationClosing/);
+});
+
+test("only Opening Emma moves up while Review and partner baselines stay unchanged", () => {
+  assert.match(styleSource, /\.ai-intro-portrait \.character-avatar\.intro \{[\s\S]*translateY\(-10px\)/);
+  assert.match(styleSource, /\.character-avatar-stack \{[\s\S]*translateY\(12px\)/);
+  assert.doesNotMatch(styleSource, /\.ai-review[^{]*\{[^}]*transform:/);
 });
 
 test("AI conversation does not add a repeated application listening sound", () => {

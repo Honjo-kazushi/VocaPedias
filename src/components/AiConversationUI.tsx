@@ -10,7 +10,7 @@ import {
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
-import { applySpeechRateIntent, conversationClosing, detectSpeechRateIntent, isConversationEndIntent } from "../ai/conversationControls";
+import { applySpeechRateIntent, detectSpeechRateIntent, isConversationEndIntent } from "../ai/conversationControls";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -602,30 +602,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       speechRateMultiplierRef.current = applySpeechRateIntent(speechRateMultiplierRef.current, rateIntent);
     }
     if (isConversationEndIntent(snapshot.text, conversationLanguage)) {
-      const closing = conversationClosing(conversationLanguage);
-      const closingMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: closing }];
-      setMessages(closingMessages);
-      setBusy(false);
-      setPhase("ttsPending");
-      window.requestAnimationFrame(() => {
-        if (!mountedRef.current || startTokenRef.current !== token) return;
-        speakAssistantMessage(closing, {
-          rateMultiplier: conversationLanguage === "en" ? speechRateMultiplierRef.current : 1,
-          onStart: () => {
-            if (startTokenRef.current === token) setPhase("speaking");
-          },
-          onFinish: (reason) => {
-            if (!mountedRef.current || startTokenRef.current !== token) return;
-            setPhase("idle");
-            if (reason === "complete") void requestLessonReview(nextMessages, token);
-            else {
-              requestBusyRef.current = false;
-              setBusy(false);
-              if (reason === "error") setError("終了メッセージを再生できませんでした。");
-            }
-          },
-        });
-      });
+      // Reuse the same Review path as End Lesson. The user's farewell is the
+      // closing, so do not add another partner response or TTS delay.
+      void requestLessonReview(nextMessages, token);
       return;
     }
     try {
