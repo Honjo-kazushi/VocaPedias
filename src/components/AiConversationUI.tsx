@@ -4,11 +4,13 @@ import {
   continueTutorConversation,
   continueSceneRoleplay,
   reviewTutorConversation,
+  explainEnglishMessageInJapanese,
   startSceneRoleplay,
   startTutorConversation,
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
+import { applySpeechRateIntent, conversationClosing, detectSpeechRateIntent, isConversationEndIntent } from "../ai/conversationControls";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -126,9 +128,10 @@ function ReviewSections({ review, language }: { review: string; language: Conver
 
 type AiConversationUIProps = {
   showConversationCaptions: boolean;
+  uiLanguage?: "ja" | "en";
 };
 
-export default function AiConversationUI({ showConversationCaptions }: AiConversationUIProps) {
+export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja" }: AiConversationUIProps) {
   const [topic, setTopic] = useState<TalkTopic | null>(null);
   const [freshTopics, setFreshTopics] = useState<FreshTalkTopic[]>([]);
   const [scene, setScene] = useState<SceneSituation | null>(null);
@@ -149,6 +152,8 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
   const [partnerExpression, setPartnerExpression] = useState<CharacterExpression>("neutral");
   const [reviewExpression, setReviewExpression] = useState<CharacterExpression>("neutral");
   const [microphoneFallback, setMicrophoneFallback] = useState(false);
+  const [rescueBusy, setRescueBusy] = useState(false);
+  const [rescueMessage, setRescueMessage] = useState("");
   const requestBusyRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
   const { active: recognitionActive, start: startRecognition, cancel: cancelRecognition } = useUserSpeechRecognition();
@@ -192,6 +197,8 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
   const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
+  const speechRateMultiplierRef = useRef(1);
+  const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
 
   const stopInteraction = useCallback(() => {
     if (recognitionRestartTimerRef.current !== null) {
@@ -235,6 +242,7 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     window.requestAnimationFrame(() => {
       if (!mountedRef.current || startTokenRef.current !== token) return;
       speakAssistantMessage(text, {
+        rateMultiplier: speechRateMultiplierRef.current,
         onStart: () => {
           if (startTokenRef.current === token) {
             speechDebug("TTS start", { generation: token, userTurnId: userTurnIdRef.current });
@@ -297,6 +305,9 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
     stopInteraction();
+    speechRateMultiplierRef.current = 1;
+    setRescueBusy(false);
+    setRescueMessage("");
     setTopic(nextTopic);
     setScene(null);
     setSceneComplication(null);
@@ -321,6 +332,9 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
     stopInteraction();
+    speechRateMultiplierRef.current = 1;
+    setRescueBusy(false);
+    setRescueMessage("");
     setTopic(null);
     setScene(null);
     setSceneComplication(null);
@@ -373,6 +387,9 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     const nextPartnerId = chooseScenePartner(nextScene, partnerId);
     requestBusyRef.current = false;
     stopInteraction();
+    speechRateMultiplierRef.current = 1;
+    setRescueBusy(false);
+    setRescueMessage("");
     setTopic(null);
     setScene(nextScene);
     setSceneComplication(chooseSceneComplication(nextScene));
@@ -394,6 +411,9 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     if (!partnerSelectionReady || requestBusyRef.current) return;
     startTokenRef.current += 1;
     stopInteraction();
+    speechRateMultiplierRef.current = 1;
+    setRescueBusy(false);
+    setRescueMessage("");
     setPartnerId(id);
     setLessonStage("conversation");
     setPartnerSelectionReady(false);
@@ -412,6 +432,9 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     startTokenRef.current += 1;
     requestBusyRef.current = false;
     stopInteraction();
+    speechRateMultiplierRef.current = 1;
+    setRescueBusy(false);
+    setRescueMessage("");
     partnerOpeningStartedRef.current = null;
     setShowIntro(true);
     setLessonStage("partnerSelect");
@@ -448,6 +471,19 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     if (!showIntro) return;
     setIntroOpeningComplete(false);
   }, [showIntro]);
+
+  useEffect(() => {
+    if (lessonStage !== "partnerSelect" || !partnerSelectionReady) return;
+    const cancelButton = partnerCancelRef.current;
+    if (!cancelButton) return;
+    const frame = window.requestAnimationFrame(() => {
+      const bounds = cancelButton.getBoundingClientRect();
+      if (bounds.bottom > window.innerHeight - 12 || bounds.top < 0) {
+        cancelButton.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [lessonStage, partnerSelectionReady]);
 
   useEffect(() => {
     if (lessonStage !== "conversation" || (!topic && !scene) || !partnerId || review) return;
@@ -508,7 +544,33 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
 
   useEffect(() => {
     historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
+  }, [messages, busy, rescueMessage]);
+
+  const requestLessonReview = async (reviewMessages: ChatMessage[], token: number) => {
+    setBusy(true);
+    setPhase("thinking");
+    try {
+      const result = await reviewTutorConversation(
+        reviewMessages,
+        conversationLanguage,
+        topic ?? undefined,
+        scene ? { situation: scene, usefulPhrases: getSceneUsefulPhrases(scene) } : undefined,
+      );
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      setSpokenReview(result.spokenReview);
+      setReview(result.detailedReview);
+      setPhase("idle");
+    } catch (cause) {
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      setError(friendlyError(cause));
+      setPhase("idle");
+    } finally {
+      if (mountedRef.current && startTokenRef.current === token) {
+        requestBusyRef.current = false;
+        setBusy(false);
+      }
+    }
+  };
 
   const processUserTurn = async (snapshot: UserTurnSnapshot) => {
     if (!mountedRef.current || (!topic && !scene) || !partnerId || lessonStage !== "conversation" || requestBusyRef.current || review) return;
@@ -521,9 +583,41 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: snapshot.text }];
     setMessages(nextMessages);
     setInterimCaption("");
+    setRescueMessage("");
     setError(null);
     setBusy(true);
     speechDebug("Gemini send snapshot", { snapshotId: snapshot.id, generation: snapshot.generation, text: snapshot.text });
+    if (conversationLanguage === "en") {
+      const rateIntent = detectSpeechRateIntent(snapshot.text);
+      speechRateMultiplierRef.current = applySpeechRateIntent(speechRateMultiplierRef.current, rateIntent);
+    }
+    if (isConversationEndIntent(snapshot.text, conversationLanguage)) {
+      const closing = conversationClosing(conversationLanguage);
+      const closingMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: closing }];
+      setMessages(closingMessages);
+      setBusy(false);
+      setPhase("ttsPending");
+      window.requestAnimationFrame(() => {
+        if (!mountedRef.current || startTokenRef.current !== token) return;
+        speakAssistantMessage(closing, {
+          rateMultiplier: conversationLanguage === "en" ? speechRateMultiplierRef.current : 1,
+          onStart: () => {
+            if (startTokenRef.current === token) setPhase("speaking");
+          },
+          onFinish: (reason) => {
+            if (!mountedRef.current || startTokenRef.current !== token) return;
+            setPhase("idle");
+            if (reason === "complete") void requestLessonReview(nextMessages, token);
+            else {
+              requestBusyRef.current = false;
+              setBusy(false);
+              if (reason === "error") setError("終了メッセージを再生できませんでした。");
+            }
+          },
+        });
+      });
+      return;
+    }
     try {
       const response = scene
         ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication)
@@ -663,6 +757,49 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
   };
   startMicrophoneRef.current = startMicrophone;
 
+  const requestRescue = async () => {
+    if (conversationLanguage !== "en" || phase !== "recognizing" || !recognitionActive || rescueBusy || requestBusyRef.current || !partnerId) return;
+    const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
+    if (!lastAssistantMessage) return;
+    const token = ++startTokenRef.current;
+    requestBusyRef.current = true;
+    stopInteraction();
+    setRescueBusy(true);
+    setRescueMessage("");
+    setInterimCaption("");
+    setError(null);
+    setBusy(true);
+    setPhase("thinking");
+    try {
+      const explanation = await explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId]);
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      setRescueMessage(explanation);
+      setBusy(false);
+      setPhase("ttsPending");
+      speakCharacterItems([{ lang: "ja-JP", text: explanation, characterId: partnerId }], {
+        onItemStart: () => {
+          if (startTokenRef.current === token) setPhase("speaking");
+        },
+        onFinish: (reason) => {
+          if (!mountedRef.current || startTokenRef.current !== token) return;
+          setPhase("idle");
+          setRescueBusy(false);
+          requestBusyRef.current = false;
+          if (reason === "complete") scheduleMicrophoneStart(token, 250, true);
+          else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
+        },
+      }, partnerId);
+    } catch (cause) {
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      setError(friendlyError(cause));
+      setBusy(false);
+      setPhase("idle");
+      setRescueBusy(false);
+      requestBusyRef.current = false;
+      scheduleMicrophoneStart(token, 250, true);
+    }
+  };
+
   const endLesson = async () => {
     if ((!topic && !scene) || requestBusyRef.current || review) return;
     const token = ++startTokenRef.current;
@@ -685,26 +822,7 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
       return;
     }
 
-    setBusy(true);
-    try {
-      const result = await reviewTutorConversation(
-        messages,
-        conversationLanguage,
-        topic ?? undefined,
-        scene ? { situation: scene, usefulPhrases: getSceneUsefulPhrases(scene) } : undefined,
-      );
-      if (!mountedRef.current || startTokenRef.current !== token) return;
-      setSpokenReview(result.spokenReview);
-      setReview(result.detailedReview);
-    } catch (cause) {
-      if (!mountedRef.current || startTokenRef.current !== token) return;
-      setError(friendlyError(cause));
-    } finally {
-      if (mountedRef.current && startTokenRef.current === token) {
-        requestBusyRef.current = false;
-        setBusy(false);
-      }
-    }
+    await requestLessonReview(messages, token);
   };
 
   const minutes = Math.floor(elapsedSeconds / 60);
@@ -713,6 +831,8 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
   const tenMinutesPassed = elapsedSeconds >= 600;
   const showTopicBackground = lessonStage === "conversation" && !review;
   const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
+  const showRescueButton = lessonStage === "conversation" && conversationLanguage === "en" &&
+    phase === "recognizing" && recognitionActive && !busy && !rescueBusy && !review;
 
   if (showIntro) {
     return (
@@ -843,7 +963,7 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
             )}
           </div>
           {error && <p className="ai-error" role="alert">{error}</p>}
-          <button className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
+          <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
         </div>
       ) : (
         <>
@@ -862,6 +982,7 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
             </div>
           )}
           {busy && <div className="ai-thinking ai-conversation-status">AI is thinking...</div>}
+          {rescueMessage && <div className="ai-rescue-message" aria-live="polite">{rescueMessage}</div>}
 
           {tenMinutesPassed && <p className="ai-time-note">10分経過しました。会話をまとめてReviewへ進めます。</p>}
           {!tenMinutesPassed && fiveMinutesPassed && <p className="ai-time-note">5分経過しました。好きなタイミングでレッスンを終了できます。</p>}
@@ -872,11 +993,18 @@ export default function AiConversationUI({ showConversationCaptions }: AiConvers
               音声入力を再開
             </button>
           )}
-          <p role="status" aria-live="polite">
-            {recognitionActive ? (phase === "recognizing"
-              ? conversationLanguage === "ja" ? "Listening... 日本語で話してください" : "Listening... 英語で話してください"
-              : "マイクを開始しています…") : ""}
-          </p>
+          <div className="ai-listening-row">
+            <p role="status" aria-live="polite">
+              {recognitionActive ? (phase === "recognizing"
+                ? conversationLanguage === "ja" ? "Listening... 日本語で話してください" : "Listening... 英語で話してください"
+                : "マイクを開始しています…") : ""}
+            </p>
+            {showRescueButton && (
+              <button className="ai-help-button" type="button" onClick={() => void requestRescue()}>
+                {uiLanguage === "en" ? "? Help" : "？ わからない"}
+              </button>
+            )}
+          </div>
           <button
             className={`ai-end-button ${fiveMinutesPassed ? "ready" : ""}`}
             onClick={() => void endLesson()}

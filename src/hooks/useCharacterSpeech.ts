@@ -249,7 +249,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     runStep();
   }, []);
 
-  const speakAssistantMessage = useCallback((text: string, callbacks?: { onStart?: () => void; onFinish?: (reason: SpeechFinishReason) => void }) => {
+  const speakAssistantMessage = useCallback((text: string, callbacks?: { onStart?: () => void; onFinish?: (reason: SpeechFinishReason) => void; rateMultiplier?: number }) => {
     if (!mountedRef.current) return;
     cancelSpeechRef.current?.();
     const speechToken = ++speechTokenRef.current;
@@ -281,7 +281,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
           mouthBoundaryRef.current?.(event);
         }
       },
-    }, characterId, speechLocale);
+    }, characterId, speechLocale, callbacks?.rateMultiplier);
   }, [characterId, speechLocale, startMouthTimeline, stopMouthTimeline]);
 
   const speakCharacterItems = useCallback((

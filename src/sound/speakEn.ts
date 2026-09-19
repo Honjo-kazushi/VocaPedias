@@ -2,7 +2,7 @@ import { CHARACTER_PROFILES, type CharacterId, type CharacterProfile } from "../
 import { selectCharacterVoice } from "./selectCharacterVoice";
 
 export type SpeechLocale = "ja-JP" | "en-US";
-export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese?: boolean; characterId?: CharacterId; avoidVoiceCharacterId?: CharacterId };
+export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese?: boolean; characterId?: CharacterId; avoidVoiceCharacterId?: CharacterId; rateMultiplier?: number };
 
 // cancel() stops the native queue, but the voice engine may still be settling.
 const SPEECH_START_DELAY_MS = 250;
@@ -126,7 +126,7 @@ function deferSpeechStart(
   return dispose;
 }
 
-function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, characterId?: CharacterId, brightJapanese = false, avoidVoiceCharacterId?: CharacterId): SpeechSynthesisUtterance {
+function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, characterId?: CharacterId, brightJapanese = false, avoidVoiceCharacterId?: CharacterId, rateMultiplier = 1): SpeechSynthesisUtterance {
   const utter = new SpeechSynthesisUtterance(text);
   const isJapanese = lang === "ja" || lang === "ja-JP";
   const locale: SpeechLocale = isJapanese ? "ja-JP" : "en-US";
@@ -163,6 +163,7 @@ function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, charact
     } catch {
       // Voice discovery/selection must not interrupt the character's speech queue.
     }
+    if (!isJapanese) utter.rate *= Math.max(0.8, Math.min(1, rateMultiplier));
     return utter;
   }
 
@@ -274,6 +275,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
       item.characterId ?? characterId,
       item.brightJapanese,
       item.avoidVoiceCharacterId,
+      item.rateMultiplier,
     ));
   }, () => {
     if (stopped) return;
@@ -319,6 +321,7 @@ export function speakEnSentences(
   callbacks: SentenceSpeechCallbacks,
   characterId?: CharacterId,
   locale: SpeechLocale = "en-US",
+  rateMultiplier = 1,
 ): () => void {
   const synth = window.speechSynthesis;
   const sentences = splitSpeechSentences(text);
@@ -347,7 +350,7 @@ export function speakEnSentences(
   // not compete with the first audible word.
   let preparedUtterances: SpeechSynthesisUtterance[] = [];
   const disposeStart = deferSpeechStart(synth, { locale, characterId }, () => {
-    preparedUtterances = sentences.map((sentence) => createUtterance(sentence, locale, characterId));
+    preparedUtterances = sentences.map((sentence) => createUtterance(sentence, locale, characterId, false, undefined, rateMultiplier));
   }, () => {
     if (stopped) return;
     if (cancelPendingStart === cancel) cancelPendingStart = undefined;

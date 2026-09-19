@@ -6,6 +6,7 @@ export type SpeechQueueItem = {
     brightJapanese?: boolean;
     characterId?: CharacterId;
     avoidVoiceCharacterId?: CharacterId;
+    rateMultiplier?: number;
 };
 export declare function speakEn(text: string, onEnd?: () => void, lang?: "en" | "ja", onStart?: () => void, onBoundary?: (event: SpeechSynthesisEvent) => void): string | null;
 export declare function splitSpeechSentences(text: string): string[];
@@ -23,4 +24,4 @@ export type SpeechQueueCallbacks = {
     onBoundary?: (event: SpeechSynthesisEvent) => void;
 };
 export declare function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): () => void;
-export declare function speakEnSentences(text: string, callbacks: SentenceSpeechCallbacks, characterId?: CharacterId, locale?: SpeechLocale): () => void;
+export declare function speakEnSentences(text: string, callbacks: SentenceSpeechCallbacks, characterId?: CharacterId, locale?: SpeechLocale, rateMultiplier?: number): () => void;

@@ -129,6 +129,11 @@ for (const extension of ["ts", "js"]) {
       advance(2000);
       assert.equal(queued.length, 0);
       assert.deepEqual(events, ["end", "cancel"]);
+      events.length = 0;
+      speakSentences("Slower now.", callbacks, "mike", "en-US", 0.8);
+      assert.equal(queued.length, 1);
+      assert.equal(queued[0].rate, CHARACTER_PROFILES.mike.voicePreferences.desktop.rate * 0.8);
+      queued[0].onstart(); queued[0].onend();
       // Empty voice list: do not create utterances until discovery completes.
       events.length = 0;
       available = [];

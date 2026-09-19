@@ -109,7 +109,7 @@ function deferSpeechStart(synth, warmupVoice, prepare, start) {
     }
     return dispose;
 }
-function createUtterance(text, lang, characterId, brightJapanese = false, avoidVoiceCharacterId) {
+function createUtterance(text, lang, characterId, brightJapanese = false, avoidVoiceCharacterId, rateMultiplier = 1) {
     const utter = new SpeechSynthesisUtterance(text);
     const isJapanese = lang === "ja" || lang === "ja-JP";
     const locale = isJapanese ? "ja-JP" : "en-US";
@@ -147,6 +147,8 @@ function createUtterance(text, lang, characterId, brightJapanese = false, avoidV
         catch {
             // Voice discovery/selection must not interrupt the character's speech queue.
         }
+        if (!isJapanese)
+            utter.rate *= Math.max(0.8, Math.min(1, rateMultiplier));
         return utter;
     }
     utter.lang = isJapanese ? "ja-JP" : "en-US";
@@ -226,7 +228,7 @@ export function speakSpeechQueue(items, callbacks, characterId) {
         brightJapanese: firstItem.brightJapanese,
         avoidVoiceCharacterId: firstItem.avoidVoiceCharacterId,
     }, () => {
-        preparedUtterances = queue.map((item) => createUtterance(item.text, item.lang, item.characterId ?? characterId, item.brightJapanese, item.avoidVoiceCharacterId));
+        preparedUtterances = queue.map((item) => createUtterance(item.text, item.lang, item.characterId ?? characterId, item.brightJapanese, item.avoidVoiceCharacterId, item.rateMultiplier));
     }, () => {
         if (stopped)
             return;
@@ -272,7 +274,7 @@ export function speakSpeechQueue(items, callbacks, characterId) {
 }
 // The native speech queue owns progression. No boundary or delayed JS callback
 // starts another sentence. The returned cancel also clears the pending start.
-export function speakEnSentences(text, callbacks, characterId, locale = "en-US") {
+export function speakEnSentences(text, callbacks, characterId, locale = "en-US", rateMultiplier = 1) {
     const synth = window.speechSynthesis;
     const sentences = splitSpeechSentences(text);
     if (!synth || sentences.length === 0) {
@@ -301,7 +303,7 @@ export function speakEnSentences(text, callbacks, characterId, locale = "en-US")
     // not compete with the first audible word.
     let preparedUtterances = [];
     const disposeStart = deferSpeechStart(synth, { locale, characterId }, () => {
-        preparedUtterances = sentences.map((sentence) => createUtterance(sentence, locale, characterId));
+        preparedUtterances = sentences.map((sentence) => createUtterance(sentence, locale, characterId, false, undefined, rateMultiplier));
     }, () => {
         if (stopped)
             return;

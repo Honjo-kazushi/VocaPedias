@@ -22,6 +22,13 @@ async function generate(systemInstruction: string, prompt: string): Promise<stri
   return text;
 }
 
+export function explainEnglishMessageInJapanese(message: string, partner: CharacterProfile): Promise<string> {
+  return generate(
+    `You are ${partner.displayName}, helping a Japanese beginner understand your immediately previous English message. Reply only in concise, friendly Japanese.`,
+    `直前の英語発話を、日本語で短く分かりやすく説明してください。必要なら質問の意図を1文以内で補足してください。答えそのものを英語で教えすぎないでください。最後に、ユーザーが英語で答えるよう短く促してください。\n\n直前の英語発話:\n${message}`,
+  );
+}
+
 export function startTutorConversation(topic: TalkTopic, partner: CharacterProfile, openingAngle?: string | null): Promise<string> {
   return generate(
     buildConversationPrompt(topic, partner, openingAngle),
