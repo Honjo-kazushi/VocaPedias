@@ -156,9 +156,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [rescueMessage, setRescueMessage] = useState("");
   const [awaitingUserInput, setAwaitingUserInput] = useState(false);
   const requestBusyRef = useRef(false);
+  const lessonEndingRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
   const { active: recognitionActive, start: startRecognition, cancel: cancelRecognition } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
+  const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
   const conversationLanguage = partnerId ? CHARACTER_PROFILES[partnerId].conversationLanguage : "en";
   const speechLocale = conversationLanguage === "ja" ? "ja-JP" : "en-US";
   const {
@@ -307,6 +309,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const beginLesson = useCallback((nextTopic: TalkTopic) => {
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
+    lessonEndingRef.current = false;
     stopInteraction();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
@@ -334,6 +337,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const beginSceneSelection = useCallback(() => {
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
+    lessonEndingRef.current = false;
     stopInteraction();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
@@ -373,6 +377,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const cancelSceneSelection = useCallback(() => {
     startTokenRef.current += 1;
     requestBusyRef.current = false;
+    lessonEndingRef.current = false;
     stopInteraction();
     setShowIntro(true);
     setLessonStage("partnerSelect");
@@ -389,6 +394,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const nextScene = chooseSceneSituation(sceneFamily);
     const nextPartnerId = chooseScenePartner(nextScene, partnerId);
     requestBusyRef.current = false;
+    lessonEndingRef.current = false;
     stopInteraction();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
@@ -413,6 +419,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const selectPartner = (id: CharacterId) => {
     if (!partnerSelectionReady || requestBusyRef.current) return;
     startTokenRef.current += 1;
+    lessonEndingRef.current = false;
     stopInteraction();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
@@ -434,6 +441,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const cancelPartnerSelection = () => {
     startTokenRef.current += 1;
     requestBusyRef.current = false;
+    lessonEndingRef.current = false;
     stopInteraction();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
@@ -604,6 +612,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (isConversationEndIntent(snapshot.text, conversationLanguage)) {
       // Reuse the same Review path as End Lesson. The user's farewell is the
       // closing, so do not add another partner response or TTS delay.
+      lessonEndingRef.current = true;
       void requestLessonReview(nextMessages, token);
       return;
     }
@@ -769,7 +778,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setRescueMessage(explanation);
       setBusy(false);
       setPhase("ttsPending");
-      speakCharacterItems([{ lang: "ja-JP", text: explanation, characterId: partnerId }], {
+      speakCharacterItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
         onItemStart: () => {
           if (startTokenRef.current === token) setPhase("speaking");
         },
@@ -781,7 +790,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           if (reason === "complete") scheduleMicrophoneStart(token, 250, true);
           else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
         },
-      }, partnerId);
+      }, "miyabi");
     } catch (cause) {
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setError(friendlyError(cause));
@@ -794,15 +803,21 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   };
 
   const endLesson = async () => {
-    if ((!topic && !scene) || requestBusyRef.current || review) return;
+    if ((!topic && !scene) || lessonEndingRef.current || review) return;
+    lessonEndingRef.current = true;
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
     stopInteraction();
+    setRescueBusy(false);
+    setRescueMessage("");
+    setAwaitingUserInput(false);
+    setBusy(false);
     setMicrophoneFallback(false);
     setError(null);
 
     if (!hasUserResponse(messages)) {
       requestBusyRef.current = false;
+      lessonEndingRef.current = false;
       partnerOpeningStartedRef.current = null;
       setShowIntro(true);
       setLessonStage("partnerSelect");
@@ -877,7 +892,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         style={{ backgroundImage: `url(${stageBackground})` }}
       >
         <CharacterAvatar
-          character={review ? REVIEW_CHARACTER : character}
+          character={review ? REVIEW_CHARACTER : visibleCharacter}
           expression={review ? reviewExpression : phase === "thinking" || phase === "ttsPending" ? "thinking" : idleActive && idleVisual.expression !== "neutral" ? idleVisual.expression : partnerExpression}
           isListening={!review && (phase === "recognizing" || (idleActive && idleVisual.listening))}
           listeningPose={phase === "recognizing" ? listeningPose : idleActive ? idleVisual.pose : "neutral"}
@@ -1002,7 +1017,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           <button
             className={`ai-end-button ${fiveMinutesPassed ? "ready" : ""}`}
             onClick={() => void endLesson()}
-            disabled={busy}
           >
             End Lesson
           </button>

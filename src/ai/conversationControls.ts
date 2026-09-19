@@ -27,9 +27,9 @@ export function isConversationEndIntent(text: string, language: "en" | "ja"): bo
     return /^(?:またね|じゃあまた|じゃあね|また今度|今日はここまで|この会話(?:を)?終わろう|もう終わりにしよう|今日は終わり|そろそろ終わろう|これで終わり)$/.test(value);
   }
   const value = normalizeEnglish(text);
-  return /^(?:let's|lets) (?:stop|finish|end)(?: the conversation)? here$/.test(value) ||
+  return /^(?:let's|lets) (?:stop|finish|end)(?: (?:the|our) conversation)? here$/.test(value) ||
     /^(?:let's|lets) end here$/.test(value) ||
-    /^(?:let's|lets) end the conversation$/.test(value) ||
+    /^(?:let's|lets) (?:end|stop) (?:the|our) conversation$/.test(value) ||
     /^(?:that's|thats|i think that's|i think thats) enough for today$/.test(value) ||
     /^i(?:'m| am) done for today$/.test(value) ||
     /^(?:let's|lets) call it a day$/.test(value) ||

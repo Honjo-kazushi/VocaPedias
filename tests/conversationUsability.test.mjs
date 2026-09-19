@@ -17,6 +17,10 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(rescueBlock, /lang: "ja-JP"/);
   assert.match(rescueBlock, /scheduleMicrophoneStart\(token, 250, true\)/);
   assert.match(chatSource, /直前の英語発話を、日本語で短く分かりやすく説明してください/);
+  assert.match(uiSource, /const visibleCharacter = rescueBusy \? getCharacter\("miyabi"\) : character/);
+  assert.match(rescueBlock, /characterId: "miyabi"/);
+  assert.match(rescueBlock, /\}, "miyabi"\)/);
+  assert.doesNotMatch(rescueBlock, /setPartnerId\("miyabi"\)/);
 });
 
 test("session speech rate applies only to partner English TTS and resets for new sessions", () => {
@@ -57,6 +61,17 @@ test("a finalized end phrase is handled immediately and skips the normal Gemini 
   const endBranch = uiSource.slice(uiSource.indexOf('if (isConversationEndIntent(snapshot.text'), uiSource.indexOf('try {', uiSource.indexOf('if (isConversationEndIntent(snapshot.text')));
   assert.doesNotMatch(endBranch, /continueTutorConversation|continueSceneRoleplay/);
   assert.doesNotMatch(endBranch, /speakAssistantMessage|queueAssistantSpeech|conversationClosing/);
+});
+
+test("End Lesson interrupts busy partner or rescue speech and invalidates stale callbacks", () => {
+  const endLessonBlock = uiSource.slice(uiSource.indexOf("const endLesson"), uiSource.indexOf("const minutes"));
+  assert.match(endLessonBlock, /lessonEndingRef\.current/);
+  assert.doesNotMatch(endLessonBlock.split("return;")[0], /requestBusyRef\.current/);
+  assert.match(endLessonBlock, /\+\+startTokenRef\.current/);
+  assert.match(endLessonBlock, /stopInteraction\(\)/);
+  assert.match(endLessonBlock, /setRescueBusy\(false\)/);
+  assert.match(endLessonBlock, /requestLessonReview\(messages, token\)/);
+  assert.doesNotMatch(uiSource, /onClick=\{\(\) => void endLesson\(\)\}[\s\S]{0,100}disabled=\{busy\}/);
 });
 
 test("only Opening Emma moves up while Review and partner baselines stay unchanged", () => {
