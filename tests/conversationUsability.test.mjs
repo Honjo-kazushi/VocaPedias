@@ -21,6 +21,9 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(rescueBlock, /characterId: "miyabi"/);
   assert.match(rescueBlock, /\}, "miyabi"\)/);
   assert.doesNotMatch(rescueBlock, /setPartnerId\("miyabi"\)/);
+  assert.match(uiSource, /rescueBusy \? "help-rescue" : ""/);
+  assert.match(styleSource, /\.character-stage\.help-rescue \.character-avatar-stack\.avatar-miyabi[\s\S]*width: 150px;[\s\S]*height: 150px;/);
+  assert.match(styleSource, /\.character-stage\.help-rescue \.character-avatar-stack\.avatar-miyabi \{[\s\S]*margin: 0 auto;/);
 });
 
 test("session speech rate applies only to partner English TTS and resets for new sessions", () => {

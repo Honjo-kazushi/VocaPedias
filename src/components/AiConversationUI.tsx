@@ -888,7 +888,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       </header>
 
       <div
-        className={`character-stage ${isSpeaking ? "speaking" : ""} with-scene-background`}
+        className={`character-stage ${isSpeaking ? "speaking" : ""} ${rescueBusy ? "help-rescue" : ""} with-scene-background`}
         style={{ backgroundImage: `url(${stageBackground})` }}
       >
         <CharacterAvatar

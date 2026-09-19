@@ -257,6 +257,17 @@
   margin: -8px auto 0;
 }
 
+/* Help-only Miyabi matches the standard partner footprint (Mike, etc.). */
+.character-stage.help-rescue .character-avatar-stack.avatar-miyabi,
+.character-stage.help-rescue .character-avatar-stack.avatar-miyabi .character-avatar {
+  width: 150px;
+  height: 150px;
+}
+
+.character-stage.help-rescue .character-avatar-stack.avatar-miyabi {
+  margin: 0 auto;
+}
+
 .character-mouth {
   z-index: 1;
 }
