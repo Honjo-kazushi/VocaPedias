@@ -155,6 +155,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [rescueBusy, setRescueBusy] = useState(false);
   const [rescueMessage, setRescueMessage] = useState("");
   const [awaitingUserInput, setAwaitingUserInput] = useState(false);
+  const [userSpeaking, setUserSpeaking] = useState(false);
   const requestBusyRef = useRef(false);
   const lessonEndingRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
@@ -225,6 +226,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     stopReviewSpeech();
     setPartnerExpression("neutral");
     setAwaitingUserInput(false);
+    setUserSpeaking(false);
     setPhase("idle");
   }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech]);
 
@@ -691,6 +693,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         speechDebug("recognition start", { generation: token, userTurnId, continuing });
         setPhase("recognizing");
         setAwaitingUserInput(true);
+        setUserSpeaking(false);
         startListening();
       },
       onActivity: (activity) => {
@@ -706,7 +709,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         resetUserTurnTimers("final result");
       },
       onSpeechStart: () => {
-        if (startTokenRef.current === token) speechDebug("speechstart", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
+        if (startTokenRef.current !== token) return;
+        setUserSpeaking(true);
+        speechDebug("speechstart", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
       },
       onSpeechEnd: () => {
         if (startTokenRef.current === token) speechDebug("speechend", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
@@ -752,7 +757,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   startMicrophoneRef.current = startMicrophone;
 
   const requestRescue = async () => {
-    if (conversationLanguage !== "en" || phase !== "recognizing" || !recognitionActive || rescueBusy || requestBusyRef.current || !partnerId) return;
+    if (conversationLanguage !== "en" || !awaitingUserInput || userSpeaking || rescueBusy || requestBusyRef.current || !partnerId) return;
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
     if (!lastAssistantMessage) return;
     const token = ++startTokenRef.current;
@@ -832,8 +837,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const tenMinutesPassed = elapsedSeconds >= 600;
   const showTopicBackground = lessonStage === "conversation" && !review;
   const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
+  // Base this on the user-visible turn, not recognitionActive: Chrome briefly
+  // stops and restarts recognition while the same answer-waiting turn continues.
   const showRescueButton = lessonStage === "conversation" && conversationLanguage === "en" &&
-    awaitingUserInput && !busy && !rescueBusy && !review;
+    awaitingUserInput && !userSpeaking && !busy && !rescueBusy && !review &&
+    !lessonEndingRef.current;
 
   if (showIntro) {
     return (
@@ -1005,7 +1013,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 : recognitionActive ? "マイクを開始しています…" : ""}
             </p>
             {showRescueButton && (
-              <button className="ai-help-button" type="button" onClick={() => void requestRescue()} disabled={!recognitionActive}>
+              <button className="ai-help-button" type="button" onClick={() => void requestRescue()}>
                 {uiLanguage === "en" ? "? Help" : "？ わからない"}
               </button>
             )}

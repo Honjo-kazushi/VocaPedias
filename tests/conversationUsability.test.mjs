@@ -6,6 +6,7 @@ const uiSource = await readFile(new URL("../src/components/AiConversationUI.tsx"
 const chatSource = await readFile(new URL("../src/ai/chatWithTutor.ts", import.meta.url), "utf8");
 const speechSource = await readFile(new URL("../src/sound/speakEn.ts", import.meta.url), "utf8");
 const styleSource = await readFile(new URL("../src/styles/style.css", import.meta.url), "utf8");
+const promptSource = await readFile(new URL("../src/ai/buildConversationPrompt.ts", import.meta.url), "utf8");
 
 test("Help is an English-listening-only rescue event outside UserTurnSnapshot history", () => {
   assert.match(uiSource, /conversationLanguage === "en"[\s\S]*awaitingUserInput[\s\S]*!rescueBusy/);
@@ -53,11 +54,24 @@ test("mobile scene spacing and character baseline are adjusted without resizing 
   assert.match(styleSource, /\.character-avatar-stack \{[\s\S]*transform: translateY\(12px\)/);
 });
 
-test("Listening and Help stay rendered across recognition restarts until the turn is finalized", () => {
+test("Help follows the user-visible answer wait without flickering across recognition restarts", () => {
   assert.match(uiSource, /const \[awaitingUserInput, setAwaitingUserInput\] = useState\(false\)/);
+  assert.match(uiSource, /const \[userSpeaking, setUserSpeaking\] = useState\(false\)/);
   assert.match(uiSource, /onStart: \(\) => \{[\s\S]*setAwaitingUserInput\(true\)/);
+  assert.match(uiSource, /onSpeechStart: \(\) => \{[\s\S]*setUserSpeaking\(true\)/);
   assert.match(uiSource, /finalizeUserTurn[\s\S]*setAwaitingUserInput\(false\)/);
   assert.match(uiSource, /\{awaitingUserInput[\s\S]*Listening/);
+  assert.match(uiSource, /awaitingUserInput && !userSpeaking && !busy && !rescueBusy/);
+  const recognitionEndBlock = uiSource.slice(uiSource.indexOf("onEnd: () =>"), uiSource.indexOf("onCancel: () =>"));
+  assert.doesNotMatch(recognitionEndBlock, /setAwaitingUserInput|setUserSpeaking/);
+});
+
+test("topic prompts require one immediately answerable concrete question", () => {
+  assert.match(chatSource, /one small, concrete question that is easy to answer immediately/);
+  assert.match(uiSource, /showRescueButton/);
+  assert.match(promptSource, /Prefer yes\/no, a simple choice, a favorite thing, a recent simple experience/);
+  assert.match(promptSource, /prefer "Is your town quiet or busy\?" over "What is your town like\?"/);
+  assert.match(promptSource, /Ask only one small chunk at a time/);
 });
 
 test("End Lesson interrupts busy partner or rescue speech and invalidates stale callbacks", () => {

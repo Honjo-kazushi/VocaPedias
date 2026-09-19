@@ -34,7 +34,7 @@ export function startTutorConversation(topic: TalkTopic, partner: CharacterProfi
     buildConversationPrompt(topic, partner, openingAngle),
     partner.conversationLanguage === "ja"
       ? "自然な日本語だけで、キャラクターらしい短い反応から会話を始め、質問をちょうど1つしてください。参考質問を直訳せず、新しい自然な表現にしてください。Topic名を見出しとして繰り返さないでください。"
-      : "Start with a short, natural opening in this character's style and ask exactly one question. Create fresh wording rather than copying a reference question or relying on a routine compliment. Do not repeat the topic title as a heading."
+      : "Start with a short, natural opening in this character's style and ask exactly one small, concrete question that is easy to answer immediately. Create fresh wording rather than copying a reference question or relying on a routine compliment. Do not repeat the topic title as a heading."
   );
 }
 
@@ -43,7 +43,7 @@ export function continueTutorConversation(topic: TalkTopic, messages: ChatMessag
     buildConversationPrompt(topic, partner),
     partner.conversationLanguage === "ja"
       ? `自然な日本語だけで、ユーザーの最新の発言を優先して会話を続けてください。短い自然な反応と質問1つを基本にし、通常1〜2文にしてください。定型的な褒め言葉を毎回使わないでください。\n\n${formatConversation(messages)}`
-      : `Continue naturally from the learner's latest message. Use one brief reaction plus one short question, usually 1-2 sentences and about 25 words or fewer. Do not default to generic praise.\n\n${formatConversation(messages)}`
+      : `Continue naturally from the learner's latest message. Use one brief reaction plus one small, concrete question that is easy to answer immediately, usually 1-2 sentences and about 25 words or fewer. Pick one specific detail from the learner's answer; avoid broad or multi-part questions. Do not default to generic praise.\n\n${formatConversation(messages)}`
   );
 }
 

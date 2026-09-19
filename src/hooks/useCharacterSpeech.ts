@@ -106,7 +106,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
   const mouthTimerRef = useRef<number | null>(null);
   const finalCloseTimerRef = useRef<number | null>(null);
   const cancelSpeechRef = useRef<(() => void) | null>(null);
-  const mouthOpenRef = useRef<HTMLImageElement | null>(null);
+  const mouthImageRef = useRef<HTMLImageElement | null>(null);
   const mouthBoundaryRef = useRef<((event: SpeechSynthesisEvent) => void) | null>(null);
   const mountedRef = useRef(false);
 
@@ -121,7 +121,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
       window.clearTimeout(mouthTimerRef.current);
       mouthTimerRef.current = null;
     }
-    setNeutralMouth(mouthOpenRef.current, false);
+    setNeutralMouth(mouthImageRef.current, false);
     setIsSpeaking(false);
   }, []);
 
@@ -177,7 +177,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
             window.clearTimeout(mouthTimerRef.current);
             mouthTimerRef.current = null;
           }
-          setNeutralMouth(mouthOpenRef.current, false);
+          setNeutralMouth(mouthImageRef.current, false);
           // The utterance is still active; onend owns final speech cleanup.
         }, finalWordCloseDelay(finalWord[0]));
       }
@@ -225,7 +225,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
             : fallbackOpen ? [100, 150] : [70, 120]
         ),
       };
-      setNeutralMouth(mouthOpenRef.current, step.open);
+      setNeutralMouth(mouthImageRef.current, step.open);
       position += stepDuration;
       stepDuration = step.duration;
       stepStartedAt = performance.now();
@@ -343,12 +343,17 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     };
   }, []);
 
-  useEffect(() => {
-    const openSource = mouthOpenRef.current?.dataset.openSrc;
+  // Emma keeps the same characterId while the intro image is replaced by the
+  // speaking avatar. Preload when that actual mouth node mounts; otherwise the
+  // characterId effect never sees it, which is especially visible on Android.
+  const mouthOpenRef = useCallback((image: HTMLImageElement | null) => {
+    mouthImageRef.current = image;
+    const openSource = image?.dataset.openSrc;
     if (!openSource) return;
     const preload = new Image();
     preload.src = openSource;
-  }, [characterId]);
+    void preload.decode?.().catch(() => {});
+  }, []);
 
   return { isSpeaking, mouthOpenRef, speakAssistantMessage, speakCharacterItems, stopAssistantSpeech };
 }
