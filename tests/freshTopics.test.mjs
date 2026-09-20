@@ -14,7 +14,7 @@ const functionSource = await read("../functions/index.js");
 const firebaseSource = await read("../firebase.json");
 const freshModule = await import(toModule(freshSource));
 
-const sampleTopics = Array.from({ length: 5 }, (_, index) => ({
+const sampleTopics = Array.from({ length: 10 }, (_, index) => ({
   id: `fresh-2026-09-17-${index + 1}`,
   title: `Fresh topic ${index + 1}`,
   context: "A recent development is making this an easy subject for personal conversation.",
@@ -25,7 +25,7 @@ const sampleTopics = Array.from({ length: 5 }, (_, index) => ({
 
 test("fresh topics use the existing Gemini backend with Google Search and no new API", () => {
   assert.match(functionSource, /tools: \[\{ googleSearch: \{\} \}\]/);
-  assert.match(functionSource, /exactly 5 timely English conversation topics/);
+  assert.match(functionSource, /exactly 10 timely English conversation topics/);
   assert.match(functionSource, /Avoid war, crime, fatal accidents/);
   assert.match(firebaseSource, /\/api\/fresh-topics/);
 });
@@ -45,8 +45,8 @@ test("fresh topic loading caches valid results for 24 hours", async () => {
 
   const first = await freshModule.loadFreshTopics(1_000);
   const second = await freshModule.loadFreshTopics(2_000);
-  assert.equal(first.length, 5);
-  assert.equal(second.length, 5);
+  assert.equal(first.length, 10);
+  assert.equal(second.length, 10);
   assert.equal(fetchCount, 1);
   assert.equal(freshModule.FRESH_TOPIC_CACHE_MS, 86_400_000);
 });
@@ -58,6 +58,7 @@ test("fresh topic failure falls back to an empty list and mixing prevents consec
   assert.deepEqual(await freshModule.loadFreshTopics(3_000), []);
   assert.match(uiSource, /freshTopics\.length > 0 && !previousTopicWasFresh/);
   assert.match(uiSource, /FRESH_TOPIC_MIX_RATIO/);
+  assert.equal(freshModule.FRESH_TOPIC_MIX_RATIO, 0.4);
   assert.match(uiSource, /source = useFresh \? freshTopics : TALK_TOPICS/);
 });
 

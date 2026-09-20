@@ -15,9 +15,9 @@ type FreshTopicCache = {
   topics: FreshTalkTopic[];
 };
 
-const CACHE_KEY = "tossaspeak:fresh-topics:v1";
+const CACHE_KEY = "tossaspeak:fresh-topics:v2";
 export const FRESH_TOPIC_CACHE_MS = 24 * 60 * 60 * 1000;
-export const FRESH_TOPIC_MIX_RATIO = 0.2;
+export const FRESH_TOPIC_MIX_RATIO = 0.4;
 const CATEGORIES = new Set<TalkTopicCategory>(["experience", "opinion", "comparison", "social", "imagination"]);
 let pendingRequest: Promise<FreshTalkTopic[]> | null = null;
 
@@ -34,7 +34,7 @@ function isFreshTopic(value: unknown): value is FreshTalkTopic {
 
 function normalizeTopics(value: unknown): FreshTalkTopic[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isFreshTopic).slice(0, 5).map((topic) => ({
+  return value.filter(isFreshTopic).slice(0, 10).map((topic) => ({
     ...topic,
     source: "fresh",
     openingQuestion: "",
@@ -68,7 +68,7 @@ async function requestFreshTopics(now: number): Promise<FreshTalkTopic[]> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch("/api/fresh-topics", { signal: controller.signal });
+    const response = await fetch("/api/fresh-topics?count=10", { signal: controller.signal });
     if (!response.ok) return [];
     const body = await response.json() as FreshTopicResponse;
     const topics = normalizeTopics(body.topics);

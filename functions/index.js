@@ -38,7 +38,7 @@ function parseJsonObject(text) {
 
 function validateFreshTopics(value) {
   const categories = new Set(["experience", "opinion", "comparison", "social", "imagination"]);
-  if (!Array.isArray(value) || value.length < 3 || value.length > 5) return null;
+  if (!Array.isArray(value) || value.length !== 10) return null;
   const topics = value.map((topic, index) => {
     if (!topic || typeof topic !== "object") return null;
     const title = typeof topic.title === "string" ? topic.title.trim() : "";
@@ -78,7 +78,7 @@ exports.freshTopics = onRequest(
     try {
       const result = await generateContentWithRetry({
         model: "gemini-3.5-flash-lite",
-        contents: `Use current Google Search results to create exactly 5 timely English conversation topics for Japanese A2-B1 learners.
+        contents: `Use current Google Search results to create exactly 10 timely English conversation topics for Japanese A2-B1 learners.
 
 Choose friendly, broadly interesting developments from the last few days or the current season. Prefer AI/technology, science, space, animals, food, travel, culture, entertainment, sports, nature, weather/seasons, lifestyle, or interesting discoveries. Avoid war, crime, fatal accidents, tragic disasters, partisan politics, and polarizing social conflict.
 
@@ -89,7 +89,7 @@ Return JSON only in this exact shape:
         config: {
           systemInstruction: "You select safe, upbeat, current material and turn it into accessible conversation topics. Return valid JSON only.",
           tools: [{ googleSearch: {} }],
-          maxOutputTokens: 2400,
+          maxOutputTokens: 4200,
           temperature: 0.5,
         },
       });
