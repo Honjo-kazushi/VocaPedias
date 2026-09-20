@@ -159,15 +159,17 @@ test("review prompts require no more than three concise one-sentence points", ()
   assert.match(reviewPromptSource, /Each point must be one short sentence/);
   assert.match(reviewPromptSource, /Choose at most 1 high-value correction/);
   assert.match(reviewPromptSource, /20 to 30 seconds of speech/);
-  assert.match(reviewPromptSource, /最大3項目、各項目1文まで/);
+  assert.match(reviewPromptSource, /todayPoints配列に最大3項目、各項目1文/);
   assert.match(reviewPromptSource, /spoken English transcribed by SpeechRecognition, not as typed composition/);
   assert.match(reviewPromptSource, /Never treat capitalization[\s\S]*punctuation[\s\S]*as learner errors/);
   assert.match(reviewPromptSource, /only differences would be capitalization or punctuation/);
-  assert.match(reviewPromptSource, /write exactly 「該当なし」/);
+  assert.match(reviewPromptSource, /return corrections: \[\]/);
+  assert.match(reviewPromptSource, /return goodPoints: \[\]/);
+  assert.doesNotMatch(reviewPromptSource, /write exactly 「該当なし」/);
 });
 
 test("partner selection can be cancelled without entering Review", () => {
-  assert.match(uiSource, /const cancelPartnerSelection = \(\) =>/);
+  assert.match(uiSource, /const cancelPartnerSelection = (?:useCallback\()?\(\) =>/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
   assert.match(uiSource, /onClick=\{cancelPartnerSelection\}>Cancel/);
   assert.match(uiSource, />\s*End Lesson\s*</);

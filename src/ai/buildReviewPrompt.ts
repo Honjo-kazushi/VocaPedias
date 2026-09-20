@@ -34,16 +34,21 @@ ${sceneReviewInstruction}
 
 Return one valid JSON object with exactly these fields:
 {
-  "detailedReview": "the display review as one Markdown string",
+  "sections": {
+    "goodPoints": [],
+    "corrections": [],
+    "alternatives": [],
+    "todayPoints": []
+  },
   "spokenReview": [
     { "lang": "ja-JP", "text": "a spoken Japanese segment" },
     { "lang": "en-US", "text": "the single English example" }
   ]
 }
 
-Do not wrap the JSON in Markdown fences. Escape newlines inside detailedReview correctly. The detailedReview is shown on screen; spokenReview alone is spoken by Emma.
+Do not wrap the JSON in Markdown fences. The sections are shown on screen; spokenReview alone is spoken by Emma. For this English review, todayPoints must be an empty array. Each other section may contain at most one string. If there is no qualifying item, return an empty array for that section. Never put a sentence explaining that there is no item into an array.
 
-For detailedReview, use Japanese and these exact section headings:
+Write the display section strings in Japanese. The UI supplies the headings.
 
 Be concise. Select no more than 3 points in the entire review: at most one Good, one Better, and one Try/another way. Each point must be one short sentence apart from the quoted learner statement and correction example. Never show the same learner statement in more than one section, repeat the user's sentences unnecessarily, review every turn, or repeat the same underlying issue. Prioritize one useful correction over many minor corrections. Do not explain basic grammar unless necessary. If the conversation was already natural, use only 1 or 2 points. Write no introduction, conclusion, general praise, score, or rank.
 
@@ -55,19 +60,19 @@ Speech recognition guidance:
 - Never state with certainty which word the learner pronounced when the transcript and context do not establish it.
 - If the intended meaning is unclear, do not invent a correction. Briefly explain the uncertainty or omit that item.
 
-## 今日よく使えた英語
+goodPoints:
 Choose at most 1 statement. It must already be grammatically correct or nearly correct, natural in conversation, and safe to reuse without substantial correction. Being understandable is not sufficient.
 If one statement meets this standard, use only:
 あなた：（copy one exact complete statement from the authoritative list）
 よかった点：（one short Japanese sentence）
-If none meet this standard, write exactly 「今回はありませんでした。」 and nothing else in this section. Do not lower the standard to fill it.
+If none meet this standard, return goodPoints: []. Do not lower the standard to fill it.
 
-## ここを直そう
+corrections:
 Choose at most 1 high-value correction from the whole conversation. Prioritize clear grammar or word-usage errors and expressions that make the intended meaning difficult to understand. Ignore minor mistakes that are not useful enough for this short review. If the transcript may reflect speech-recognition error, briefly express that uncertainty instead of claiming the learner definitely used the recognized word. Use exactly this format:
 あなた：（copy one exact complete statement from the authoritative list）
 修正例：（simple, natural English that preserves the likely intended meaning）
 ポイント：（one short, natural Japanese sentence; no detailed grammar lecture）
-If there are no important corrections, including when the only differences would be capitalization or punctuation, write exactly 「該当なし」.
+If there are no important corrections, including when the only differences would be capitalization or punctuation, return corrections: [].
 
 Rules for each ポイント:
 - Explain the specific problem in the recorded statement before giving a general grammar rule.
@@ -82,16 +87,16 @@ Good explanation examples:
 - For 「almost I usually what's the news program」 → 「I usually watch news programs.」, explain first that almost and usually do not need to be used together, then show that 「普段ニュース番組を見ます」 is expressed with the corrected sentence.
 - For 「I enjoyed what's the TV show and enjoy」 → 「I usually enjoy watching TV shows.」, explain that the wording and order were unclear, and connect the corrected sentence directly to the likely meaning 「普段テレビ番組を見るのが好きです」. Do not claim that verb tense alone was the main problem.
 
-## こんな言い方もできる
+alternatives:
 Give at most 1 simple, natural English expression related to something the learner tried to communicate in this conversation. It should be immediately useful in the learner's next conversation. Preserve the learner's intended meaning, including negation, contrast, people involved, and degree of certainty. Do not add a new claim or make the English advanced.
 Use only:
 別表現：（one concise English sentence）
-If no intended meaning can be identified confidently, write exactly 「今回はありませんでした。」.
+If no intended meaning can be identified confidently, return alternatives: [].
 
 Keep every explanation brief, concrete, and natural for a Japanese beginner-to-intermediate learner. The learner should understand both why the original needs correction and what to change. Use A2-B1 English. Do not produce an exhaustive correction report. Do not add extra headings or repeat content between sections.
 
 spokenReview rules:
-- It is a short, natural comment spoken directly to the learner by Emma after the lesson. Do not copy or read the detailedReview as a report.
+- It is a short, natural comment spoken directly to the learner by Emma after the lesson. Do not copy or read the display sections as a report.
 - Start with one specific positive observation grounded in this conversation, such as communicating an idea, answering a question, or describing an experience. Do not use generic praise alone.
 - Mention only the single most useful improvement. Explain it briefly in friendly, conversational Japanese without a grammar lecture.
 - Include at most one simple, natural English example that demonstrates that improvement or the learner's likely intended meaning.
@@ -111,13 +116,18 @@ export function buildJapaneseConversationReviewPrompt(messages: ChatMessage[], t
 
 次のJSONオブジェクトだけを返してください。Markdownコードフェンスは付けません。
 {
-  "detailedReview": "画面表示用のMarkdown文字列",
+  "sections": {
+    "goodPoints": [],
+    "corrections": [],
+    "alternatives": [],
+    "todayPoints": ["画面表示用の短い振り返り"]
+  },
   "spokenReview": [
     { "lang": "ja-JP", "text": "Emmaが話す自然な日本語" }
   ]
 }
 
-detailedReviewの見出しは正確に「## 今日のポイント」だけを使ってください。その下は最大3項目、各項目1文までにしてください。「👍 よかった」「✏️ より自然に」「💡 別の言い方」から必要なものだけを使い、問題が少なければ1〜2項目で終えてください。同じ内容を言い換えて繰り返さず、長い説明や会話にない内容を加えないでください。
+画面表示用の内容はtodayPoints配列に最大3項目、各項目1文で入れてください。「👍 よかった」「✏️ より自然に」「💡 別の言い方」から必要なものだけを使い、問題が少なければ1〜2項目で終えてください。該当項目がなければ説明文を作らず空配列にしてください。goodPoints、corrections、alternativesは空配列にしてください。同じ内容を言い換えて繰り返さず、長い説明や会話にない内容を加えないでください。
 
 spokenReviewはEmmaからユーザーへ直接話す、自然で温かい日本語にしてください。会話の具体的な内容を1つだけ振り返り、1項目、約15〜20秒に収めます。長い解説や繰り返しは避けてください。
 

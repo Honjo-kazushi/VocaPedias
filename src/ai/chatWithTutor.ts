@@ -72,10 +72,23 @@ export function continueSceneRoleplay(
 
 function parseLessonReview(text: string): LessonReview {
   const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  const parsed = JSON.parse(unfenced) as { detailedReview?: unknown; spokenReview?: unknown };
-  if (typeof parsed.detailedReview !== "string" || !parsed.detailedReview.trim()) {
-    throw new Error("The AI returned an invalid detailed review.");
+  const parsed = JSON.parse(unfenced) as { sections?: unknown; spokenReview?: unknown };
+  if (!parsed.sections || typeof parsed.sections !== "object") {
+    throw new Error("The AI returned invalid review sections.");
   }
+  const rawSections = parsed.sections as Record<string, unknown>;
+  const parseSection = (key: string): string[] => {
+    const value = rawSections[key];
+    if (!Array.isArray(value)) throw new Error(`The AI returned an invalid ${key} section.`);
+    return value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      .map((item) => item.trim());
+  };
+  const sections = {
+    goodPoints: parseSection("goodPoints"),
+    corrections: parseSection("corrections"),
+    alternatives: parseSection("alternatives"),
+    todayPoints: parseSection("todayPoints"),
+  };
   if (!Array.isArray(parsed.spokenReview)) {
     throw new Error("The AI returned an invalid spoken review.");
   }
@@ -86,7 +99,7 @@ function parseLessonReview(text: string): LessonReview {
       typeof candidate.text === "string" && Boolean(candidate.text.trim());
   });
   if (!spokenReview.length) throw new Error("The AI returned an empty spoken review.");
-  return { detailedReview: parsed.detailedReview.trim(), spokenReview };
+  return { sections, spokenReview };
 }
 
 export async function reviewTutorConversation(

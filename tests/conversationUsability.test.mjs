@@ -40,11 +40,11 @@ test("spoken farewells remain normal conversation turns and do not auto-end the 
   assert.match(uiSource, /continueTutorConversation\(topic!, nextMessages/);
 });
 
-test("partner selection scrolls by DOM position only when Cancel is outside the viewport", () => {
+test("partner selection scrolls by DOM position only when the list end is outside the viewport", () => {
   assert.match(uiSource, /getBoundingClientRect\(\)/);
-  assert.match(uiSource, /bounds\.bottom > window\.innerHeight - 12/);
+  assert.match(uiSource, /getBoundingClientRect\(\)\.bottom > window\.innerHeight - 12/);
   assert.match(uiSource, /scrollIntoView\(\{ behavior: "smooth", block: "end" \}\)/);
-  assert.match(uiSource, /requestAnimationFrame\(\(\) => \{[\s\S]*requestAnimationFrame/);
+  assert.match(uiSource, /needsScroll \? 700 : 0/);
   assert.match(uiSource, /partnerListEndRef/);
   assert.doesNotMatch(uiSource, /window\.scrollTo/);
 });
@@ -56,14 +56,55 @@ test("mobile scene spacing and character baseline are adjusted without resizing 
 
 test("Help follows the user-visible answer wait without flickering across recognition restarts", () => {
   assert.match(uiSource, /const \[awaitingUserInput, setAwaitingUserInput\] = useState\(false\)/);
-  assert.match(uiSource, /const \[userSpeaking, setUserSpeaking\] = useState\(false\)/);
+  assert.match(uiSource, /const \[hasRecognizedSpeech, setHasRecognizedSpeech\] = useState\(false\)/);
   assert.match(uiSource, /onStart: \(\) => \{[\s\S]*setAwaitingUserInput\(true\)/);
-  assert.match(uiSource, /onSpeechStart: \(\) => \{[\s\S]*setUserSpeaking\(true\)/);
+  const speechStartBlock = uiSource.slice(uiSource.indexOf("onSpeechStart: () =>"), uiSource.indexOf("onSpeechEnd: () =>"));
+  assert.doesNotMatch(speechStartBlock, /setHasRecognizedSpeech\(true\)/);
+  const transcriptBlock = uiSource.slice(uiSource.indexOf("onTranscript: (text) =>"), uiSource.indexOf("onDebug:"));
+  assert.match(transcriptBlock, /text\.trim\(\)[\s\S]*setHasRecognizedSpeech\(true\)/);
   assert.match(uiSource, /finalizeUserTurn[\s\S]*setAwaitingUserInput\(false\)/);
   assert.match(uiSource, /\{awaitingUserInput[\s\S]*Listening/);
-  assert.match(uiSource, /awaitingUserInput && !userSpeaking && !busy && !rescueBusy/);
+  assert.match(uiSource, /awaitingUserInput && !hasRecognizedSpeech && !busy && !rescueBusy/);
   const recognitionEndBlock = uiSource.slice(uiSource.indexOf("onEnd: () =>"), uiSource.indexOf("onCancel: () =>"));
-  assert.doesNotMatch(recognitionEndBlock, /setAwaitingUserInput|setUserSpeaking/);
+  assert.doesNotMatch(recognitionEndBlock, /setAwaitingUserInput|setHasRecognizedSpeech/);
+});
+
+test("empty Review sections disappear instead of rendering placeholder text", () => {
+  assert.match(uiSource, /REVIEW_SECTION_DEFINITIONS\.filter/);
+  assert.match(uiSource, /sections\[definition\.key\]\.length > 0/);
+  assert.doesNotMatch(uiSource, /該当なし|今回はありません|Nothing this time/);
+});
+
+test("Review inactivity returns to top after five minutes and resets on explicit interaction", () => {
+  assert.match(uiSource, /reviewInactivityTimerRef/);
+  assert.match(uiSource, /armReviewInactivityTimer[\s\S]*CONVERSATION_INACTIVITY_TIMEOUT_MS/);
+  assert.match(uiSource, /className="ai-review" onPointerDown=\{armReviewInactivityTimer\}/);
+});
+
+test("partner list scroll inspection finishes before Emma starts the selection guide", () => {
+  const block = uiSource.slice(uiSource.indexOf("const announcement = pendingPartnerAnnouncementRef.current"), uiSource.indexOf("useEffect(() => {", uiSource.indexOf("const announcement = pendingPartnerAnnouncementRef.current") + 20));
+  assert.match(block, /400/);
+  assert.match(block, /getBoundingClientRect\(\)\.bottom > window\.innerHeight - 12/);
+  assert.match(block, /scrollIntoView\(\{ behavior: "smooth", block: "end" \}\)/);
+  assert.match(block, /needsScroll \? 700 : 0/);
+  assert.match(block, /announcePartnerSelection\(announcement, token\)/);
+});
+
+test("conversation and selection inactivity return directly to top with bounded timers", () => {
+  assert.match(uiSource, /CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 \* 60 \* 1000/);
+  assert.match(uiSource, /SELECTION_INACTIVITY_TIMEOUT_MS = 3 \* 60 \* 1000/);
+  assert.match(uiSource, /conversationInactivityTimerRef[\s\S]*returnToTopRef\.current\(\)/);
+  assert.match(uiSource, /lessonStage !== "sceneSelect"[\s\S]*SELECTION_INACTIVITY_TIMEOUT_MS/);
+  assert.match(uiSource, /lessonStage !== "partnerSelect" \|\| !partnerSelectionReady[\s\S]*SELECTION_INACTIVITY_TIMEOUT_MS/);
+  assert.match(uiSource, /returnToTopRef\.current = cancelPartnerSelection/);
+});
+
+test("partner picker animates exactly one real character and excludes Anyone", () => {
+  assert.match(uiSource, /const candidates = \[\.\.\.ENGLISH_PARTNERS, MIYABI\]/);
+  assert.match(uiSource, /setSelectionPreview\(\{[\s\S]*characterId: selected\.id/);
+  assert.match(uiSource, /1000 \+ Math\.random\(\) \* 1000/);
+  assert.match(uiSource, /selectionPreview\?\.characterId === partner\.id/);
+  assert.doesNotMatch(uiSource, /selectionPreview\?\.characterId === ["']anyone["']/);
 });
 
 test("topic prompts require one immediately answerable concrete question", () => {

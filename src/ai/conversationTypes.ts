@@ -48,6 +48,11 @@ export type SpokenReviewPart = {
 };
 
 export type LessonReview = {
-  detailedReview: string;
+  sections: {
+    goodPoints: string[];
+    corrections: string[];
+    alternatives: string[];
+    todayPoints: string[];
+  };
   spokenReview: SpokenReviewPart[];
 };
