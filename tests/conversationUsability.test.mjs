@@ -104,7 +104,8 @@ test("conversation and selection inactivity return directly to top with bounded 
 });
 
 test("partner picker animates exactly one real character and excludes Anyone", () => {
-  assert.match(uiSource, /const candidates = \[\.\.\.ENGLISH_PARTNERS, MIYABI\]/);
+  assert.match(uiSource, /const APPEAL_PARTNER_IDS = \[[\s\S]*"mike"[\s\S]*"sophie"[\s\S]*"jamie"[\s\S]*"lily"[\s\S]*"grandma_rose"[\s\S]*"dr_dan"[\s\S]*"leo"[\s\S]*"miyabi"/);
+  assert.match(uiSource, /const candidates = \[\.\.\.APPEAL_PARTNERS\]/);
   assert.match(uiSource, /let characterBag = shuffled\(candidates\)/);
   assert.match(uiSource, /let expressionBag = shuffled\(expressionKeys\)/);
   assert.match(uiSource, /const selected = characterBag\.shift\(\)!/);

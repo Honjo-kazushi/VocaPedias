@@ -54,6 +54,10 @@ let previousTopicWasFresh = false;
 const REVIEW_CHARACTER = getCharacter("emma");
 const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharacter(id));
 const MIYABI = getCharacter("miyabi");
+const APPEAL_PARTNER_IDS = [
+  "mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi",
+] as const satisfies readonly CharacterId[];
+const APPEAL_PARTNERS = APPEAL_PARTNER_IDS.map((id) => getCharacter(id));
 const PARTNER_SELECTION_PROMPT = "Who would you like to talk with today?";
 const SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice.";
 const SCENE_BACKGROUNDS = {
@@ -572,7 +576,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setSelectionPreview(null);
       return;
     }
-    const candidates = [...ENGLISH_PARTNERS, MIYABI];
+    const candidates = [...APPEAL_PARTNERS];
     const expressionKeys = ["smile", "thinking", "surprised", "blink", "nod"] as const;
     let characterBag = shuffled(candidates);
     let expressionBag = shuffled(expressionKeys);
