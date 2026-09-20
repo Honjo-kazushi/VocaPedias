@@ -1028,8 +1028,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   return (
     <section className="ai-conversation" aria-label="AI英会話">
       <header className="ai-topic-header">
-        <span>{scene ? "Scene Role-play" : topic && isFreshTalkTopic(topic) ? "Today's Topic · Fresh" : "Today's Topic"}</span>
-        <strong>{lessonTitle}</strong>
+        <span>{scene ? "Scene Role-play" : "Today's Topic"}</span>
+        <strong>
+          {lessonTitle}
+          {topic && isFreshTalkTopic(topic) && <span className="fresh-topic-mark" aria-hidden="true">*</span>}
+        </strong>
         {!review && lessonStage === "conversation" && <time>{minutes}:{seconds}</time>}
       </header>
 

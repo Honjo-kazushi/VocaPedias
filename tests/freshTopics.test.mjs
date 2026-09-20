@@ -63,7 +63,9 @@ test("fresh topic failure falls back to an empty list and mixing prevents consec
 });
 
 test("fresh topics reuse the topic UI and skip fixed reference questions", () => {
-  assert.match(uiSource, /Today's Topic · Fresh/);
+  assert.match(uiSource, /className="fresh-topic-mark"/);
+  assert.match(uiSource, /topic && isFreshTalkTopic\(topic\)/);
+  assert.doesNotMatch(uiSource, /Today's Topic · Fresh/);
   assert.match(freshSource, /openingQuestion: ""/);
   assert.match(freshSource, /deepQuestion: ""/);
   assert.match(freshSource, /angles\.length >= 4/);
