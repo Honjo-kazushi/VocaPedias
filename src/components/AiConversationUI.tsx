@@ -177,8 +177,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     speakCharacterItems: speakReviewItems,
     stopAssistantSpeech: stopReviewSpeech,
   } = useCharacterSpeech(REVIEW_CHARACTER.id, "ja-JP");
-  const isSpeaking = review ? reviewIsSpeaking : partnerIsSpeaking;
-  const activeMouthOpenRef = review ? reviewMouthOpenRef : partnerMouthOpenRef;
+  const {
+    isSpeaking: miyabiIsSpeaking,
+    mouthOpenRef: miyabiMouthOpenRef,
+    speakCharacterItems: speakMiyabiItems,
+    stopAssistantSpeech: stopMiyabiSpeech,
+  } = useCharacterSpeech(MIYABI.id, "ja-JP");
+  const isSpeaking = review ? reviewIsSpeaking : rescueBusy ? miyabiIsSpeaking : partnerIsSpeaking;
+  const activeMouthOpenRef = review ? reviewMouthOpenRef : rescueBusy ? miyabiMouthOpenRef : partnerMouthOpenRef;
   const idleProfile = partnerId ? CHARACTER_PROFILES[partnerId] : CHARACTER_PROFILES.emma;
   const openingIdleActive = showIntro && introOpeningComplete;
   const idleActive = !review && !busy && phase === "idle" && !partnerIsSpeaking && (
@@ -254,11 +260,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     stopListening();
     stopAssistantSpeech();
     stopReviewSpeech();
+    stopMiyabiSpeech();
     setPartnerExpression("neutral");
     setAwaitingUserInput(false);
     setHasRecognizedSpeech(false);
     setPhase("idle");
-  }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech]);
+  }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech, stopMiyabiSpeech]);
 
   const scheduleMicrophoneStart = useCallback((token: number, delay = 250, continuation = false) => {
     if (lessonEndingRef.current) return;
@@ -879,7 +886,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setRescueMessage(explanation);
       setBusy(false);
       setPhase("ttsPending");
-      speakCharacterItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
+      speakMiyabiItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
         onItemStart: () => {
           if (startTokenRef.current === token) setPhase("speaking");
         },

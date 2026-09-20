@@ -19,6 +19,10 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(rescueBlock, /scheduleMicrophoneStart\(token, 250, true\)/);
   assert.match(chatSource, /直前の英語発話を、日本語で短く分かりやすく説明してください/);
   assert.match(uiSource, /const visibleCharacter = rescueBusy \? getCharacter\("miyabi"\) : character/);
+  assert.match(uiSource, /mouthOpenRef: miyabiMouthOpenRef/);
+  assert.match(uiSource, /rescueBusy \? miyabiMouthOpenRef : partnerMouthOpenRef/);
+  assert.match(uiSource, /stopMiyabiSpeech\(\)/);
+  assert.match(rescueBlock, /speakMiyabiItems/);
   assert.match(rescueBlock, /characterId: "miyabi"/);
   assert.match(rescueBlock, /\}, "miyabi"\)/);
   assert.doesNotMatch(rescueBlock, /setPartnerId\("miyabi"\)/);

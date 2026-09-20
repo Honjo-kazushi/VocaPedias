@@ -53,6 +53,10 @@ Write the display section strings in Japanese. The UI supplies the headings.
 Be concise. Select no more than 3 points in the entire review: at most one Good, one Better, and one Try/another way. Each point must be one short sentence apart from the quoted learner statement and correction example. Never show the same learner statement in more than one section, repeat the user's sentences unnecessarily, review every turn, or repeat the same underlying issue. Prioritize one useful correction over many minor corrections. Do not explain basic grammar unless necessary. If the conversation was already natural, use only 1 or 2 points. Write no introduction, conclusion, general praise, score, or rank.
 
 Speech recognition guidance:
+- Speech recognition may mishear the learner's words. Do not treat every strange transcript as the learner's English mistake.
+- If one word or phrase is unnatural in context and could reasonably be a speech-recognition substitution, silently omit it from corrections. Do not criticize it, correct it as a definite learner mistake, or add an ASR warning merely to fill a section.
+- Include a correction only when the transcript clearly shows a likely grammar, word-choice, or sentence-construction issue that can reasonably be attributed to the learner's English. When unsure, return corrections: [].
+- A single contextually implausible word, a sound-alike substitution, a proper noun, or a place name is not sufficient evidence of a learner error.
 - Evaluate each learner statement as spoken English transcribed by SpeechRecognition, not as typed composition.
 - Never treat capitalization, sentence-initial case, periods, commas, question marks, other punctuation, or simple written-format differences as learner errors or reasons for a correction.
 - When the transcript is odd but the surrounding conversation makes a likely intended phrase clear, consider both speech-recognition error and learner error.
@@ -127,7 +131,7 @@ export function buildJapaneseConversationReviewPrompt(messages: ChatMessage[], t
   ]
 }
 
-画面表示用の内容はtodayPoints配列に最大3項目、各項目1文で入れてください。「👍 よかった」「✏️ より自然に」「💡 別の言い方」から必要なものだけを使い、問題が少なければ1〜2項目で終えてください。該当項目がなければ説明文を作らず空配列にしてください。goodPoints、corrections、alternativesは空配列にしてください。同じ内容を言い換えて繰り返さず、長い説明や会話にない内容を加えないでください。
+画面表示用の内容はtodayPoints配列に最大3項目、各項目1文で入れてください。「👍 よかった」「✏️ より自然に」「💡 別の言い方」から必要なものだけを使い、問題が少なければ1〜2項目で終えてください。音声認識は単語を聞き違えることがあります。文脈上不自然な1語、似た音の別単語、固有名詞や地名など、音声認識ミスの可能性がある箇所をユーザーの発言ミスと断定して批評しないでください。確信できない内容は静かに除外してください。該当項目がなければ説明文を作らず空配列にしてください。goodPoints、corrections、alternativesは空配列にしてください。同じ内容を言い換えて繰り返さず、長い説明や会話にない内容を加えないでください。
 
 spokenReviewはEmmaからユーザーへ直接話す、自然で温かい日本語にしてください。会話の具体的な内容を1つだけ振り返り、1項目、約15〜20秒に収めます。長い解説や繰り返しは避けてください。
 

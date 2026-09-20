@@ -166,6 +166,8 @@ test("review prompts require no more than three concise one-sentence points", ()
   assert.match(reviewPromptSource, /return corrections: \[\]/);
   assert.match(reviewPromptSource, /return goodPoints: \[\]/);
   assert.doesNotMatch(reviewPromptSource, /write exactly 「該当なし」/);
+  assert.match(reviewPromptSource, /single contextually implausible word[\s\S]*not sufficient evidence/);
+  assert.match(reviewPromptSource, /When unsure, return corrections: \[\]/);
 });
 
 test("partner selection can be cancelled without entering Review", () => {
