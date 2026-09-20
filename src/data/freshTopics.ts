@@ -18,6 +18,7 @@ type FreshTopicCache = {
 const CACHE_KEY = "tossaspeak:fresh-topics:v2";
 export const FRESH_TOPIC_CACHE_MS = 24 * 60 * 60 * 1000;
 export const FRESH_TOPIC_MIX_RATIO = 0.4;
+export const FRESH_TOPIC_REQUEST_TIMEOUT_MS = 50_000;
 const CATEGORIES = new Set<TalkTopicCategory>(["experience", "opinion", "comparison", "social", "imagination"]);
 let pendingRequest: Promise<FreshTalkTopic[]> | null = null;
 
@@ -66,7 +67,7 @@ function writeCache(topics: FreshTalkTopic[], now: number): void {
 
 async function requestFreshTopics(now: number): Promise<FreshTalkTopic[]> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  const timeout = window.setTimeout(() => controller.abort(), FRESH_TOPIC_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch("/api/fresh-topics?count=10", { signal: controller.signal });
     if (!response.ok) return [];

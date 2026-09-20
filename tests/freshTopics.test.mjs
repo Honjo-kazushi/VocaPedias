@@ -49,6 +49,7 @@ test("fresh topic loading caches valid results for 24 hours", async () => {
   assert.equal(second.length, 10);
   assert.equal(fetchCount, 1);
   assert.equal(freshModule.FRESH_TOPIC_CACHE_MS, 86_400_000);
+  assert.equal(freshModule.FRESH_TOPIC_REQUEST_TIMEOUT_MS, 50_000);
 });
 
 test("fresh topic failure falls back to an empty list and mixing prevents consecutive fresh topics", async () => {
