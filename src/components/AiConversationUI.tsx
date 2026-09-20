@@ -66,6 +66,15 @@ const SCENE_BACKGROUNDS = {
   hospital: hospitalBackground,
 } as const;
 
+function shuffled<T>(items: readonly T[], random: () => number = Math.random): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
 function chooseTopic(freshTopics: readonly FreshTalkTopic[] = [], random: () => number = Math.random): TalkTopic {
   const requestedTitle = new URLSearchParams(window.location.search).get("topic");
   const requestedTopic = [...TALK_TOPICS, ...freshTopics].find(
@@ -564,21 +573,43 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       return;
     }
     const candidates = [...ENGLISH_PARTNERS, MIYABI];
+    const expressionKeys = ["smile", "thinking", "surprised", "blink", "nod"] as const;
+    let characterBag = shuffled(candidates);
+    let expressionBag = shuffled(expressionKeys);
+    let previousCharacterId: CharacterId | null = null;
+    let previousExpression: typeof expressionKeys[number] | null = null;
     let nextTimer: number | null = null;
     let restoreTimer: number | null = null;
+    const refillCharacterBag = () => {
+      characterBag = shuffled(candidates);
+      if (characterBag.length > 1 && characterBag[0].id === previousCharacterId) {
+        [characterBag[0], characterBag[1]] = [characterBag[1], characterBag[0]];
+      }
+    };
+    const refillExpressionBag = () => {
+      expressionBag = shuffled(expressionKeys);
+      if (expressionBag.length > 1 && expressionBag[0] === previousExpression) {
+        [expressionBag[0], expressionBag[1]] = [expressionBag[1], expressionBag[0]];
+      }
+    };
     const schedule = () => {
       nextTimer = window.setTimeout(() => {
-        const selected = candidates[Math.floor(Math.random() * candidates.length)];
-        const images = [
-          selected.expressions.smile.closed,
-          selected.expressions.thinking.closed,
-          selected.expressions.surprised.closed,
-          selected.listening?.blink,
-          selected.listening?.nod,
-        ].filter((src): src is string => Boolean(src));
+        if (!characterBag.length) refillCharacterBag();
+        if (!expressionBag.length) refillExpressionBag();
+        const selected = characterBag.shift()!;
+        const expression = expressionBag.shift()!;
+        previousCharacterId = selected.id;
+        previousExpression = expression;
+        const imageByExpression = {
+          smile: selected.expressions.smile.closed,
+          thinking: selected.expressions.thinking.closed,
+          surprised: selected.expressions.surprised.closed,
+          blink: selected.listening?.blink ?? selected.expressions.smile.closed,
+          nod: selected.listening?.nod ?? selected.expressions.thinking.closed,
+        };
         setSelectionPreview({
           characterId: selected.id,
-          src: images[Math.floor(Math.random() * images.length)],
+          src: imageByExpression[expression],
         });
         restoreTimer = window.setTimeout(() => {
           setSelectionPreview(null);
