@@ -35,6 +35,8 @@ test("fresh topics use the existing Gemini backend with Google Search and no new
   assert.match(functionSource, /function simplifyFreshTitle/);
   assert.match(functionSource, /SIMPLE_TITLE_KEYWORDS\.find/);
   assert.match(functionSource, /title: simpleTitle/);
+  assert.match(functionSource, /value\.slice\(0, 10\)/);
+  assert.match(functionSource, /fallbackAngle/);
   assert.match(firebaseSource, /\/api\/fresh-topics/);
 });
 

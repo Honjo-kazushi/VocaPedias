@@ -64,16 +64,20 @@ function parseJsonObject(text) {
 
 function validateFreshTopics(value) {
   const categories = new Set(["experience", "opinion", "comparison", "social", "imagination"]);
-  if (!Array.isArray(value) || value.length !== 10) return null;
-  const topics = value.map((topic, index) => {
+  if (!Array.isArray(value) || value.length < 10) return null;
+  const topics = value.slice(0, 10).map((topic, index) => {
     if (!topic || typeof topic !== "object") return null;
     const title = typeof topic.title === "string" ? topic.title.trim() : "";
-    const context = typeof topic.context === "string" ? topic.context.trim() : "";
-    const category = typeof topic.category === "string" ? topic.category : "";
+    const context = typeof topic.context === "string" ? topic.context.trim().slice(0, 320) : "";
+    const category = typeof topic.category === "string" && categories.has(topic.category) ? topic.category : "opinion";
     const angles = Array.isArray(topic.angles)
-      ? topic.angles.filter((angle) => typeof angle === "string").map((angle) => angle.trim()).filter(Boolean)
+      ? topic.angles.filter((angle) => typeof angle === "string").map((angle) => angle.trim().slice(0, 100)).filter(Boolean).slice(0, 6)
       : [];
-    if (!title || !context || context.length > 320 || !categories.has(category) || angles.length < 4 || angles.length > 6) return null;
+    for (const fallbackAngle of ["your experience", "things you like", "a simple choice", "a recent memory"]) {
+      if (angles.length >= 4) break;
+      if (!angles.includes(fallbackAngle)) angles.push(fallbackAngle);
+    }
+    if (!title || !context) return null;
     const simpleTitle = simplifyFreshTitle(title, context, angles, category);
     return {
       id: `fresh-${new Date().toISOString().slice(0, 10)}-${index + 1}`,
