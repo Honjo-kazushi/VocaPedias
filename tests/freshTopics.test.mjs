@@ -27,6 +27,11 @@ test("fresh topics use the existing Gemini backend with Google Search and no new
   assert.match(functionSource, /tools: \[\{ googleSearch: \{\} \}\]/);
   assert.match(functionSource, /exactly 10 timely English conversation topics/);
   assert.match(functionSource, /Avoid war, crime, fatal accidents/);
+  assert.match(functionSource, /Use one familiar, concrete English noun whenever possible/);
+  assert.match(functionSource, /Never use four or more words/);
+  assert.match(functionSource, /news headline or a summary/);
+  assert.match(functionSource, /learner's own experience, preferences, memories, simple choices, or feelings/);
+  assert.match(functionSource, /Human Presence and Wildlife[\s\S]*title "Wildlife"/);
   assert.match(firebaseSource, /\/api\/fresh-topics/);
 });
 
@@ -70,4 +75,6 @@ test("fresh topics reuse the topic UI and skip fixed reference questions", () =>
   assert.match(freshSource, /openingQuestion: ""/);
   assert.match(freshSource, /deepQuestion: ""/);
   assert.match(freshSource, /angles\.length >= 4/);
+  assert.match(freshSource, /titleWordCount <= 3/);
+  assert.doesNotMatch(freshSource, /title:.*\*/);
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { hasUserResponse, mergeSpeechTranscript, type ChatMessage, type LessonReview, type SpokenReviewPart } from "../ai/conversationTypes";
 import {
   continueTutorConversation,
@@ -141,9 +141,10 @@ function ReviewSections({ sections, language }: { sections: LessonReview["sectio
 type AiConversationUIProps = {
   showConversationCaptions: boolean;
   uiLanguage?: "ja" | "en";
+  onButtonPress: () => void;
 };
 
-export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja" }: AiConversationUIProps) {
+export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja", onButtonPress }: AiConversationUIProps) {
   const [topic, setTopic] = useState<TalkTopic | null>(null);
   const [freshTopics, setFreshTopics] = useState<FreshTalkTopic[]>([]);
   const [scene, setScene] = useState<SceneSituation | null>(null);
@@ -987,6 +988,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const showRescueButton = lessonStage === "conversation" && conversationLanguage === "en" &&
     awaitingUserInput && !hasRecognizedSpeech && !busy && !rescueBusy && !review &&
     !lessonEndingRef.current;
+  const runButtonAction = (action: () => void) => {
+    onButtonPress();
+    action();
+  };
 
   if (showIntro) {
     return (
@@ -1005,10 +1010,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           <h2>Hi, I’m Emma!</h2>
           <p>自由なトピック会話か、場面英会話を<br />選んで始めましょう。</p>
           <div className="ai-lesson-choices">
-            <button className="ai-primary-button" onClick={() => void beginLesson(chooseTopic(freshTopics))}>
+            <button className="ai-primary-button" onClick={() => runButtonAction(() => void beginLesson(chooseTopic(freshTopics)))}>
               Talk Topic
             </button>
-            <button className="ai-primary-button secondary" onClick={beginSceneSelection}>
+            <button className="ai-primary-button secondary" onClick={() => runButtonAction(beginSceneSelection)}>
               Scene Role-play
             </button>
           </div>
@@ -1057,12 +1062,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           <div className="ai-review-actions">
             <button
               className="ai-primary-button"
-              onClick={() => scene ? beginSceneSelection() : void beginLesson(chooseTopic(freshTopics))}
+              onClick={() => runButtonAction(() => scene ? beginSceneSelection() : void beginLesson(chooseTopic(freshTopics)))}
               disabled={busy}
             >
               {scene ? "別のSceneを選ぶ" : "次のトピックへ"}
             </button>
-            <button className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
+            <button className="ai-end-button" type="button" onClick={() => runButtonAction(cancelPartnerSelection)}>Cancel</button>
           </div>
         </div>
       ) : lessonStage === "sceneSelect" ? (
@@ -1075,14 +1080,15 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 type="button"
                 className="scene-roleplay-card"
                 key={family.id}
-                onClick={() => beginScene(family)}
+                style={{ "--scene-card-background": `url(${SCENE_BACKGROUNDS[family.id]})` } as CSSProperties}
+                onClick={() => runButtonAction(() => beginScene(family))}
               >
                 <strong>{family.title}</strong>
                 <span>{family.shortLabel}</span>
               </button>
             ))}
           </div>
-          <button className="ai-end-button" type="button" onClick={cancelSceneSelection}>Cancel</button>
+          <button className="ai-end-button" type="button" onClick={() => runButtonAction(cancelSceneSelection)}>Cancel</button>
         </div>
       ) : lessonStage === "partnerSelect" ? (
         <div className="partner-select" aria-labelledby="partner-select-heading">
@@ -1094,7 +1100,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 className="partner-card"
                 type="button"
                 key={partner.id}
-                onClick={() => selectPartner(partner.id)}
+                onClick={() => runButtonAction(() => selectPartner(partner.id))}
                 disabled={!partnerSelectionReady}
               >
                 <img src={selectionPreview?.characterId === partner.id ? selectionPreview.src : partner.expressions.neutral.closed} alt="" />
@@ -1104,7 +1110,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             <button
               className="partner-card"
               type="button"
-              onClick={selectAnyone}
+              onClick={() => runButtonAction(selectAnyone)}
               disabled={!partnerSelectionReady}
             >
               <img src={anyoneNeutralClosed} alt="" />
@@ -1114,7 +1120,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
               <button
                 className="partner-card"
                 type="button"
-                onClick={() => selectPartner(MIYABI.id)}
+                onClick={() => runButtonAction(() => selectPartner(MIYABI.id))}
                 disabled={!partnerSelectionReady}
               >
                 <img src={selectionPreview?.characterId === MIYABI.id ? selectionPreview.src : MIYABI.expressions.neutral.closed} alt="" />
@@ -1123,7 +1129,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             )}
           </div>
           {error && <p className="ai-error" role="alert">{error}</p>}
-          <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={cancelPartnerSelection}>Cancel</button>
+          <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={() => runButtonAction(cancelPartnerSelection)}>Cancel</button>
           <div ref={partnerListEndRef} className="ai-partner-list-end" aria-hidden="true" />
         </div>
       ) : (
@@ -1150,7 +1156,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           {error && <p className="ai-error" role="alert">{error}</p>}
 
           {microphoneFallback && (
-            <button className="ai-end-button" onClick={() => startMicrophone()} disabled={busy || recognitionActive}>
+            <button className="ai-end-button" onClick={() => runButtonAction(() => startMicrophone())} disabled={busy || recognitionActive}>
               音声入力を再開
             </button>
           )}
@@ -1161,14 +1167,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 : recognitionActive ? "マイクを開始しています…" : ""}
             </p>
             {showRescueButton && (
-              <button className="ai-help-button" type="button" onClick={() => void requestRescue()}>
+              <button className="ai-help-button" type="button" onClick={() => runButtonAction(() => void requestRescue())}>
                 {uiLanguage === "en" ? "? Help" : "？ わからない"}
               </button>
             )}
           </div>
           <button
             className={`ai-end-button ${fiveMinutesPassed ? "ready" : ""}`}
-            onClick={() => void endLesson()}
+            onClick={() => runButtonAction(() => void endLesson())}
           >
             End Lesson
           </button>

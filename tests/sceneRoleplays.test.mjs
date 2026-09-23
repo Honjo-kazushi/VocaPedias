@@ -64,3 +64,19 @@ test("scene menu is compact, two-column, and vertically scrollable", () => {
   assert.match(styleSource, /\.scene-roleplay-select[\s\S]*?overflow-y: auto/);
   assert.match(styleSource, /\.scene-roleplay-groups[\s\S]*?grid-template-columns: 1fr 1fr/);
 });
+
+test("all scene cards reuse the conversation background mapping without changing card dimensions", () => {
+  const cardBlock = styleSource.match(/\.scene-roleplay-card \{([^}]*)\}/)?.[1] ?? "";
+  assert.match(uiSource, /SCENE_BACKGROUNDS\[family\.id\]/);
+  assert.match(uiSource, /--scene-card-background/);
+  assert.match(styleSource, /\.scene-roleplay-card::before[\s\S]*background-size: cover;[\s\S]*pointer-events: none/);
+  assert.match(styleSource, /\.scene-roleplay-card::after[\s\S]*rgba\(255, 250, 244, 0\.82\)[\s\S]*pointer-events: none/);
+  assert.doesNotMatch(cardBlock, /^\s*(?:width|height):/m);
+});
+
+test("scene review reuses one generated result for Emma speech and the standard visible Review UI", () => {
+  assert.match(uiSource, /scene \? \{ situation: scene, usefulPhrases: getSceneUsefulPhrases\(scene\) \} : undefined/);
+  assert.match(uiSource, /setSpokenReview\(result\.spokenReview\);\s*setReview\(result\.sections\)/);
+  assert.match(uiSource, /<ReviewSections sections=\{review\} language=\{conversationLanguage\} \/>/);
+  assert.match(uiSource, /reviewLectureStartedRef\.current === review/);
+});

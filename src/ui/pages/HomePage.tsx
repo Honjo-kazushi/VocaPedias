@@ -1569,7 +1569,7 @@ export default function HomePage() {
             </>
           )}
 
-          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} />}
+          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} onButtonPress={playClickSe} />}
 
           {/* =====================================================
               関連フレーズ（Overlay）

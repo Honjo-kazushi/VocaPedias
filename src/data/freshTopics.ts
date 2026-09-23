@@ -15,7 +15,7 @@ type FreshTopicCache = {
   topics: FreshTalkTopic[];
 };
 
-const CACHE_KEY = "tossaspeak:fresh-topics:v2";
+const CACHE_KEY = "tossaspeak:fresh-topics:v3";
 export const FRESH_TOPIC_CACHE_MS = 24 * 60 * 60 * 1000;
 export const FRESH_TOPIC_MIX_RATIO = 0.4;
 export const FRESH_TOPIC_REQUEST_TIMEOUT_MS = 50_000;
@@ -25,8 +25,10 @@ let pendingRequest: Promise<FreshTalkTopic[]> | null = null;
 function isFreshTopic(value: unknown): value is FreshTalkTopic {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
+  const title = typeof item.title === "string" ? item.title.trim() : "";
+  const titleWordCount = title.split(/\s+/).filter(Boolean).length;
   return typeof item.id === "string" && item.id.startsWith("fresh-") &&
-    typeof item.title === "string" && item.title.trim().length > 0 && item.title.length <= 80 &&
+    title.length > 0 && title.length <= 40 && titleWordCount <= 3 &&
     typeof item.context === "string" && item.context.trim().length > 0 && item.context.length <= 320 &&
     typeof item.category === "string" && CATEGORIES.has(item.category as TalkTopicCategory) &&
     Array.isArray(item.angles) && item.angles.length >= 4 && item.angles.length <= 6 &&

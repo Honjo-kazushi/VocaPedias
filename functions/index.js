@@ -47,7 +47,8 @@ function validateFreshTopics(value) {
     const angles = Array.isArray(topic.angles)
       ? topic.angles.filter((angle) => typeof angle === "string").map((angle) => angle.trim()).filter(Boolean)
       : [];
-    if (!title || title.length > 80 || !context || context.length > 320 || !categories.has(category) || angles.length < 4 || angles.length > 6) return null;
+    const titleWordCount = title.split(/\s+/).filter(Boolean).length;
+    if (!title || title.length > 40 || titleWordCount > 3 || !context || context.length > 320 || !categories.has(category) || angles.length < 4 || angles.length > 6) return null;
     return {
       id: `fresh-${new Date().toISOString().slice(0, 10)}-${index + 1}`,
       title,
@@ -82,12 +83,29 @@ exports.freshTopics = onRequest(
 
 Choose friendly, broadly interesting developments from the last few days or the current season. Prefer AI/technology, science, space, animals, food, travel, culture, entertainment, sports, nature, weather/seasons, lifestyle, or interesting discoveries. Avoid war, crime, fatal accidents, tragic disasters, partisan politics, and polarizing social conflict.
 
-Transform current information into personal conversation material. A learner must be able to participate without having read a news article. Do not test names, companies, dates, statistics, or article details. Each context must be one short neutral sentence, with no links and no claim that requires expert knowledge. Angles are short concepts, not complete questions.
+Transform each recent development into simple personal conversation material. A learner must be able to participate without having read a news article.
+
+Title rules (highest priority):
+- Use one familiar, concrete English noun whenever possible, such as Wildlife, Trains, AI, Space, Dogs, Travel, Coffee, Food, Robots, Weather, Movies, Music, Sports, Phones, Shopping, Hotels, Festivals, Flowers, Beaches, Health, or Cars.
+- Use two words only when one word would be unnatural or too vague. Use three words only as a rare exception. Never use four or more words.
+- The title is a simple conversation label, never a news headline or a summary. Put the timely detail in context and angles instead.
+- Avoid academic or technical terms, abstract noun chains, and headline-like phrases such as "Impact of", "Future of", "Influence of", "Growing", "Changing", or "Human Presence and".
+
+Content rules:
+- Do not test names, companies, dates, statistics, article details, or prior news knowledge.
+- Each context must be one short, neutral, easy sentence, with no links and no claim that requires expert knowledge.
+- Angles are 4 to 6 short, concrete concepts, not complete questions. Center them on the learner's own experience, preferences, memories, simple choices, or feelings.
+- Make every angle usable for an easy yes/no, A-or-B, "What...?", "Have you ever...?", "Do you like...?", or "Which do you prefer...?" question.
+- Keep the timely event as the starting point, but make the English and personal discussion easy for a Japanese A2-B1 learner.
+
+Examples of the required transformation:
+- "Human Presence and Wildlife" becomes title "Wildlife"; context mentions recent animal sightings near towns; angles include animals seen, animals near home, surprising animals, favorite animals, and places animals were seen.
+- "Increasing Popularity of Overnight Rail Travel" becomes title "Trains"; context mentions renewed interest in night or long-distance trains; angles include night trains, train trips, sleeping on a train, train versus plane, and a remembered trip.
 
 Return JSON only in this exact shape:
 {"topics":[{"title":"short title","context":"one short sentence introducing the timely development","category":"experience|opinion|comparison|social|imagination","angles":["4 to 6 conversational angles"]}]}`,
         config: {
-          systemInstruction: "You select safe, upbeat, current material and turn it into accessible conversation topics. Return valid JSON only.",
+          systemInstruction: "You select safe, upbeat, current material and turn it into very simple personal conversation topics for A2-B1 learners. Titles are normally one familiar concrete noun and never exceed three words. Return valid JSON only.",
           tools: [{ googleSearch: {} }],
           maxOutputTokens: 4200,
           temperature: 0.5,

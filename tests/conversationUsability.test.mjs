@@ -140,7 +140,7 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
 test("Review actions keep next-topic behavior and Cancel returns to the AI conversation top", () => {
   const reviewBlock = uiSource.slice(uiSource.indexOf("{review ? ("), uiSource.indexOf(') : lessonStage === "sceneSelect"'));
   assert.match(reviewBlock, /scene \? beginSceneSelection\(\) : void beginLesson\(chooseTopic\(freshTopics\)\)/);
-  assert.match(reviewBlock, /onClick=\{cancelPartnerSelection\}>Cancel/);
+  assert.match(reviewBlock, /onClick=\{\(\) => runButtonAction\(cancelPartnerSelection\)\}>Cancel/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*\+\+startTokenRef\.current|cancelPartnerSelection[\s\S]*startTokenRef\.current \+= 1/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*stopInteraction\(\)/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
@@ -151,7 +151,7 @@ test("Review actions keep next-topic behavior and Cancel returns to the AI conve
 
 test("Help button is yellow and bold without changing its rescue handler", () => {
   assert.match(styleSource, /\.ai-help-button \{[\s\S]*background: #ffd84d;[\s\S]*font-weight: 700/);
-  assert.match(uiSource, /className="ai-help-button"[\s\S]*onClick=\{\(\) => void requestRescue\(\)\}/);
+  assert.match(uiSource, /className="ai-help-button"[\s\S]*onClick=\{\(\) => runButtonAction\(\(\) => void requestRescue\(\)\)\}/);
 });
 
 test("conversation ending state blocks every path back to Listening", () => {
@@ -172,6 +172,9 @@ test("AI conversation intro keeps its Japanese guidance on two intentional lines
   assert.match(uiSource, /自由なトピック会話か、場面英会話を<br \/>選んで始めましょう。/);
 });
 
-test("AI conversation does not add a repeated application listening sound", () => {
-  assert.doesNotMatch(uiSource, /playSe|new Audio|start\.mp3/);
+test("AI conversation buttons use the existing sound callback without adding sounds to automatic processing", () => {
+  assert.match(uiSource, /onButtonPress: \(\) => void/);
+  assert.match(uiSource, /const runButtonAction[\s\S]*onButtonPress\(\)/);
+  assert.match(uiSource, /End Lesson[\s\S]*runButtonAction|runButtonAction[\s\S]*End Lesson/);
+  assert.doesNotMatch(uiSource, /new Audio|start\.mp3/);
 });

@@ -89,7 +89,7 @@ test("Emma blinks after the opening and guides Scene selection with cancellable 
   assert.match(uiSource, /SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice\."/);
   assert.match(uiSource, /speakCharacterItems\(\[\{ lang: "en-US", text: SCENE_SELECTION_PROMPT \}\]/);
   assert.match(uiSource, /const cancelSceneSelection = useCallback/);
-  assert.match(uiSource, /onClick=\{cancelSceneSelection\}>Cancel/);
+  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(cancelSceneSelection\)\}>Cancel/);
   assert.doesNotMatch(uiSource, />戻る</);
 });
 
@@ -173,7 +173,7 @@ test("review prompts require no more than three concise one-sentence points", ()
 test("partner selection can be cancelled without entering Review", () => {
   assert.match(uiSource, /const cancelPartnerSelection = (?:useCallback\()?\(\) =>/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
-  assert.match(uiSource, /onClick=\{cancelPartnerSelection\}>Cancel/);
+  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(cancelPartnerSelection\)\}>Cancel/);
   assert.match(uiSource, />\s*End Lesson\s*</);
   assert.doesNotMatch(uiSource, /やーめた|やめーた/);
   assert.match(uiSource, /if \(!hasUserResponse\(messages\)\)/);
