@@ -70,7 +70,10 @@ test("all scene cards reuse the conversation background mapping without changing
   assert.match(uiSource, /SCENE_BACKGROUNDS\[family\.id\]/);
   assert.match(uiSource, /--scene-card-background/);
   assert.match(styleSource, /\.scene-roleplay-card::before[\s\S]*background-size: cover;[\s\S]*pointer-events: none/);
-  assert.match(styleSource, /\.scene-roleplay-card::after[\s\S]*rgba\(255, 250, 244, 0\.82\)[\s\S]*pointer-events: none/);
+  assert.match(styleSource, /\.scene-roleplay-card::after[\s\S]*rgba\(255, 250, 244, 0\.6\)[\s\S]*pointer-events: none/);
+  assert.match(styleSource, /\.scene-roleplay-card strong,[\s\S]*width: fit-content;[\s\S]*background: rgba\(255, 255, 255, 0\.86\)/);
+  assert.match(styleSource, /\.scene-roleplay-card strong \{[\s\S]*font-weight: 700/);
+  assert.match(styleSource, /\.scene-roleplay-card span \{[\s\S]*font-weight: 600/);
   assert.doesNotMatch(cardBlock, /^\s*(?:width|height):/m);
 });
 

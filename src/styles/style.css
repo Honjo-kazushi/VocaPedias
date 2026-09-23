@@ -430,23 +430,29 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: rgba(255, 250, 244, 0.82);
+  background: rgba(255, 250, 244, 0.6);
   pointer-events: none;
 }
 
 .scene-roleplay-card strong,
 .scene-roleplay-card span {
   display: block;
+  width: fit-content;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .scene-roleplay-card strong {
   margin-bottom: 4px;
   font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .scene-roleplay-card span {
   color: #666;
   font-size: 0.7rem;
+  font-weight: 600;
   line-height: 1.35;
 }
 
