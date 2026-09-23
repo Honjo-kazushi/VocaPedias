@@ -10,14 +10,14 @@ const phraseSources = await Promise.all([
 const uiSource = await readFile(new URL("../src/components/AiConversationUI.tsx", import.meta.url), "utf8");
 const styleSource = await readFile(new URL("../src/styles/style.css", import.meta.url), "utf8");
 
-test("full scene catalog contains seven families and all 46 requested situations", () => {
+test("full scene catalog contains eight families and all requested situations", () => {
   const familyIds = [...sceneSource.matchAll(/\bf\("([^"]+)"/g)].map((match) => match[1]);
   const situationIds = [...sceneSource.matchAll(/\bq\("([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(familyIds, ["hotel", "airport", "street", "restaurant", "shopping", "transportation", "hospital"]);
-  assert.equal(situationIds.length, 46);
+  assert.deepEqual(familyIds, ["hotel", "airport", "street", "restaurant", "shopping", "transportation", "hospital", "fastfood"]);
+  assert.equal(situationIds.length, 52);
   assert.deepEqual(
     familyIds.map((familyId) => situationIds.filter((id) => id.startsWith(`${familyId === "transportation" ? "transport" : familyId}-`)).length),
-    [8, 8, 7, 7, 6, 6, 4],
+    [8, 8, 7, 7, 6, 6, 4, 6],
   );
 });
 
@@ -45,16 +45,28 @@ test("scene selection automatically chooses situation and character", () => {
   assert.match(uiSource, /setPartnerId\(nextPartnerId\)/);
 });
 
-test("scene partner pools contain four or five non-Emma candidates and avoid the previous character", () => {
+test("scene partner pools contain three to five non-Emma candidates and avoid the previous character", () => {
   const partnerBlock = sceneSource.match(/const PARTNERS:[\s\S]*?\n};/)?.[0] ?? "";
   const pools = [...partnerBlock.matchAll(/^\s+\w+: \[([^\]]+)\]/gm)].map((match) => match[1].match(/"[^"]+"/g) ?? []);
-  assert.equal(pools.length, 7);
+  assert.equal(pools.length, 8);
   for (const pool of pools) {
     assert.ok(pool.length >= 3 && pool.length <= 5);
     assert.ok(!pool.includes('"emma"'));
   }
   assert.match(sceneSource, /id !== previousCharacter/);
   assert.match(uiSource, /chooseSceneSituation\(sceneFamily\)[\s\S]*chooseScenePartner\(nextScene, partnerId\)/);
+});
+
+test("Fast Food uses its supplied background, ordering-focused situations, and female staff candidates", () => {
+  assert.match(sceneSource, /fastfood: \["sophie", "lily", "grandma_rose"\]/);
+  assert.match(sceneSource, /f\("fastfood", "Fast Food", "注文・持ち帰り・支払い"/);
+  assert.match(sceneSource, /fastfood-combo[\s\S]*food and drink order[\s\S]*for-here or to-go[\s\S]*complete payment/);
+  assert.match(sceneSource, /fastfood-takeout/);
+  assert.match(sceneSource, /fastfood-add-item/);
+  assert.match(sceneSource, /fastfood-payment/);
+  assert.match(sceneSource, /fastfood-pickup/);
+  assert.match(uiSource, /import fastFoodBackground from "\.\.\/assets\/backgrounds\/fastfood\.png"/);
+  assert.match(uiSource, /fastfood: fastFoodBackground/);
 });
 
 test("scene menu is compact, two-column, and vertically scrollable", () => {

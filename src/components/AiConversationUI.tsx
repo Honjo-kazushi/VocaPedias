@@ -39,6 +39,7 @@ import restaurantBackground from "../assets/backgrounds/restaurant.png";
 import marketBackground from "../assets/backgrounds/market.png";
 import stationBackground from "../assets/backgrounds/station.png";
 import hospitalBackground from "../assets/backgrounds/hospital.png";
+import fastFoodBackground from "../assets/backgrounds/fastfood.png";
 import { CharacterAvatar } from "./CharacterAvatar";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
@@ -68,6 +69,7 @@ const SCENE_BACKGROUNDS = {
   shopping: marketBackground,
   transportation: stationBackground,
   hospital: hospitalBackground,
+  fastfood: fastFoodBackground,
 } as const;
 
 function shuffled<T>(items: readonly T[], random: () => number = Math.random): T[] {

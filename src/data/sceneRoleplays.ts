@@ -3,7 +3,7 @@ import type { CharacterId } from "../characters/characterProfiles";
 import { PHRASES_SCENE } from "./phrases.scene";
 import { PHRASES_SEED } from "./phrases.seed";
 
-export type SceneFamilyId = "hotel" | "airport" | "street" | "restaurant" | "shopping" | "transportation" | "hospital";
+export type SceneFamilyId = "hotel" | "airport" | "street" | "restaurant" | "shopping" | "transportation" | "hospital" | "fastfood";
 export type SceneSituation = { id: string; sceneId: SceneFamilyId; sceneTitle: string; title: string; learnerRole: string; partnerRole: string; goal: string; usefulPhraseIds: readonly string[]; possibleComplications: readonly string[]; partnerCandidates: readonly CharacterId[] };
 export type SceneRoleplay = { id: SceneFamilyId; title: string; shortLabel: string; situations: readonly SceneSituation[] };
 type Seed = Omit<SceneSituation, "sceneId" | "sceneTitle" | "partnerCandidates">;
@@ -16,6 +16,7 @@ const PARTNERS: Record<SceneFamilyId, readonly CharacterId[]> = {
   shopping: ["lily", "sophie", "jamie", "grandma_rose", "mike"],
   transportation: ["mike", "leo", "jamie", "lily", "sophie"],
   hospital: ["dr_dan", "sophie", "grandma_rose", "jamie"],
+  fastfood: ["sophie", "lily", "grandma_rose"],
 };
 const q = (id: string, title: string, learnerRole: string, partnerRole: string, goal: string, usefulPhraseIds: string[], possibleComplications: string[] = []): Seed => ({ id, title, learnerRole, partnerRole, goal, usefulPhraseIds, possibleComplications });
 const f = (id: SceneFamilyId, title: string, shortLabel: string, situations: Seed[]): SceneRoleplay => ({ id, title, shortLabel, situations: situations.map((item) => ({ ...item, sceneId: id, sceneTitle: title, partnerCandidates: PARTNERS[id] })) });
@@ -80,6 +81,14 @@ export const SCENE_ROLEPLAYS: readonly SceneRoleplay[] = [
     q("hospital-symptom-start", "When symptoms started", "a patient explaining when a symptom began", "a clinic staff member", "Explain when the symptom started and answer a follow-up.", ["h615", "h616", "h617", "h620"]),
     q("hospital-medicine", "Asking about medicine", "a patient asking about prescribed medicine", "a clinic or pharmacy staff member", "Understand how and when to take the medicine.", ["h631", "h633", "h635", "h637", "h639"]),
     q("hospital-instructions", "Understanding instructions", "a patient receiving basic instructions", "a clinic staff member", "Confirm and follow simple non-diagnostic clinic instructions.", ["h622", "h627", "h628", "h632", "h636"]),
+  ]),
+  f("fastfood", "Fast Food", "注文・持ち帰り・支払い", [
+    q("fastfood-combo", "Ordering a combo", "a customer ordering a fast-food meal", "a fast-food counter employee", "Take a food and drink order, confirm the size and for-here or to-go choice, then complete payment.", ["r311", "r315", "s412", "r334"], ["One menu item is sold out.", "The requested size is unavailable."]),
+    q("fastfood-burger", "Ordering a burger", "a customer ordering a burger and any sides", "a fast-food counter employee", "Take the order one short question at a time, confirm whether anything else is needed, then complete payment.", ["r311", "r315", "h166", "r336"], ["The employee needs to ask the customer to repeat one item.", "The customer is asked to choose a different drink."]),
+    q("fastfood-takeout", "Ordering to go", "a customer placing a takeout order", "a fast-food counter employee", "Take and confirm a simple order, confirm that it is to go, and complete payment.", ["r311", "r319", "r334", "t230"], ["The for-here or to-go choice needs to be confirmed again.", "One part of the order needs clarification."]),
+    q("fastfood-add-item", "Adding an item", "a customer ordering food and adding one more item", "a fast-food counter employee", "Take the main order, handle one optional additional item, confirm the final order, and complete payment.", ["r311", "r315", "h166", "r334"], ["The added item is unavailable.", "The employee offers a simple alternative size."]),
+    q("fastfood-payment", "Paying for an order", "a customer ordering a quick meal and paying", "a fast-food counter employee", "Take a short order, confirm the total, accept cash or card, and explain the simple pickup step.", ["r311", "r334", "r336", "h153"], ["The counter accepts cash only.", "The order number needs to be repeated."]),
+    q("fastfood-pickup", "Checking the order", "a customer collecting a fast-food order", "a fast-food counter employee", "Confirm the order number and contents, resolve any small difference, and finish the pickup.", ["r341", "r347", "t230", "h153"], ["One item in the order is different.", "The customer asks for ketchup or a napkin."]),
   ]),
 ];
 
