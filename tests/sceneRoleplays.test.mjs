@@ -9,6 +9,7 @@ const phraseSources = await Promise.all([
 ]);
 const uiSource = await readFile(new URL("../src/components/AiConversationUI.tsx", import.meta.url), "utf8");
 const styleSource = await readFile(new URL("../src/styles/style.css", import.meta.url), "utf8");
+const promptSource = await readFile(new URL("../src/ai/buildConversationPrompt.ts", import.meta.url), "utf8");
 
 test("full scene catalog contains eight families and all requested situations", () => {
   const familyIds = [...sceneSource.matchAll(/\bf\("([^"]+)"/g)].map((match) => match[1]);
@@ -61,12 +62,17 @@ test("Fast Food uses its supplied background, ordering-focused situations, and f
   assert.match(sceneSource, /fastfood: \["sophie", "lily", "grandma_rose"\]/);
   assert.match(sceneSource, /f\("fastfood", "Fast Food", "注文・持ち帰り・支払い"/);
   assert.match(sceneSource, /fastfood-combo[\s\S]*food and drink order[\s\S]*for-here or to-go[\s\S]*complete payment/);
+  assert.match(sceneSource, /fastfood-burger[\s\S]*ordering a simple item and any suitable extra/);
   assert.match(sceneSource, /fastfood-takeout/);
   assert.match(sceneSource, /fastfood-add-item/);
   assert.match(sceneSource, /fastfood-payment/);
   assert.match(sceneSource, /fastfood-pickup/);
   assert.match(uiSource, /import fastFoodBackground from "\.\.\/assets\/backgrounds\/fastfood\.png"/);
   assert.match(uiSource, /fastfood: fastFoodBackground/);
+  assert.match(promptSource, /quick-service food or drink counter, not always a burger shop/);
+  assert.match(promptSource, /burger, sandwich, pizza, fried chicken, donut, coffee\/cafe, or takeout counter/);
+  assert.match(promptSource, /never begin by asking the learner what kind of restaurant they want/);
+  assert.match(promptSource, /do not offer fries in a donut shop/);
 });
 
 test("scene menu is compact, two-column, and vertically scrollable", () => {
@@ -82,6 +88,8 @@ test("all scene cards reuse the conversation background mapping without changing
   assert.match(uiSource, /SCENE_BACKGROUNDS\[family\.id\]/);
   assert.match(uiSource, /--scene-card-background/);
   assert.match(styleSource, /\.scene-roleplay-card::before[\s\S]*background-size: cover;[\s\S]*pointer-events: none/);
+  assert.match(uiSource, /data-scene-id=\{family\.id\}/);
+  assert.match(styleSource, /\.scene-roleplay-card\[data-scene-id="fastfood"\]::before \{[\s\S]*brightness\(0\.86\)[\s\S]*saturate\(1\.08\)/);
   assert.match(styleSource, /\.scene-roleplay-card::after[\s\S]*rgba\(255, 250, 244, 0\.6\)[\s\S]*pointer-events: none/);
   assert.match(styleSource, /\.scene-roleplay-card strong,[\s\S]*width: fit-content;[\s\S]*background: rgba\(255, 255, 255, 0\.86\)/);
   assert.match(styleSource, /\.scene-roleplay-card strong \{[\s\S]*font-weight: 700/);

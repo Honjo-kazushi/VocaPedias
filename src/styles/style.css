@@ -425,6 +425,10 @@
   pointer-events: none;
 }
 
+.scene-roleplay-card[data-scene-id="fastfood"]::before {
+  filter: brightness(0.86) saturate(1.08);
+}
+
 .scene-roleplay-card::after {
   content: "";
   position: absolute;

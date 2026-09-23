@@ -1081,6 +1081,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
               <button
                 type="button"
                 className="scene-roleplay-card"
+                data-scene-id={family.id}
                 key={family.id}
                 style={{ "--scene-card-background": `url(${SCENE_BACKGROUNDS[family.id]})` } as CSSProperties}
                 onClick={() => runButtonAction(() => beginScene(family))}

@@ -99,6 +99,12 @@ export function buildSceneRoleplayPrompt(
   const sceneSafetyRule = situation.sceneId === "hospital"
     ? "- This is language practice, not medical advice. Do not diagnose, prescribe treatment, or make clinical decisions; keep the exchange to basic communication and professional instructions."
     : "";
+  const fastFoodSettingRule = situation.sceneId === "fastfood"
+    ? `- Treat Fast Food broadly as a quick-service food or drink counter, not always a burger shop. For each run, naturally choose one suitable setting such as a burger, sandwich, pizza, fried chicken, donut, coffee/cafe, or takeout counter.
+- Set the shop context yourself through natural menu wording; never begin by asking the learner what kind of restaurant they want.
+- Keep the practice centered on the counter-order flow: order, one relevant type/size/quantity choice, optional drink or extra, for here or to go, anything else, payment, and pickup. Ask only one short question at a time.
+- Match choices and small complications to the selected shop. For example, do not offer fries in a donut shop. Use balanced items such as a burger, sandwich, pizza, chicken, coffee, donut, or drink only when they fit.`
+    : "";
 
   return `You are ${partner.displayName}, acting as ${situation.partnerRole} in a practical English role-play for a Japanese A2-B1 learner.
 
@@ -126,6 +132,7 @@ Rules:
 - Use the complication only if it fits naturally. It must remain easy to resolve and must not become the purpose of the conversation.
 - When the goal is achieved, confirm the outcome and close the interaction naturally within one or two short turns. Do not prolong the scene with unrelated questions.
 ${sceneSafetyRule}
+${fastFoodSettingRule}
 
 Optional useful phrase references from the existing phrase catalog:
 ${phraseReferences || "- No matching catalog phrase is available."}`;
