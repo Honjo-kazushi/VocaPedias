@@ -32,6 +32,9 @@ test("fresh topics use the existing Gemini backend with Google Search and no new
   assert.match(functionSource, /news headline or a summary/);
   assert.match(functionSource, /learner's own experience, preferences, memories, simple choices, or feelings/);
   assert.match(functionSource, /Human Presence and Wildlife[\s\S]*title "Wildlife"/);
+  assert.match(functionSource, /function simplifyFreshTitle/);
+  assert.match(functionSource, /SIMPLE_TITLE_KEYWORDS\.find/);
+  assert.match(functionSource, /title: simpleTitle/);
   assert.match(firebaseSource, /\/api\/fresh-topics/);
 });
 

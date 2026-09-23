@@ -30,6 +30,32 @@ async function generateContentWithRetry(request) {
 
 const FRESH_TOPIC_CACHE_MS = 24 * 60 * 60 * 1000;
 let freshTopicCache = null;
+const SIMPLE_TITLE_KEYWORDS = [
+  ["AI", /\b(?:ai|artificial intelligence)\b/i],
+  ["Wildlife", /\b(?:wildlife|wild animals?)\b/i],
+  ["Trains", /\b(?:trains?|railways?|rail travel)\b/i],
+  ["Space", /\b(?:space|moon|mars|astronomy)\b/i],
+  ["Dogs", /\bdogs?\b/i], ["Cats", /\bcats?\b/i], ["Animals", /\banimals?\b/i],
+  ["Travel", /\b(?:travel|tourism|tourists?)\b/i], ["Coffee", /\bcoffee\b/i],
+  ["Food", /\b(?:food|meals?|dishes|cuisine)\b/i], ["Robots", /\brobots?\b/i],
+  ["Weather", /\b(?:weather|rain|snow|heat|cold)\b/i], ["Movies", /\b(?:movies?|films?)\b/i],
+  ["Music", /\b(?:music|songs?|concerts?)\b/i], ["Sports", /\b(?:sports?|games?|athletes?)\b/i],
+  ["Phones", /\b(?:phones?|smartphones?)\b/i], ["Shopping", /\b(?:shopping|shops?|stores?)\b/i],
+  ["Hotels", /\bhotels?\b/i], ["Festivals", /\bfestivals?\b/i], ["Flowers", /\bflowers?\b/i],
+  ["Beaches", /\bbeaches?\b/i], ["Health", /\b(?:health|fitness|exercise)\b/i],
+  ["Cars", /\b(?:cars?|vehicles?)\b/i], ["Technology", /\btechnology\b/i],
+  ["Science", /\bscience\b/i], ["Nature", /\bnature\b/i], ["Books", /\bbooks?\b/i],
+  ["Art", /\bart\b/i], ["Fashion", /\bfashion\b/i], ["Cooking", /\bcooking\b/i],
+];
+
+function simplifyFreshTitle(title, context, angles, category) {
+  const trimmed = title.trim();
+  if (trimmed.split(/\s+/).filter(Boolean).length <= 3 && trimmed.length <= 40) return trimmed;
+  const material = [trimmed, context, ...angles].join(" ");
+  const matched = SIMPLE_TITLE_KEYWORDS.find(([, pattern]) => pattern.test(material));
+  if (matched) return matched[0];
+  return { experience: "Experiences", opinion: "Ideas", comparison: "Choices", social: "People", imagination: "Dreams" }[category];
+}
 
 function parseJsonObject(text) {
   const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -47,11 +73,11 @@ function validateFreshTopics(value) {
     const angles = Array.isArray(topic.angles)
       ? topic.angles.filter((angle) => typeof angle === "string").map((angle) => angle.trim()).filter(Boolean)
       : [];
-    const titleWordCount = title.split(/\s+/).filter(Boolean).length;
-    if (!title || title.length > 40 || titleWordCount > 3 || !context || context.length > 320 || !categories.has(category) || angles.length < 4 || angles.length > 6) return null;
+    if (!title || !context || context.length > 320 || !categories.has(category) || angles.length < 4 || angles.length > 6) return null;
+    const simpleTitle = simplifyFreshTitle(title, context, angles, category);
     return {
       id: `fresh-${new Date().toISOString().slice(0, 10)}-${index + 1}`,
-      title,
+      title: simpleTitle,
       context,
       category,
       angles,
