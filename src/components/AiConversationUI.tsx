@@ -165,6 +165,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const { active: recognitionActive, start: startRecognition, cancel: cancelRecognition } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
+  const stageCharacter = review ? REVIEW_CHARACTER : visibleCharacter;
   const conversationLanguage = partnerId ? CHARACTER_PROFILES[partnerId].conversationLanguage : "en";
   const speechLocale = conversationLanguage === "ja" ? "ja-JP" : "en-US";
   const {
@@ -218,6 +219,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
   const partnerListEndRef = useRef<HTMLDivElement | null>(null);
   const topicFlowStartedAtRef = useRef<number | null>(null);
+  const desiredStageBackground = lessonStage === "conversation" && !review
+    ? scene
+      ? SCENE_BACKGROUNDS[scene.sceneId]
+      : topic
+        ? getTopicBackground(topic.id)
+        : emmaRoom
+    : emmaRoom;
+  const [displayedStageBackground, setDisplayedStageBackground] = useState(emmaRoom);
 
   const armConversationInactivityTimer = useCallback(() => {
     if (conversationInactivityTimerRef.current !== null) {
@@ -530,6 +539,21 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (!showIntro) return;
     setIntroOpeningComplete(false);
   }, [showIntro]);
+
+  useEffect(() => {
+    if (displayedStageBackground === desiredStageBackground) return;
+    const frame = window.requestAnimationFrame(() => {
+      setDisplayedStageBackground(desiredStageBackground);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [desiredStageBackground, displayedStageBackground]);
+
+  useEffect(() => {
+    tossaPerf("FLOW", "Character/background committed", {
+      characterId: stageCharacter.id,
+      background: displayedStageBackground,
+    });
+  }, [displayedStageBackground, stageCharacter.id]);
 
   useEffect(() => {
     const announcement = pendingPartnerAnnouncementRef.current;
@@ -924,7 +948,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const seconds = String(elapsedSeconds % 60).padStart(2, "0");
   const fiveMinutesPassed = elapsedSeconds >= 300;
   const tenMinutesPassed = elapsedSeconds >= 600;
-  const showTopicBackground = lessonStage === "conversation" && !review;
   const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
   // Base this on the user-visible turn, not recognitionActive: Chrome briefly
   // stops and restarts recognition while the same answer-waiting turn continues.
@@ -965,14 +988,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     );
   }
 
-  const stageBackground = showTopicBackground
-    ? scene
-      ? SCENE_BACKGROUNDS[scene.sceneId]
-      : topic
-        ? getTopicBackground(topic.id)
-        : emmaRoom
-    : emmaRoom;
-
   return (
     <section className="ai-conversation" aria-label="AI英会話">
       <header className="ai-topic-header">
@@ -986,10 +1001,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
       <div
         className={`character-stage ${isSpeaking ? "speaking" : ""} ${rescueBusy ? "help-rescue" : ""} with-scene-background`}
-        style={{ backgroundImage: `url(${stageBackground})` }}
+        style={{ backgroundImage: `url(${displayedStageBackground})` }}
       >
         <CharacterAvatar
-          character={review ? REVIEW_CHARACTER : visibleCharacter}
+          key={stageCharacter.id}
+          character={stageCharacter}
           expression={review ? reviewExpression : phase === "thinking" || phase === "ttsPending" ? "thinking" : idleActive && idleVisual.expression !== "neutral" ? idleVisual.expression : partnerExpression}
           isListening={!review && (phase === "recognizing" || (idleActive && idleVisual.listening))}
           listeningPose={phase === "recognizing" ? listeningPose : idleActive ? idleVisual.pose : "neutral"}

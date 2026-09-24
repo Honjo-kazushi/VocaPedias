@@ -94,6 +94,16 @@ test("partner list scroll inspection finishes before Emma starts the selection g
   assert.match(block, /announcePartnerSelection\(announcement, token\)/);
 });
 
+test("conversation transitions replace the character before applying the next background", () => {
+  assert.match(uiSource, /const desiredStageBackground = lessonStage === "conversation" && !review/);
+  assert.match(uiSource, /const \[displayedStageBackground, setDisplayedStageBackground\] = useState\(emmaRoom\)/);
+  assert.match(uiSource, /requestAnimationFrame\(\(\) => \{\s*setDisplayedStageBackground\(desiredStageBackground\)/);
+  assert.match(uiSource, /const stageCharacter = review \? REVIEW_CHARACTER : visibleCharacter/);
+  assert.match(uiSource, /key=\{stageCharacter\.id\}/);
+  assert.match(uiSource, /backgroundImage: `url\(\$\{displayedStageBackground\}\)`/);
+  assert.doesNotMatch(uiSource, /img\.decode\(|Promise\.all\(|naturalWidth|\.complete/);
+});
+
 test("conversation and selection inactivity return directly to top with bounded timers", () => {
   assert.match(uiSource, /CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 \* 60 \* 1000/);
   assert.match(uiSource, /SELECTION_INACTIVITY_TIMEOUT_MS = 3 \* 60 \* 1000/);
