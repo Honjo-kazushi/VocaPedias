@@ -1,9 +1,28 @@
 import { CHARACTER_PROFILES, type CharacterId, type CharacterProfile } from "../characters/characterProfiles";
+import { tossaPerf as logTossaPerf } from "../debug/tossaPerf";
 import { selectCharacterVoice } from "./selectCharacterVoice";
 
 function tossaPerf(event: string, details: Record<string, unknown> = {}): void {
-  if (new URLSearchParams(window.location?.search ?? "").get("perfDebug") !== "1") return;
-  console.log(`[TOSSA PERF][TTS] ${JSON.stringify({ timestamp: performance.now(), event, ...details })}`);
+  const ua = navigator.userAgent;
+  const deviceGroup = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    ? "apple-touch"
+    : /Mac/i.test(navigator.platform)
+      ? "mac"
+      : /Android/i.test(ua)
+        ? "android"
+        : /Win/i.test(navigator.platform)
+          ? "windows"
+          : "other";
+  logTossaPerf("TTS", event, { deviceGroup, ...details });
+}
+
+function voiceDetails(voice: SpeechSynthesisVoice | null): Record<string, unknown> {
+  return {
+    voiceName: voice?.name ?? "Browser default",
+    voiceLang: voice?.lang ?? "Browser default",
+    localService: voice?.localService ?? null,
+    default: voice?.default ?? null,
+  };
 }
 
 export type SpeechLocale = "ja-JP" | "en-US";
@@ -299,7 +318,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
-          tossaPerf("utterance onstart", { characterId: item.characterId ?? characterId, index, voiceName: utterance.voice?.name ?? "Browser default", lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
+          tossaPerf("utterance onstart", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
           callbacks.onItemStart(item, index);
         };
         utterance.onboundary = (event) => {
@@ -319,7 +338,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           }
         };
         utterance.onerror = () => cancel("error");
-        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, voiceName: utterance.voice?.name ?? "Browser default", lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
+        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
         synth.speak(utterance);
       });
     } catch {
@@ -376,7 +395,7 @@ export function speakEnSentences(
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
-          tossaPerf("utterance onstart", { characterId, index, voiceName: utter.voice?.name ?? "Browser default", lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
+          tossaPerf("utterance onstart", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
           callbacks.onSentenceStart(sentence);
         };
         utter.onboundary = (event) => {
@@ -396,7 +415,7 @@ export function speakEnSentences(
           }
         };
         utter.onerror = () => cancel("error");
-        tossaPerf("speechSynthesis.speak", { characterId, index, voiceName: utter.voice?.name ?? "Browser default", lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
+        tossaPerf("speechSynthesis.speak", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
         synth.speak(utter);
       });
     } catch {

@@ -40,3 +40,66 @@
 .read-the-docs {
   color: #888;
 }
+
+.perf-debug-trigger {
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 10000;
+  padding: 6px 9px;
+  border: 1px solid #8bd5ff;
+  border-radius: 7px;
+  background: rgba(8, 22, 34, 0.88);
+  color: #dff5ff;
+  font: 700 12px/1 system-ui, sans-serif;
+}
+
+.perf-debug-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.perf-debug-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 96vw);
+  height: min(680px, 88vh);
+  padding: 12px;
+  border: 1px solid #7fcfff;
+  border-radius: 10px;
+  background: #07131d;
+  color: #e9f7ff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.perf-debug-panel header,
+.perf-debug-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.perf-debug-panel header { justify-content: space-between; }
+.perf-debug-panel button { min-height: 34px; padding: 6px 12px; }
+.perf-debug-actions { margin: 8px 0; }
+.perf-debug-actions span { font-size: 12px; }
+.perf-debug-panel textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  border: 1px solid #365263;
+  border-radius: 6px;
+  padding: 10px;
+  background: #02080d;
+  color: #d7f2ff;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}

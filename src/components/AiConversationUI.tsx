@@ -219,6 +219,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
   const partnerListEndRef = useRef<HTMLDivElement | null>(null);
   const topicFlowStartedAtRef = useRef<number | null>(null);
+  const loadedPartnerThumbnailsRef = useRef(new Set<string>());
   const desiredStageBackground = lessonStage === "conversation" && !review
     ? scene
       ? SCENE_BACKGROUNDS[scene.sceneId]
@@ -390,6 +391,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   }, [stopInteraction]);
 
   const beginSceneSelection = useCallback(() => {
+    tossaPerf("FLOW", "Scene click");
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
@@ -413,6 +415,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setPhase("ttsPending");
     window.requestAnimationFrame(() => {
       if (!mountedRef.current || startTokenRef.current !== token) return;
+      tossaPerf("FLOW", "Scene TTS request");
       speakCharacterItems([{ lang: "en-US", text: SCENE_SELECTION_PROMPT }], {
         onItemStart: () => {
           if (startTokenRef.current !== token) return;
@@ -448,6 +451,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     ++startTokenRef.current;
     const nextScene = chooseSceneSituation(sceneFamily);
     const nextPartnerId = chooseScenePartner(nextScene, partnerId);
+    tossaPerf("FLOW", "Scene selected", { sceneId: sceneFamily.id, situationId: nextScene.id, characterId: nextPartnerId });
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction();
@@ -473,6 +477,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   const selectPartner = (id: CharacterId) => {
     if (!partnerSelectionReady || requestBusyRef.current) return;
+    tossaPerf("FLOW", "Partner selected", { characterId: id });
     startTokenRef.current += 1;
     lessonEndingRef.current = false;
     stopInteraction();
@@ -577,6 +582,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   }, [announcePartnerSelection, lessonStage, partnerSelectionReady, showIntro]);
 
   useEffect(() => {
+    if (showIntro || lessonStage !== "partnerSelect") return;
+    loadedPartnerThumbnailsRef.current.clear();
+    tossaPerf("IMAGE", "partner list mounted", { expected: ENGLISH_PARTNERS.length + (scene ? 1 : 2) });
+  }, [lessonStage, scene, showIntro]);
+
+  useEffect(() => {
     if (showIntro || lessonStage !== "sceneSelect") return;
     const timer = window.setTimeout(() => returnToTopRef.current(), SELECTION_INACTIVITY_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
@@ -597,6 +608,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = true;
     setPhase("thinking");
     setBusy(true);
+    tossaPerf("FLOW", "Opening request start", { characterId: partnerId, lessonType: scene ? "scene" : "topic" });
     if (import.meta.env.DEV) {
       console.debug("[TossaSpeak]", {
         Lesson: topic?.title ?? `${scene?.sceneTitle}: ${scene?.title}`,
@@ -610,6 +622,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     void openingRequest
       .then((opening) => {
         if (!mountedRef.current || startTokenRef.current !== token) return;
+        tossaPerf("FLOW", "Opening response", { characterId: partnerId, length: opening.length });
         setMessages([{ role: "assistant", content: opening }]);
         queueAssistantSpeech(opening, token);
       })
@@ -1063,7 +1076,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 onClick={() => runButtonAction(() => selectPartner(partner.id))}
                 disabled={!partnerSelectionReady}
               >
-                <img src={PARTNER_THUMBNAILS[partner.id]} alt="" />
+                <img src={PARTNER_THUMBNAILS[partner.id]} alt="" onLoad={() => {
+                  const loaded = loadedPartnerThumbnailsRef.current;
+                  if (loaded.has(partner.id)) return;
+                  loaded.add(partner.id);
+                  if (loaded.size === 1) tossaPerf("IMAGE", "first partner thumbnail loaded", { characterId: partner.id });
+                  const expected = ENGLISH_PARTNERS.length + (scene ? 1 : 2);
+                  if (loaded.size === expected) tossaPerf("IMAGE", "all partner thumbnails loaded", { count: loaded.size });
+                }} />
                 <span>{partner.name}</span>
               </button>
             ))}
@@ -1073,7 +1093,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
               onClick={() => runButtonAction(selectAnyone)}
               disabled={!partnerSelectionReady}
             >
-              <img src={ANYONE_THUMBNAIL} alt="" />
+              <img src={ANYONE_THUMBNAIL} alt="" onLoad={() => {
+                const loaded = loadedPartnerThumbnailsRef.current;
+                if (loaded.has("anyone")) return;
+                loaded.add("anyone");
+                if (loaded.size === 1) tossaPerf("IMAGE", "first partner thumbnail loaded", { characterId: "anyone" });
+                const expected = ENGLISH_PARTNERS.length + (scene ? 1 : 2);
+                if (loaded.size === expected) tossaPerf("IMAGE", "all partner thumbnails loaded", { count: loaded.size });
+              }} />
               <span>Anyone</span>
             </button>
             {!scene && (
@@ -1083,7 +1110,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 onClick={() => runButtonAction(() => selectPartner(MIYABI.id))}
                 disabled={!partnerSelectionReady}
               >
-                <img src={PARTNER_THUMBNAILS[MIYABI.id]} alt="" />
+                <img src={PARTNER_THUMBNAILS[MIYABI.id]} alt="" onLoad={() => {
+                  const loaded = loadedPartnerThumbnailsRef.current;
+                  if (loaded.has(MIYABI.id)) return;
+                  loaded.add(MIYABI.id);
+                  if (loaded.size === 1) tossaPerf("IMAGE", "first partner thumbnail loaded", { characterId: MIYABI.id });
+                  const expected = ENGLISH_PARTNERS.length + 2;
+                  if (loaded.size === expected) tossaPerf("IMAGE", "all partner thumbnails loaded", { count: loaded.size });
+                }} />
                 <span>{MIYABI.name}</span>
               </button>
             )}

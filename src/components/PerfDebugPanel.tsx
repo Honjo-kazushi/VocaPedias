@@ -1,0 +1,108 @@
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  clearTossaPerfEntries,
+  getTossaPerfEntries,
+  subscribeTossaPerf,
+  type TossaPerfEntry,
+} from "../debug/tossaPerf";
+
+const AREAS = ["FLOW", "TTS", "SPEECH", "FRESH", "IMAGE"] as const;
+
+function detailText(data: Record<string, unknown>): string {
+  return Object.entries(data).map(([key, value]) => `${key}=${String(value)}`).join("  ");
+}
+
+function last(entries: readonly TossaPerfEntry[], area: string, event: string): TossaPerfEntry | undefined {
+  return [...entries].reverse().find((entry) => entry.area === area && entry.event === event);
+}
+
+function duration(entries: readonly TossaPerfEntry[], label: string, fromArea: string, fromEvent: string, toArea: string, toEvent: string): string | null {
+  const end = last(entries, toArea, toEvent);
+  if (!end) return null;
+  const start = [...entries].reverse().find((entry) => entry.at <= end.at && entry.area === fromArea && entry.event === fromEvent);
+  return start ? `${label}: ${Math.round(end.at - start.at)} ms` : null;
+}
+
+function deviceText(): string {
+  return [
+    "=== DEVICE ===",
+    `UA: ${navigator.userAgent}`,
+    `platform: ${navigator.platform || "unknown"}`,
+    `maxTouchPoints: ${navigator.maxTouchPoints}`,
+    `screen: ${screen.width} x ${screen.height}`,
+    `devicePixelRatio: ${window.devicePixelRatio}`,
+  ].join("\n");
+}
+
+function buildReport(entries: readonly TossaPerfEntry[], voices: readonly SpeechSynthesisVoice[]): string {
+  const timings = [
+    duration(entries, "Talk click → Emma TTS request", "FLOW", "Talk Topic click / topic selected", "FLOW", "Emma guide TTS requested"),
+    duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "speechSynthesis.speak"),
+    duration(entries, "speak → onstart", "TTS", "speechSynthesis.speak", "TTS", "utterance onstart"),
+    duration(entries, "Partner selected → Opening request", "FLOW", "Partner selected", "FLOW", "Opening request start"),
+    duration(entries, "Opening request → response", "FLOW", "Opening request start", "FLOW", "Opening response"),
+    duration(entries, "response → Character speak", "FLOW", "Opening response", "TTS", "speechSynthesis.speak"),
+    duration(entries, "speechend → final", "SPEECH", "onspeechend/onsoundend", "SPEECH", "final result"),
+    duration(entries, "final → soft timer", "SPEECH", "final result", "SPEECH", "soft timer fire"),
+    duration(entries, "soft timer → Gemini send", "SPEECH", "soft timer fire", "SPEECH", "Gemini request start"),
+  ].filter(Boolean);
+  const current = last(entries, "TTS", "speechSynthesis.speak") ?? last(entries, "TTS", "utterance onstart");
+  const sections = AREAS.map((area) => {
+    const areaEntries = entries.filter((entry) => entry.area === area);
+    return [`=== ${area} ===`, ...areaEntries.map((entry) => `+${Math.round(entry.at)}ms ${entry.event}${Object.keys(entry.data).length ? `  ${detailText(entry.data)}` : ""}`)].join("\n");
+  });
+  return [
+    deviceText(),
+    "=== DURATIONS ===",
+    timings.length ? timings.join("\n") : "No completed timing pairs yet.",
+    "=== CURRENT VOICE ===",
+    current ? detailText(current.data) : "No voice selected yet.",
+    ...sections,
+    "=== VOICES ===",
+    voices.length ? voices.map((voice) => `${voice.name} | ${voice.lang} | local=${voice.localService} | default=${voice.default}`).join("\n") : "No voices returned yet.",
+  ].join("\n\n");
+}
+
+export default function PerfDebugPanel() {
+  const [open, setOpen] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const entries = useSyncExternalStore(subscribeTossaPerf, () => getTossaPerfEntries(), () => []);
+  const report = useMemo(() => buildReport(
+    entries,
+    open && "speechSynthesis" in window ? window.speechSynthesis.getVoices() : [],
+  ), [entries, open]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(report);
+      setCopyStatus("Copied");
+    } catch {
+      textareaRef.current?.focus();
+      textareaRef.current?.select();
+      setCopyStatus("Select All → Copy");
+    }
+  };
+
+  return (
+    <div className="perf-debug-root">
+      <button className="perf-debug-trigger" type="button" onClick={() => setOpen(true)}>PERF</button>
+      {open && (
+        <div className="perf-debug-overlay" role="dialog" aria-modal="true" aria-label="PERF diagnostics">
+          <section className="perf-debug-panel">
+            <header>
+              <strong>PERF diagnostics</strong>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close PERF diagnostics">×</button>
+            </header>
+            <div className="perf-debug-actions">
+              <button type="button" onClick={() => void copy()}>Copy</button>
+              <button type="button" onClick={() => { clearTossaPerfEntries(); setCopyStatus("Cleared"); }}>Clear</button>
+              <span aria-live="polite">{copyStatus}</span>
+            </div>
+            <textarea ref={textareaRef} readOnly value={report} aria-label="PERF diagnostic report" />
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
