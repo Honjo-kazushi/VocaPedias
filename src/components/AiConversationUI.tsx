@@ -29,17 +29,17 @@ import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
+import { ANYONE_THUMBNAIL, PARTNER_THUMBNAILS, SCENE_THUMBNAILS } from "../data/imageThumbnails";
 import { CHARACTER_PROFILES, ENGLISH_CONVERSATION_PARTNER_IDS, type CharacterId, type ConversationLanguage } from "../characters/characterProfiles";
-import anyoneNeutralClosed from "../assets/characters/anyone/anyone_neutral_closed.png";
-import emmaRoom from "../assets/backgrounds/emma_room.png";
-import hotelBackground from "../assets/backgrounds/hotel.png";
-import airportBackground from "../assets/backgrounds/airport.png";
-import streetBackground from "../assets/backgrounds/street.png";
-import restaurantBackground from "../assets/backgrounds/restaurant.png";
-import marketBackground from "../assets/backgrounds/market.png";
-import stationBackground from "../assets/backgrounds/station.png";
-import hospitalBackground from "../assets/backgrounds/hospital.png";
-import fastFoodBackground from "../assets/backgrounds/fastfood.png";
+import emmaRoom from "../assets/backgrounds/emma_room.webp";
+import hotelBackground from "../assets/backgrounds/hotel.webp";
+import airportBackground from "../assets/backgrounds/airport.webp";
+import streetBackground from "../assets/backgrounds/street.webp";
+import restaurantBackground from "../assets/backgrounds/restaurant.webp";
+import marketBackground from "../assets/backgrounds/market.webp";
+import stationBackground from "../assets/backgrounds/station.webp";
+import hospitalBackground from "../assets/backgrounds/hospital.webp";
+import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
@@ -55,10 +55,6 @@ let previousTopicWasFresh = false;
 const REVIEW_CHARACTER = getCharacter("emma");
 const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharacter(id));
 const MIYABI = getCharacter("miyabi");
-const APPEAL_PARTNER_IDS = [
-  "mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi",
-] as const satisfies readonly CharacterId[];
-const APPEAL_PARTNERS = APPEAL_PARTNER_IDS.map((id) => getCharacter(id));
 const PARTNER_SELECTION_PROMPT = "Who would you like to talk with today?";
 const SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice.";
 const SCENE_BACKGROUNDS = {
@@ -71,15 +67,6 @@ const SCENE_BACKGROUNDS = {
   hospital: hospitalBackground,
   fastfood: fastFoodBackground,
 } as const;
-
-function shuffled<T>(items: readonly T[], random: () => number = Math.random): T[] {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(random() * (index + 1));
-    [result[index], result[target]] = [result[target], result[index]];
-  }
-  return result;
-}
 
 function chooseTopic(freshTopics: readonly FreshTalkTopic[] = [], random: () => number = Math.random): TalkTopic {
   const requestedTitle = new URLSearchParams(window.location.search).get("topic");
@@ -171,7 +158,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [rescueMessage, setRescueMessage] = useState("");
   const [awaitingUserInput, setAwaitingUserInput] = useState(false);
   const [hasRecognizedSpeech, setHasRecognizedSpeech] = useState(false);
-  const [selectionPreview, setSelectionPreview] = useState<{ characterId: CharacterId; src: string } | null>(null);
   const requestBusyRef = useRef(false);
   const lessonEndingRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
@@ -572,64 +558,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (showIntro || lessonStage !== "partnerSelect" || !partnerSelectionReady) return;
     const timer = window.setTimeout(() => returnToTopRef.current(), SELECTION_INACTIVITY_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
-  }, [lessonStage, partnerSelectionReady, showIntro]);
-
-  useEffect(() => {
-    if (showIntro || lessonStage !== "partnerSelect" || !partnerSelectionReady) {
-      setSelectionPreview(null);
-      return;
-    }
-    const candidates = [...APPEAL_PARTNERS];
-    const expressionKeys = ["smile", "thinking", "surprised", "blink", "nod"] as const;
-    let characterBag = shuffled(candidates);
-    let expressionBag = shuffled(expressionKeys);
-    let previousCharacterId: CharacterId | null = null;
-    let previousExpression: typeof expressionKeys[number] | null = null;
-    let nextTimer: number | null = null;
-    let restoreTimer: number | null = null;
-    const refillCharacterBag = () => {
-      characterBag = shuffled(candidates);
-      if (characterBag.length > 1 && characterBag[0].id === previousCharacterId) {
-        [characterBag[0], characterBag[1]] = [characterBag[1], characterBag[0]];
-      }
-    };
-    const refillExpressionBag = () => {
-      expressionBag = shuffled(expressionKeys);
-      if (expressionBag.length > 1 && expressionBag[0] === previousExpression) {
-        [expressionBag[0], expressionBag[1]] = [expressionBag[1], expressionBag[0]];
-      }
-    };
-    const schedule = () => {
-      nextTimer = window.setTimeout(() => {
-        if (!characterBag.length) refillCharacterBag();
-        if (!expressionBag.length) refillExpressionBag();
-        const selected = characterBag.shift()!;
-        const expression = expressionBag.shift()!;
-        previousCharacterId = selected.id;
-        previousExpression = expression;
-        const imageByExpression = {
-          smile: selected.expressions.smile.closed,
-          thinking: selected.expressions.thinking.closed,
-          surprised: selected.expressions.surprised.closed,
-          blink: selected.listening?.blink ?? selected.expressions.smile.closed,
-          nod: selected.listening?.nod ?? selected.expressions.thinking.closed,
-        };
-        setSelectionPreview({
-          characterId: selected.id,
-          src: imageByExpression[expression],
-        });
-        restoreTimer = window.setTimeout(() => {
-          setSelectionPreview(null);
-          schedule();
-        }, 1000 + Math.random() * 1000);
-      }, 4000 + Math.random() * 4000);
-    };
-    schedule();
-    return () => {
-      if (nextTimer !== null) window.clearTimeout(nextTimer);
-      if (restoreTimer !== null) window.clearTimeout(restoreTimer);
-      setSelectionPreview(null);
-    };
   }, [lessonStage, partnerSelectionReady, showIntro]);
 
   useEffect(() => {
@@ -1083,7 +1011,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 className="scene-roleplay-card"
                 data-scene-id={family.id}
                 key={family.id}
-                style={{ "--scene-card-background": `url(${SCENE_BACKGROUNDS[family.id]})` } as CSSProperties}
+                style={{ "--scene-card-background": `url(${SCENE_THUMBNAILS[family.id]})` } as CSSProperties}
                 onClick={() => runButtonAction(() => beginScene(family))}
               >
                 <strong>{family.title}</strong>
@@ -1106,7 +1034,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 onClick={() => runButtonAction(() => selectPartner(partner.id))}
                 disabled={!partnerSelectionReady}
               >
-                <img src={selectionPreview?.characterId === partner.id ? selectionPreview.src : partner.expressions.neutral.closed} alt="" />
+                <img src={PARTNER_THUMBNAILS[partner.id]} alt="" />
                 <span>{partner.name}</span>
               </button>
             ))}
@@ -1116,7 +1044,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
               onClick={() => runButtonAction(selectAnyone)}
               disabled={!partnerSelectionReady}
             >
-              <img src={anyoneNeutralClosed} alt="" />
+              <img src={ANYONE_THUMBNAIL} alt="" />
               <span>Anyone</span>
             </button>
             {!scene && (
@@ -1126,7 +1054,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 onClick={() => runButtonAction(() => selectPartner(MIYABI.id))}
                 disabled={!partnerSelectionReady}
               >
-                <img src={selectionPreview?.characterId === MIYABI.id ? selectionPreview.src : MIYABI.expressions.neutral.closed} alt="" />
+                <img src={PARTNER_THUMBNAILS[MIYABI.id]} alt="" />
                 <span>{MIYABI.name}</span>
               </button>
             )}

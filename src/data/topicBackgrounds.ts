@@ -1,12 +1,12 @@
-import airport from "../assets/backgrounds/airport.png";
-import cafe from "../assets/backgrounds/cafe.png";
-import classroom from "../assets/backgrounds/classroom.png";
-import home from "../assets/backgrounds/home.png";
-import office from "../assets/backgrounds/office.png";
-import park from "../assets/backgrounds/park.png";
-import restaurant from "../assets/backgrounds/restaurant.png";
-import station from "../assets/backgrounds/station.png";
-import street from "../assets/backgrounds/street.png";
+import airport from "../assets/backgrounds/airport.webp";
+import cafe from "../assets/backgrounds/cafe.webp";
+import classroom from "../assets/backgrounds/classroom.webp";
+import home from "../assets/backgrounds/home.webp";
+import office from "../assets/backgrounds/office.webp";
+import park from "../assets/backgrounds/park.webp";
+import restaurant from "../assets/backgrounds/restaurant.webp";
+import station from "../assets/backgrounds/station.webp";
+import street from "../assets/backgrounds/street.webp";
 
 export const DEFAULT_TOPIC_BACKGROUND = cafe;
 
