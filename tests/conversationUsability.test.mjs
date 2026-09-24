@@ -48,7 +48,7 @@ test("partner selection scrolls by DOM position only when the list end is outsid
   assert.match(uiSource, /getBoundingClientRect\(\)/);
   assert.match(uiSource, /getBoundingClientRect\(\)\.bottom > window\.innerHeight - 12/);
   assert.match(uiSource, /scrollIntoView\(\{ behavior: "smooth", block: "end" \}\)/);
-  assert.match(uiSource, /needsScroll \? 700 : 0/);
+  assert.doesNotMatch(uiSource, /needsScroll \? 700 : 0/);
   assert.match(uiSource, /partnerListEndRef/);
   assert.doesNotMatch(uiSource, /window\.scrollTo/);
 });
@@ -87,10 +87,10 @@ test("Review inactivity returns to top after five minutes and resets on explicit
 
 test("partner list scroll inspection finishes before Emma starts the selection guide", () => {
   const block = uiSource.slice(uiSource.indexOf("const announcement = pendingPartnerAnnouncementRef.current"), uiSource.indexOf("useEffect(() => {", uiSource.indexOf("const announcement = pendingPartnerAnnouncementRef.current") + 20));
-  assert.match(block, /400/);
+  assert.match(block, /requestAnimationFrame/);
   assert.match(block, /getBoundingClientRect\(\)\.bottom > window\.innerHeight - 12/);
   assert.match(block, /scrollIntoView\(\{ behavior: "smooth", block: "end" \}\)/);
-  assert.match(block, /needsScroll \? 700 : 0/);
+  assert.doesNotMatch(block, /needsScroll \? 700 : 0/);
   assert.match(block, /announcePartnerSelection\(announcement, token\)/);
 });
 

@@ -128,7 +128,7 @@ test("conversation automatically alternates completed TTS and one final recognit
 });
 
 test("recognition sessions feed one guarded utterance buffer with soft and hard finalization", () => {
-  assert.match(uiSource, /SOFT_UTTERANCE_TIMEOUT_MS = 2500/);
+  assert.match(uiSource, /SOFT_UTTERANCE_TIMEOUT_MS = 1500/);
   assert.match(uiSource, /HARD_UTTERANCE_TIMEOUT_MS = 7000/);
   assert.match(uiSource, /utteranceBufferRef\.current = mergeSpeechTranscript\(before, text, conversationLanguage\)/);
   assert.match(uiSource, /userTurnIdRef\.current \+= 1/);

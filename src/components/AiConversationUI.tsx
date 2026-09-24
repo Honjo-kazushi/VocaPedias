@@ -41,11 +41,12 @@ import stationBackground from "../assets/backgrounds/station.webp";
 import hospitalBackground from "../assets/backgrounds/hospital.webp";
 import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
+import { tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
 
-export const SOFT_UTTERANCE_TIMEOUT_MS = 2500;
+export const SOFT_UTTERANCE_TIMEOUT_MS = 1500;
 export const HARD_UTTERANCE_TIMEOUT_MS = 7000;
 export const CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 export const SELECTION_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
@@ -216,6 +217,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const speechRateMultiplierRef = useRef(1);
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
   const partnerListEndRef = useRef<HTMLDivElement | null>(null);
+  const topicFlowStartedAtRef = useRef<number | null>(null);
 
   const armConversationInactivityTimer = useCallback(() => {
     if (conversationInactivityTimerRef.current !== null) {
@@ -349,6 +351,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   }, [speakCharacterItems]);
 
   const beginLesson = useCallback((nextTopic: TalkTopic) => {
+    topicFlowStartedAtRef.current = performance.now();
+    tossaPerf("FLOW", "Talk Topic click / topic selected", { topicId: nextTopic.id, topicType: isFreshTalkTopic(nextTopic) ? "fresh" : "fixed" });
     ++startTokenRef.current;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
@@ -532,20 +536,20 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (showIntro || lessonStage !== "partnerSelect" || partnerSelectionReady || !announcement) return;
     pendingPartnerAnnouncementRef.current = null;
     const token = startTokenRef.current;
-    let guideTimer: number | null = null;
-    const inspectTimer = window.setTimeout(() => {
+    const frame = window.requestAnimationFrame(() => {
       const target = partnerListEndRef.current ?? partnerCancelRef.current;
       const needsScroll = target ? target.getBoundingClientRect().bottom > window.innerHeight - 12 : false;
+      tossaPerf("FLOW", "Partner list rendered / scroll checked", {
+        needsScroll,
+        sinceTalkClickMs: topicFlowStartedAtRef.current === null ? null : performance.now() - topicFlowStartedAtRef.current,
+      });
       if (needsScroll) target?.scrollIntoView({ behavior: "smooth", block: "end" });
-      guideTimer = window.setTimeout(
-        () => announcePartnerSelection(announcement, token),
-        needsScroll ? 700 : 0,
-      );
-    }, 400);
-    return () => {
-      window.clearTimeout(inspectTimer);
-      if (guideTimer !== null) window.clearTimeout(guideTimer);
-    };
+      tossaPerf("FLOW", "Emma guide TTS requested", {
+        sinceTalkClickMs: topicFlowStartedAtRef.current === null ? null : performance.now() - topicFlowStartedAtRef.current,
+      });
+      announcePartnerSelection(announcement, token);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [announcePartnerSelection, lessonStage, partnerSelectionReady, showIntro]);
 
   useEffect(() => {
@@ -674,6 +678,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setError(null);
     setBusy(true);
     speechDebug("Gemini send snapshot", { snapshotId: snapshot.id, generation: snapshot.generation, text: snapshot.text });
+    tossaPerf("SPEECH", "Gemini request start", { snapshotId: snapshot.id, generation: snapshot.generation, userTurnId: snapshot.id });
     if (conversationLanguage === "en") {
       const rateIntent = detectSpeechRateIntent(snapshot.text);
       speechRateMultiplierRef.current = applySpeechRateIntent(speechRateMultiplierRef.current, rateIntent);
@@ -725,6 +730,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!snapshot) return;
       utteranceSentRef.current = true;
       speechDebug("UserTurn finalized / Snapshot created", { generation: token, userTurnId, reason, snapshotId: snapshot.id, text: snapshot.text });
+      tossaPerf("SPEECH", "snapshot", { generation: token, userTurnId, reason, snapshotId: snapshot.id });
       utteranceBufferRef.current = "";
       speechDebug("utterance buffer cleared", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
       if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
@@ -745,8 +751,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       softFinalizeTimerRef.current = window.setTimeout(() => {
         softFinalizeTimerRef.current = null;
         speechDebug("soft timer fired", { generation: token, userTurnId });
+        tossaPerf("SPEECH", "soft timer fire", { generation: token, userTurnId, timeoutMs: SOFT_UTTERANCE_TIMEOUT_MS });
         finalizeUserTurn("soft");
       }, SOFT_UTTERANCE_TIMEOUT_MS);
+      // This remains as a safety ceiling. Because both timers reset together,
+      // the soft timer normally finalizes the turn before this one can fire.
       hardFinalizeTimerRef.current = window.setTimeout(() => {
         hardFinalizeTimerRef.current = null;
         speechDebug("hard timer fired", { generation: token, userTurnId });
@@ -778,6 +787,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           armConversationInactivityTimer();
         }
         speechDebug("utterance buffer changed", { generation: token, userTurnId, before, after: utteranceBufferRef.current, final: text });
+        tossaPerf("SPEECH", "final result", { generation: token, userTurnId, text });
         if (showConversationCaptions) setInterimCaption(utteranceBufferRef.current);
         resetUserTurnTimers("final result");
       },
@@ -786,7 +796,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         speechDebug("speechstart", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
       },
       onSpeechEnd: () => {
-        if (startTokenRef.current === token) speechDebug("speechend", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
+        if (startTokenRef.current === token) {
+          speechDebug("speechend", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
+          tossaPerf("SPEECH", "onspeechend/onsoundend", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
+        }
       },
       onTranscript: (text) => {
         if (startTokenRef.current !== token || utteranceSentRef.current) return;

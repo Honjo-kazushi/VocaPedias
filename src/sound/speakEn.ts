@@ -1,6 +1,11 @@
 import { CHARACTER_PROFILES, type CharacterId, type CharacterProfile } from "../characters/characterProfiles";
 import { selectCharacterVoice } from "./selectCharacterVoice";
 
+function tossaPerf(event: string, details: Record<string, unknown> = {}): void {
+  if (new URLSearchParams(window.location?.search ?? "").get("perfDebug") !== "1") return;
+  console.log(`[TOSSA PERF][TTS] ${JSON.stringify({ timestamp: performance.now(), event, ...details })}`);
+}
+
 export type SpeechLocale = "ja-JP" | "en-US";
 export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese?: boolean; characterId?: CharacterId; avoidVoiceCharacterId?: CharacterId; rateMultiplier?: number };
 
@@ -56,6 +61,7 @@ function deferSpeechStart(
     timer = window.setTimeout(() => {
       if (disposed) return;
       dispose();
+      tossaPerf("fixed delay complete", { characterId: warmupVoice.characterId, delayMs: SPEECH_START_DELAY_MS });
       start();
     }, SPEECH_START_DELAY_MS);
   };
@@ -76,18 +82,21 @@ function deferSpeechStart(
       );
       const key = voiceKey(warmup);
       if (warmedVoiceKeys.has(key)) {
+        tossaPerf("warmup skipped", { characterId: warmupVoice.characterId, voiceKey: key });
         warming = false;
         warmup = undefined;
         scheduleStart();
         return;
       }
       warmup.volume = 0;
+      tossaPerf("warmup start", { characterId: warmupVoice.characterId, voiceKey: key, voiceName: warmup.voice?.name ?? "Browser default", lang: warmup.lang });
       let finished = false;
       const finishWarmup = () => {
         if (disposed || finished) return;
         finished = true;
         warming = false;
         warmedVoiceKeys.add(key);
+        tossaPerf("warmup end", { characterId: warmupVoice.characterId, voiceKey: key });
         window.clearTimeout(timer);
         if (warmup) {
           warmup.onend = null;
@@ -107,7 +116,10 @@ function deferSpeechStart(
   const hasRequestedVoice = () => {
     try {
       const prefix = warmupVoice.locale === "ja-JP" ? "ja" : "en";
-      return synth.getVoices().some((voice) => new RegExp(`^${prefix}(?:[-_]|$)`, "i").test(voice.lang));
+      tossaPerf("getVoices start", { characterId: warmupVoice.characterId, locale: warmupVoice.locale });
+      const voices = synth.getVoices();
+      tossaPerf("getVoices complete", { characterId: warmupVoice.characterId, locale: warmupVoice.locale, voiceCount: voices.length });
+      return voices.some((voice) => new RegExp(`^${prefix}(?:[-_]|$)`, "i").test(voice.lang));
     } catch {
       return false;
     }
@@ -287,6 +299,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          tossaPerf("utterance onstart", { characterId: item.characterId ?? characterId, index, voiceName: utterance.voice?.name ?? "Browser default", lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
           callbacks.onItemStart(item, index);
         };
         utterance.onboundary = (event) => {
@@ -294,6 +307,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         };
         utterance.onend = () => {
           if (stopped || ended.has(index)) return;
+          tossaPerf("utterance onend", { characterId: item.characterId ?? characterId, index });
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
@@ -305,6 +319,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           }
         };
         utterance.onerror = () => cancel("error");
+        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, voiceName: utterance.voice?.name ?? "Browser default", lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
         synth.speak(utterance);
       });
     } catch {
@@ -361,6 +376,7 @@ export function speakEnSentences(
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          tossaPerf("utterance onstart", { characterId, index, voiceName: utter.voice?.name ?? "Browser default", lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
           callbacks.onSentenceStart(sentence);
         };
         utter.onboundary = (event) => {
@@ -368,6 +384,7 @@ export function speakEnSentences(
         };
         utter.onend = () => {
           if (stopped || ended.has(index)) return;
+          tossaPerf("utterance onend", { characterId, index });
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
@@ -379,6 +396,7 @@ export function speakEnSentences(
           }
         };
         utter.onerror = () => cancel("error");
+        tossaPerf("speechSynthesis.speak", { characterId, index, voiceName: utter.voice?.name ?? "Browser default", lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
         synth.speak(utter);
       });
     } catch {
