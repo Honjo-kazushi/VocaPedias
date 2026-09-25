@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { TossaTtsProbe } from "../sound/speakEn.ts";
 import {
   clearTossaPerfEntries,
   getTossaPerfEntries,
@@ -44,7 +45,7 @@ function deviceText(): string {
   ].join("\n");
 }
 
-function buildReport(entries: readonly TossaPerfEntry[], voices: readonly SpeechSynthesisVoice[]): string {
+function buildReport(entries: readonly TossaPerfEntry[], voices: readonly SpeechSynthesisVoice[], probe?: TossaTtsProbe): string {
   const timings = [
     duration(entries, "Talk click → Emma TTS request", "FLOW", "Talk Topic click / topic selected", "FLOW", "Emma guide TTS requested"),
     duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "TTS main speak"),
@@ -71,6 +72,8 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
     timings.length ? timings.join("\n") : "No completed timing pairs yet.",
     "=== CURRENT VOICE ===",
     current ? detailText(current.data) : "No voice selected yet.",
+    "=== DIRECT TTS PROBE ===",
+    probe ? detailText(probe) : "No main utterance reached the direct probe yet.",
     ...sections,
     "=== VOICES ===",
     voices.length ? voices.map((voice) => `${voice.name} | ${voice.lang} | local=${voice.localService} | default=${voice.default}`).join("\n") : "No voices returned yet.",
@@ -80,12 +83,19 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
 export default function PerfDebugPanel() {
   const [open, setOpen] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
+  const [probe, setProbe] = useState<TossaTtsProbe | undefined>(() => window.__TOSSA_TTS_PROBE__);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const entries = useSyncExternalStore(subscribeTossaPerf, () => getTossaPerfEntries(), () => []);
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setInterval(() => setProbe(window.__TOSSA_TTS_PROBE__), 250);
+    return () => window.clearInterval(timer);
+  }, [open]);
   const report = useMemo(() => buildReport(
     entries,
     open && "speechSynthesis" in window ? window.speechSynthesis.getVoices() : [],
-  ), [entries, open]);
+    probe,
+  ), [entries, open, probe]);
 
   const copy = async () => {
     try {

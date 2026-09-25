@@ -2,6 +2,27 @@ import { CHARACTER_PROFILES, type CharacterId, type CharacterProfile } from "../
 import { tossaPerf as logTossaPerf } from "../debug/tossaPerf";
 import { selectCharacterVoice } from "./selectCharacterVoice";
 
+export type TossaTtsProbe = {
+  phase: "speak" | "onstart" | "onend" | "onerror";
+  characterId: CharacterId | null;
+  sourceFunction: "speakEn" | "speakSpeechQueue" | "speakEnSentences";
+  utteranceId: number;
+  voiceName: string | null;
+  lang: string;
+  rate: number;
+  pitch: number;
+  volume: number;
+  speakCalledAt: number;
+  eventAt: number;
+  error?: string;
+};
+
+declare global {
+  interface Window {
+    __TOSSA_TTS_PROBE__?: TossaTtsProbe;
+  }
+}
+
 function tossaPerf(event: string, details: Record<string, unknown> = {}): void {
   const ua = navigator.userAgent;
   const deviceGroup = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
@@ -27,6 +48,32 @@ function voiceDetails(voice: SpeechSynthesisVoice | null): Record<string, unknow
 }
 
 let utteranceSequence = 0;
+
+function writeTtsProbe(
+  phase: TossaTtsProbe["phase"],
+  utterance: SpeechSynthesisUtterance,
+  characterId: CharacterId | undefined,
+  sourceFunction: TossaTtsProbe["sourceFunction"],
+  utteranceId: number,
+  speakCalledAt: number,
+  error?: string,
+): void {
+  window.__TOSSA_TTS_PROBE__ = {
+    phase,
+    characterId: characterId ?? null,
+    sourceFunction,
+    utteranceId,
+    voiceName: utterance.voice?.name ?? null,
+    lang: utterance.lang,
+    rate: utterance.rate,
+    pitch: utterance.pitch,
+    volume: utterance.volume,
+    speakCalledAt,
+    eventAt: performance.now(),
+    ...(error ? { error } : {}),
+  };
+  console.log("[TOSSA TTS PROBE]", window.__TOSSA_TTS_PROBE__);
+}
 
 function mainSpeechDetails(
   utterance: SpeechSynthesisUtterance,
@@ -252,23 +299,29 @@ export function speakEn(
   if (!window.speechSynthesis) return null;
   cancelPendingStart?.();
   const utter = createUtterance(text, lang);
+  const utteranceId = ++utteranceSequence;
+  let speakCalledAt = 0;
 
   utter.onstart = () => {
+    writeTtsProbe("onstart", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onstart", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onStart) onStart();
   };
   utter.onboundary = (event) => onBoundary?.(event);
   utter.onend = () => {
+    writeTtsProbe("onend", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onend", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onEnd) onEnd();
   };
   utter.onerror = (event) => {
+    writeTtsProbe("onerror", utter, undefined, "speakEn", utteranceId, speakCalledAt, event.error);
     tossaPerf("TTS main onerror", { ...mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0), error: event.error });
     if (onEnd) onEnd();
   };
 
   speechSynthesis.cancel();
-  const utteranceId = ++utteranceSequence;
+  speakCalledAt = performance.now();
+  writeTtsProbe("speak", utter, undefined, "speakEn", utteranceId, speakCalledAt);
   tossaPerf("TTS main speak", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
   speechSynthesis.speak(utter);
   return utter.voice?.name ?? "Browser default voice";
@@ -347,10 +400,12 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         if (stopped) return;
         const utterance = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
+        let speakCalledAt = 0;
         const details = () => mainSpeechDetails(utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, index);
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          writeTtsProbe("onstart", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
           callbacks.onItemStart(item, index);
         };
@@ -359,6 +414,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         };
         utterance.onend = () => {
           if (stopped || ended.has(index)) return;
+          writeTtsProbe("onend", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
           ended.add(index);
           if (activeIndex === index) {
@@ -371,9 +427,12 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           }
         };
         utterance.onerror = (event) => {
+          writeTtsProbe("onerror", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt, event.error);
           tossaPerf("TTS main onerror", { ...details(), error: event.error });
           cancel("error");
         };
+        speakCalledAt = performance.now();
+        writeTtsProbe("speak", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
         synth.speak(utterance);
       });
@@ -429,10 +488,12 @@ export function speakEnSentences(
         if (stopped) return;
         const utter = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
+        let speakCalledAt = 0;
         const details = () => mainSpeechDetails(utter, characterId, "speakEnSentences", utteranceId, index);
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          writeTtsProbe("onstart", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
           callbacks.onSentenceStart(sentence);
         };
@@ -441,6 +502,7 @@ export function speakEnSentences(
         };
         utter.onend = () => {
           if (stopped || ended.has(index)) return;
+          writeTtsProbe("onend", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
           ended.add(index);
           if (activeIndex === index) {
@@ -453,9 +515,12 @@ export function speakEnSentences(
           }
         };
         utter.onerror = (event) => {
+          writeTtsProbe("onerror", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt, event.error);
           tossaPerf("TTS main onerror", { ...details(), error: event.error });
           cancel("error");
         };
+        speakCalledAt = performance.now();
+        writeTtsProbe("speak", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
         synth.speak(utter);
       });
