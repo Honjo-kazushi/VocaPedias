@@ -6,7 +6,7 @@ import {
   type SpeechFinishReason,
   type SpeechLocale,
   type SpeechQueueItem,
-} from "../sound/speakEn";
+} from "../sound/speakEn.ts";
 
 type MouthStep = {
   open: boolean;

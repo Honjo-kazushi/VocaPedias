@@ -17,11 +17,12 @@ const gb = voice("英語 イギリス", "en_GB");
 const legacy = voice("Microsoft Zira", "en-US");
 const japanese = voice("Japanese", "ja-JP");
 
-// Exercise both the TS source and the JS sibling used by extensionless imports.
-for (const extension of ["ts", "js"]) {
+// Runtime imports explicitly target the instrumented TS implementation.
+for (const extension of ["ts"]) {
   const speech = await import(moduleUrl(((await read(`../src/sound/speakEn.${extension}`))
     .replaceAll('"../characters/characterProfiles"', JSON.stringify(profiles))
-    .replaceAll('"./selectCharacterVoice"', JSON.stringify(selector))) + `\n// ${extension} test module`));
+    .replaceAll('"./selectCharacterVoice"', JSON.stringify(selector))
+    .replace(/import \{ tossaPerf as logTossaPerf \} from "\.\.\/debug\/tossaPerf";/, "const logTossaPerf = () => {};")) + `\n// ${extension} test module`));
 
   test(`${extension}: Emma queue settings, fallback, Review and lifecycle`, () => {
     const keys = ["navigator", "window", "speechSynthesis", "SpeechSynthesisUtterance"];

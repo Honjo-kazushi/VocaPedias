@@ -23,6 +23,16 @@ function duration(entries: readonly TossaPerfEntry[], label: string, fromArea: s
   return start ? `${label}: ${Math.round(end.at - start.at)} ms` : null;
 }
 
+function utteranceDuration(entries: readonly TossaPerfEntry[], label: string, fromEvent: string, toEvent: string): string | null {
+  const end = last(entries, "TTS", toEvent);
+  const utteranceId = end?.data.utteranceId;
+  if (!end || utteranceId === undefined) return null;
+  const start = [...entries].reverse().find((entry) =>
+    entry.at <= end.at && entry.area === "TTS" && entry.event === fromEvent && entry.data.utteranceId === utteranceId
+  );
+  return start ? `${label}: ${Math.round(end.at - start.at)} ms` : null;
+}
+
 function deviceText(): string {
   return [
     "=== DEVICE ===",
@@ -37,11 +47,12 @@ function deviceText(): string {
 function buildReport(entries: readonly TossaPerfEntry[], voices: readonly SpeechSynthesisVoice[]): string {
   const timings = [
     duration(entries, "Talk click → Emma TTS request", "FLOW", "Talk Topic click / topic selected", "FLOW", "Emma guide TTS requested"),
-    duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "speechSynthesis.speak"),
-    duration(entries, "speak → onstart", "TTS", "speechSynthesis.speak", "TTS", "utterance onstart"),
+    duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "TTS main speak"),
+    utteranceDuration(entries, "TTS speak → onstart", "TTS main speak", "TTS main onstart"),
+    utteranceDuration(entries, "TTS onstart → onend", "TTS main onstart", "TTS main onend"),
     duration(entries, "Partner selected → Opening request", "FLOW", "Partner selected", "FLOW", "Opening request start"),
     duration(entries, "Opening request → response", "FLOW", "Opening request start", "FLOW", "Opening response"),
-    duration(entries, "response → Character speak", "FLOW", "Opening response", "TTS", "speechSynthesis.speak"),
+    duration(entries, "response → Character speak", "FLOW", "Opening response", "TTS", "TTS main speak"),
     duration(entries, "speechend → final", "SPEECH", "onspeechend/onsoundend", "SPEECH", "final result"),
     duration(entries, "final → soft timer", "SPEECH", "final result", "SPEECH", "soft timer fire"),
     duration(entries, "soft timer → Gemini send", "SPEECH", "soft timer fire", "SPEECH", "Gemini request start"),
@@ -49,7 +60,7 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
     duration(entries, "restart request → start()", "SPEECH", "recognition restart requested", "SPEECH", "recognition start() about to call"),
     duration(entries, "start() → onstart", "SPEECH", "recognition start() about to call", "SPEECH", "recognition onstart"),
   ].filter(Boolean);
-  const current = last(entries, "TTS", "speechSynthesis.speak") ?? last(entries, "TTS", "utterance onstart");
+  const current = last(entries, "TTS", "TTS main speak");
   const sections = AREAS.map((area) => {
     const areaEntries = entries.filter((entry) => entry.area === area);
     return [`=== ${area} ===`, ...areaEntries.map((entry) => `+${Math.round(entry.at)}ms ${entry.event}${Object.keys(entry.data).length ? `  ${detailText(entry.data)}` : ""}`)].join("\n");

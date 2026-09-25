@@ -18,5 +18,8 @@ test("PERF diagnostics are opt-in, bounded, and expose copy/clear/voice data", a
   assert.match(panel, /clearTossaPerfEntries\(\)/);
   assert.match(panel, /speechSynthesis\.getVoices\(\)/);
   assert.match(panel, /=== CURRENT VOICE ===/);
+  assert.match(panel, /TTS main speak/);
+  assert.match(panel, /TTS speak → onstart/);
+  assert.match(panel, /TTS onstart → onend/);
   assert.match(panel, /=== VOICES ===/);
 });

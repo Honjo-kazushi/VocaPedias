@@ -18,10 +18,35 @@ function tossaPerf(event: string, details: Record<string, unknown> = {}): void {
 
 function voiceDetails(voice: SpeechSynthesisVoice | null): Record<string, unknown> {
   return {
-    voiceName: voice?.name ?? "Browser default",
-    voiceLang: voice?.lang ?? "Browser default",
+    voice: voice?.name ?? null,
+    voiceName: voice?.name ?? "browser default (utterance.voice = null)",
+    voiceLang: voice?.lang ?? null,
     localService: voice?.localService ?? null,
     default: voice?.default ?? null,
+  };
+}
+
+let utteranceSequence = 0;
+
+function mainSpeechDetails(
+  utterance: SpeechSynthesisUtterance,
+  characterId: CharacterId | undefined,
+  sourceFunction: "speakEn" | "speakSpeechQueue" | "speakEnSentences",
+  utteranceId: number,
+  index: number,
+): Record<string, unknown> {
+  return {
+    kind: "main",
+    characterId: characterId ?? null,
+    sourceFunction,
+    utteranceId,
+    index,
+    textLength: utterance.text.length,
+    lang: utterance.lang,
+    ...voiceDetails(utterance.voice),
+    rate: utterance.rate,
+    pitch: utterance.pitch,
+    volume: utterance.volume,
   };
 }
 
@@ -108,14 +133,14 @@ function deferSpeechStart(
         return;
       }
       warmup.volume = 0;
-      tossaPerf("warmup start", { characterId: warmupVoice.characterId, voiceKey: key, voiceName: warmup.voice?.name ?? "Browser default", lang: warmup.lang });
+      tossaPerf("warmup start", { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key, ...voiceDetails(warmup.voice), lang: warmup.lang });
       let finished = false;
       const finishWarmup = (outcome: "onend" | "onerror" | "timeout") => {
         if (disposed || finished) return;
         finished = true;
         warming = false;
         warmedVoiceKeys.add(key);
-        tossaPerf(`warmup ${outcome}`, { characterId: warmupVoice.characterId, voiceKey: key });
+        tossaPerf(`warmup ${outcome}`, { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key });
         window.clearTimeout(timer);
         if (warmup) {
           warmup.onend = null;
@@ -126,6 +151,7 @@ function deferSpeechStart(
       warmup.onend = () => finishWarmup("onend");
       warmup.onerror = () => finishWarmup("onerror");
       timer = window.setTimeout(() => finishWarmup("timeout"), SPEECH_WARMUP_TIMEOUT_MS);
+      tossaPerf("TTS warmup speak", { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key, textLength: warmup.text.length, ...voiceDetails(warmup.voice), lang: warmup.lang, rate: warmup.rate, pitch: warmup.pitch, volume: warmup.volume });
       synth.speak(warmup);
     } catch {
       // Warm-up is best-effort; never prevent the real utterance.
@@ -228,17 +254,22 @@ export function speakEn(
   const utter = createUtterance(text, lang);
 
   utter.onstart = () => {
+    tossaPerf("TTS main onstart", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onStart) onStart();
   };
   utter.onboundary = (event) => onBoundary?.(event);
   utter.onend = () => {
+    tossaPerf("TTS main onend", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onEnd) onEnd();
   };
-  utter.onerror = () => {
+  utter.onerror = (event) => {
+    tossaPerf("TTS main onerror", { ...mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0), error: event.error });
     if (onEnd) onEnd();
   };
 
   speechSynthesis.cancel();
+  const utteranceId = ++utteranceSequence;
+  tossaPerf("TTS main speak", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
   speechSynthesis.speak(utter);
   return utter.voice?.name ?? "Browser default voice";
 }
@@ -315,10 +346,12 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
       queue.forEach((item, index) => {
         if (stopped) return;
         const utterance = preparedUtterances[index];
+        const utteranceId = ++utteranceSequence;
+        const details = () => mainSpeechDetails(utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, index);
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
-          tossaPerf("utterance onstart", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
+          tossaPerf("TTS main onstart", details());
           callbacks.onItemStart(item, index);
         };
         utterance.onboundary = (event) => {
@@ -326,7 +359,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         };
         utterance.onend = () => {
           if (stopped || ended.has(index)) return;
-          tossaPerf("utterance onend", { characterId: item.characterId ?? characterId, index });
+          tossaPerf("TTS main onend", details());
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
@@ -338,10 +371,10 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           }
         };
         utterance.onerror = (event) => {
-          tossaPerf("utterance onerror", { characterId: item.characterId ?? characterId, index, error: event.error });
+          tossaPerf("TTS main onerror", { ...details(), error: event.error });
           cancel("error");
         };
-        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch, volume: utterance.volume });
+        tossaPerf("TTS main speak", details());
         synth.speak(utterance);
       });
     } catch {
@@ -395,10 +428,12 @@ export function speakEnSentences(
       sentences.forEach((sentence, index) => {
         if (stopped) return;
         const utter = preparedUtterances[index];
+        const utteranceId = ++utteranceSequence;
+        const details = () => mainSpeechDetails(utter, characterId, "speakEnSentences", utteranceId, index);
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
-          tossaPerf("utterance onstart", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
+          tossaPerf("TTS main onstart", details());
           callbacks.onSentenceStart(sentence);
         };
         utter.onboundary = (event) => {
@@ -406,7 +441,7 @@ export function speakEnSentences(
         };
         utter.onend = () => {
           if (stopped || ended.has(index)) return;
-          tossaPerf("utterance onend", { characterId, index });
+          tossaPerf("TTS main onend", details());
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
@@ -418,10 +453,10 @@ export function speakEnSentences(
           }
         };
         utter.onerror = (event) => {
-          tossaPerf("utterance onerror", { characterId, index, error: event.error });
+          tossaPerf("TTS main onerror", { ...details(), error: event.error });
           cancel("error");
         };
-        tossaPerf("speechSynthesis.speak", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch, volume: utter.volume });
+        tossaPerf("TTS main speak", details());
         synth.speak(utter);
       });
     } catch {

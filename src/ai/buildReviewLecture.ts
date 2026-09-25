@@ -1,5 +1,5 @@
 import type { CharacterExpression } from "../data/characters";
-import type { SpeechLocale } from "../sound/speakEn";
+import type { SpeechLocale } from "../sound/speakEn.ts";
 import type { SpokenReviewPart } from "./conversationTypes";
 
 export type ReviewSpeechItem = {

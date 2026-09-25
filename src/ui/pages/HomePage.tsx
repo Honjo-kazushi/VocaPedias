@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import type { Phrase } from "../../app/ports/PhraseRepository";
 import { playSe } from "../../sound/playSe";
-import { speakEn } from "../../sound/speakEn";
+import { speakEn } from "../../sound/speakEn.ts";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
