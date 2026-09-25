@@ -265,6 +265,10 @@ for (const extension of ["ts"]) {
           assert.equal(queued.length, 1);
           assert.equal(queued[0].text, "Fallback.");
           queued[0].onend();
+          assert.equal(queued.length, 1);
+          advance(119);
+          assert.equal(queued.length, 1);
+          advance(1);
           assert.equal(queued.length, 2);
           assert.equal(queued[1].text, "Still speaking.");
           for (const utter of queued) {
@@ -296,6 +300,13 @@ for (const extension of ["ts"]) {
         cancelledFirst.onend();
         assert.deepEqual(queued, []);
 
+        const gapCancel = speakSentences("Gap one. Gap two.", callbacks, "emma");
+        assert.deepEqual(queued.map((utter) => utter.text), ["Gap one."]);
+        queued[0].onend();
+        gapCancel();
+        advance(120);
+        assert.deepEqual(queued, []);
+
         speakSentences("Error one. Error two.", callbacks, "emma");
         assert.deepEqual(queued.map((utter) => utter.text), ["Error one."]);
         queued[0].onerror({ error: "synthesis-failed" });
@@ -311,6 +322,8 @@ for (const extension of ["ts"]) {
         }, "emma");
         assert.deepEqual(queued.map((utter) => utter.text), ["Queue one."]);
         queued[0].onend();
+        assert.deepEqual(queued.map((utter) => utter.text), ["Queue one."]);
+        advance(120);
         assert.deepEqual(queued.map((utter) => utter.text), ["Queue one.", "Queue two."]);
         queued[1].onend();
         assert.deepEqual(appleQueueEvents, ["complete"]);

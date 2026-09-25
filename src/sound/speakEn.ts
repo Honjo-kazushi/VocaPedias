@@ -90,12 +90,15 @@ function mainSpeechDetails(
     sourceFunction,
     utteranceId,
     index,
+    textStart: utterance.text.slice(0, 48),
     textLength: utterance.text.length,
     lang: utterance.lang,
     ...voiceDetails(utterance.voice),
     rate: utterance.rate,
     pitch: utterance.pitch,
     volume: utterance.volume,
+    synthesisSpeaking: window.speechSynthesis?.speaking ?? false,
+    synthesisPending: window.speechSynthesis?.pending ?? false,
   };
 }
 
@@ -106,6 +109,7 @@ export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese
 const SPEECH_START_DELAY_MS = 250;
 const VOICE_READY_TIMEOUT_MS = 1000;
 const SPEECH_WARMUP_TIMEOUT_MS = 1000;
+export const APPLE_UTTERANCE_GAP_MS = 120;
 type CancelSpeech = (requestReason?: string) => void;
 let cancelPendingStart: CancelSpeech | undefined;
 const warmedVoiceKeys = new Set<string>();
@@ -373,7 +377,9 @@ function runPreparedUtterances(
   }
   const run = (index: number) => {
     speakAt(index, () => {
-      if (index + 1 < count) run(index + 1);
+      if (index + 1 < count) {
+        window.setTimeout(() => run(index + 1), APPLE_UTTERANCE_GAP_MS);
+      }
     });
   };
   run(0);
@@ -390,6 +396,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
   }
   let stopped = false;
   let activeIndex = -1;
+  let previousOnEndAt: number | null = null;
   const ended = new Set<number>();
   const cancel = (finishReason: SpeechFinishReason = "cancel", requestReason = "speakSpeechQueue:cancel-callback") => {
     if (stopped) return;
@@ -443,7 +450,10 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         const utterance = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
-        const details = () => mainSpeechDetails(utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, index);
+        const details = () => ({
+          ...mainSpeechDetails(utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, index),
+          previousOnEndToSpeakMs: previousOnEndAt === null || speakCalledAt === 0 ? null : Math.round(speakCalledAt - previousOnEndAt),
+        });
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
@@ -460,6 +470,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
+          previousOnEndAt = performance.now();
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
@@ -517,6 +528,7 @@ export function speakEnSentences(
   }
   let stopped = false;
   let activeIndex = -1;
+  let previousOnEndAt: number | null = null;
   const ended = new Set<number>();
   const cancel = (finishReason: SpeechFinishReason = "cancel", requestReason = "speakEnSentences:cancel-callback") => {
     if (stopped) return;
@@ -555,7 +567,10 @@ export function speakEnSentences(
         const utter = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
-        const details = () => mainSpeechDetails(utter, characterId, "speakEnSentences", utteranceId, index);
+        const details = () => ({
+          ...mainSpeechDetails(utter, characterId, "speakEnSentences", utteranceId, index),
+          previousOnEndToSpeakMs: previousOnEndAt === null || speakCalledAt === 0 ? null : Math.round(speakCalledAt - previousOnEndAt),
+        });
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
@@ -572,6 +587,7 @@ export function speakEnSentences(
           setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
+          previousOnEndAt = performance.now();
           ended.add(index);
           if (activeIndex === index) {
             activeIndex = -1;
