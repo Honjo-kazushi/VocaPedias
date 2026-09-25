@@ -253,14 +253,15 @@ for (const extension of ["ts"]) {
           }
         }
         setDevice("iPhone");
+        const applePreference = profile.voicePreferences.ios;
         for (const fail of [false, true]) {
           available = []; failDiscovery = fail;
           speakSentences("Fallback. Still speaking.", callbacks, id);
           assert.equal(queued.length, 2);
           for (const utter of queued) {
             assert.equal(utter.voice, null);
-            assert.equal(utter.rate, profile.voicePreferences.fallback.rate);
-            assert.equal(utter.pitch, profile.voicePreferences.fallback.pitch);
+            assert.equal(utter.rate, applePreference.rate);
+            assert.equal(utter.pitch, applePreference.pitch);
             assert.equal(utter.lang, "en-US");
           }
         }
@@ -326,7 +327,13 @@ for (const extension of ["ts"]) {
       available = [legacy, us, gb, japanese];
       setDevice("iPhone");
       speakSentences("Fallback.", callbacks, "emma");
-      check(legacy, "en-us");
+      assert.ok(queued.length > 0);
+      for (const utter of queued) {
+        assert.equal(utter.voice, gb);
+        assert.equal(utter.lang, "en-gb");
+        assert.equal(utter.rate, 1);
+        assert.equal(utter.pitch, .98);
+      }
       for (const id of [undefined]) {
         speakSentences("Other character.", callbacks, id);
         assert.equal(queued[0].voice, legacy);

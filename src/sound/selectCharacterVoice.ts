@@ -1,7 +1,7 @@
 import { CHARACTER_PROFILES } from "../characters/characterProfiles";
 import type { CharacterId, CharacterProfile, CharacterVoicePreferences } from "../characters/characterProfiles";
 
-export type DeviceGroup = "desktop" | "android" | "fallback";
+export type DeviceGroup = "desktop" | "android" | "ios" | "fallback";
 export type SelectionReason = "preferredName" | "preferredLang" | "preferredLangPrefix" | "fallbackLang" | "englishVoice" | "browserDefault";
 export type CharacterVoiceSelection = {
   voice: SpeechSynthesisVoice | null;
@@ -22,7 +22,7 @@ function detectDeviceGroup(): DeviceGroup {
   const ua = navigator.userAgent;
   if (/android/i.test(ua)) return "android";
   // iPadOS can advertise itself as a Mac.
-  if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "fallback";
+  if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
   if (/windows|macintosh|linux|cros/i.test(ua)) return "desktop";
   return "fallback";
 }
@@ -57,6 +57,18 @@ export function selectCharacterVoice(
   for (const name of preference.preferredNames ?? []) {
     voice = languageVoices.find((candidate) => candidate.name === name);
     if (voice) { selectionReason = "preferredName"; break; }
+  }
+  // Apple may suffix downloaded variants (for example Enhanced/Premium),
+  // while the Voice Test intentionally ranks them by their base voice name.
+  if (!voice && deviceGroup === "ios") {
+    for (const name of preference.preferredNames ?? []) {
+      const normalizedName = name.toLowerCase();
+      voice = languageVoices.find((candidate) => {
+        const candidateName = candidate.name.toLowerCase();
+        return candidateName === normalizedName || candidateName.includes(normalizedName);
+      });
+      if (voice) { selectionReason = "preferredName"; break; }
+    }
   }
   if (!voice) {
     for (const lang of preferredLangs) {

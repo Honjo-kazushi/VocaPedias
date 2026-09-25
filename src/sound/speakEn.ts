@@ -1,4 +1,4 @@
-import { CHARACTER_PROFILES, type CharacterId, type CharacterProfile } from "../characters/characterProfiles";
+import type { CharacterId } from "../characters/characterProfiles";
 import { tossaPerf as logTossaPerf } from "../debug/tossaPerf";
 import { selectCharacterVoice } from "./selectCharacterVoice";
 
@@ -236,16 +236,10 @@ function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, charact
   const locale: SpeechLocale = isJapanese ? "ja-JP" : "en-US";
 
   if (characterId) {
-    const profile: CharacterProfile = CHARACTER_PROFILES[characterId];
-    const preferences = locale === "ja-JP"
-      ? brightJapanese
-        ? profile.brightJapaneseVoicePreferences ?? profile.japaneseVoicePreferences ?? profile.voicePreferences
-        : profile.japaneseVoicePreferences ?? profile.voicePreferences
-      : profile.voicePreferences;
-    const fallback = preferences.fallback;
+    const baseline = selectCharacterVoice(characterId, [], { locale, brightJapanese });
     utter.lang = locale;
-    utter.rate = fallback.rate;
-    utter.pitch = fallback.pitch;
+    utter.rate = baseline.rate;
+    utter.pitch = baseline.pitch;
     try {
       const voices = speechSynthesis.getVoices();
       const avoidedVoice = avoidVoiceCharacterId

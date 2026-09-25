@@ -21,6 +21,7 @@ export type VoicePreference = {
 export type CharacterVoicePreferences = {
   desktop?: VoicePreference;
   android?: VoicePreference;
+  ios?: VoicePreference;
   fallback: VoicePreference;
 };
 
@@ -59,6 +60,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google US English"], preferredLangs: ["en-US"], rate: 0.95, pitch: 1 },
       android: { preferredLangs: ["en-GB"], rate: 0.95, pitch: 1 },
+      ios: { preferredNames: ["Serena", "Samantha", "Ava", "Karen", "Tessa"], preferredLangs: ["en-GB", "en-US"], rate: 1, pitch: 0.98 },
       fallback: { preferredLangs: ["en-US"], rate: 0.95, pitch: 1 },
     },
     japaneseVoicePreferences: {
@@ -91,6 +93,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Male"], preferredLangs: ["en-GB"], rate: 1.08, pitch: 1.08 },
       android: { preferredLangs: ["en-AU"], rate: 1.08, pitch: 0.95 },
+      ios: { preferredNames: ["Daniel", "Aaron", "Evan", "Nathan", "Tom"], preferredLangs: ["en-GB", "en-US"], rate: 1.03, pitch: 0.98 },
       fallback: { preferredLangs: ["en-GB"], rate: 1.08, pitch: 1.08 },
     },
     displayName: "Mike",
@@ -109,6 +112,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google US English"], preferredLangs: ["en-US"], rate: 1.05, pitch: 1.1 },
       android: { preferredLangs: ["en-AU"], rate: 1.05, pitch: 1.05 },
+      ios: { preferredNames: ["Zoe", "Ava", "Samantha", "Karen", "Tessa"], preferredLangs: ["en-US", "en-GB"], rate: 1.02, pitch: 1.06 },
       fallback: { preferredLangs: ["en-US"], rate: 1.05, pitch: 1.1 },
     },
     displayName: "Sophie",
@@ -127,6 +131,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Male"], preferredLangs: ["en-GB"], rate: 0.92, pitch: 0.95 },
       android: { preferredLangs: ["en-US"], rate: 0.92, pitch: 0.92 },
+      ios: { preferredNames: ["Jamie", "Oliver", "Daniel", "Aaron", "Evan"], preferredLangs: ["en-GB", "en-US"], rate: 0.96, pitch: 0.98 },
       fallback: { preferredLangs: ["en-GB"], rate: 0.92, pitch: 0.95 },
     },
     displayName: "Jamie",
@@ -145,6 +150,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Female"], preferredLangs: ["en-GB"], rate: 0.95, pitch: 1.08 },
       android: { preferredLangs: ["en-US"], rate: 0.95, pitch: 1 },
+      ios: { preferredNames: ["Moira", "Tessa", "Karen", "Ava", "Zoe"], preferredLangs: ["en-IE", "en-ZA", "en-AU", "en-US"], rate: 1.02, pitch: 1.06 },
       fallback: { preferredLangs: ["en-GB"], rate: 0.95, pitch: 1.08 },
     },
     displayName: "Lily",
@@ -163,6 +169,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Female"], preferredLangs: ["en-GB"], rate: 0.82, pitch: 0.9 },
       android: { preferredLangs: ["en-NG", "en-IN"], rate: 0.85, pitch: 0.9 },
+      ios: { preferredNames: ["Moira", "Serena", "Samantha", "Karen", "Tessa"], preferredLangs: ["en-IE", "en-GB", "en-US"], rate: 0.84, pitch: 0.96 },
       fallback: { preferredLangs: ["en-GB"], rate: 0.82, pitch: 0.9 },
     },
     displayName: "Grandma Rose",
@@ -181,6 +188,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Male"], preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
       android: { preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
+      ios: { preferredNames: ["Daniel", "Tom", "Aaron", "Nathan", "Evan"], preferredLangs: ["en-GB", "en-US"], rate: 0.92, pitch: 0.96 },
       fallback: { preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
     },
     displayName: "Dr. Dan",
@@ -199,6 +207,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google US English"], preferredLangs: ["en-US"], rate: 1.1, pitch: 0.92 },
       android: { preferredLangs: ["en-AU"], rate: 1.1, pitch: 0.92 },
+      ios: { preferredNames: ["Moira", "Eddy", "Reed", "Evan", "Nathan"], preferredLangs: ["en-IE", "en-US"], rate: 1.08, pitch: 1.1 },
       fallback: { preferredLangs: ["en-US"], rate: 1.1, pitch: 0.92 },
     },
     displayName: "Leo",
@@ -217,6 +226,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Microsoft Nanami Online (Natural) - Japanese (Japan)", "Microsoft Ayumi", "Google 日本語"], preferredLangs: ["ja-JP"], rate: 1.1, pitch: 1.06 },
       android: { preferredLangs: ["ja-JP"], rate: 1.1, pitch: 1.06 },
+      ios: { preferredNames: ["O-Ren", "Hattori", "Kyoko", "Otoya"], preferredLangs: ["ja-JP"], rate: 1.1, pitch: 1.02 },
       fallback: { preferredLangs: ["ja-JP"], rate: 1.1, pitch: 1.06 },
     },
     displayName: "Miyabi",

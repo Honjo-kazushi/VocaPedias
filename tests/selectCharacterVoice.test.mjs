@@ -102,7 +102,7 @@ test("device detection includes iPad desktop UA and ignores missing named voices
   try {
     for (const [userAgent, maxTouchPoints, expected] of [
       ["Android", 1, "android"], ["Windows NT", 0, "desktop"],
-      ["iPhone", 1, "fallback"], ["Macintosh", 5, "fallback"], ["Unknown", 0, "fallback"],
+      ["iPhone", 1, "ios"], ["Macintosh", 5, "ios"], ["Unknown", 0, "fallback"],
     ]) {
       Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent, maxTouchPoints } });
       assert.equal(select("emma", android).deviceGroup, expected);
@@ -111,4 +111,34 @@ test("device detection includes iPad desktop UA and ignores missing named voices
     if (descriptor) Object.defineProperty(globalThis, "navigator", descriptor);
     else delete globalThis.navigator;
   }
+});
+
+test("all nine characters use the selected Apple production settings with safe language fallback", () => {
+  const appleRows = [
+    ["emma", "Serena", "en-GB", 1, .98],
+    ["mike", "Daniel", "en-GB", 1.03, .98],
+    ["sophie", "Zoe", "en-US", 1.02, 1.06],
+    ["jamie", "Jamie", "en-GB", .96, .98],
+    ["lily", "Moira", "en-IE", 1.02, 1.06],
+    ["grandma_rose", "Moira", "en-IE", .84, .96],
+    ["dr_dan", "Daniel", "en-GB", .92, .96],
+    ["leo", "Moira", "en-IE", 1.08, 1.1],
+    ["miyabi", "O-Ren", "ja-JP", 1.1, 1.02],
+  ];
+  for (const [id, name, lang, rate, pitch] of appleRows) {
+    const selectedVoice = voice(name, lang);
+    const result = select(id, [selectedVoice], { deviceGroup: "ios" });
+    assert.equal(result.voice, selectedVoice, id);
+    assert.equal(result.rate, rate, id);
+    assert.equal(result.pitch, pitch, id);
+    assert.equal(result.deviceGroup, "ios", id);
+
+    const languageFallback = voice(`${id} fallback`, lang);
+    const fallbackResult = select(id, [languageFallback], { deviceGroup: "ios" });
+    assert.equal(fallbackResult.voice, languageFallback, id);
+    assert.notEqual(fallbackResult.selectionReason, "browserDefault", id);
+  }
+  assert.deepEqual(CHARACTER_PROFILES.leo.voicePreferences.ios.preferredNames.slice(0, 1), ["Moira"]);
+  assert.deepEqual(CHARACTER_PROFILES.leo.voicePreferences.ios.preferredLangs.slice(0, 1), ["en-IE"]);
+  assert.equal(select("emma", [voice("Serena (Enhanced)", "en-GB")], { deviceGroup: "ios" }).voice.name, "Serena (Enhanced)");
 });
