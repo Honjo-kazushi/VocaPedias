@@ -36,6 +36,7 @@ for (const extension of ["ts"]) {
     let failDiscovery = false;
     let reads = 0;
     const queued = [];
+    let cancelCalls = 0;
     let now = 0;
     let timerId = 0;
     const timers = new Map();
@@ -80,7 +81,7 @@ for (const extension of ["ts"]) {
       addEventListener(type, listener) { assert.equal(type, "voiceschanged"); listeners.add(listener); },
       removeEventListener(type, listener) { assert.equal(type, "voiceschanged"); listeners.delete(listener); },
       getVoices() { reads++; if (failDiscovery) throw new Error("unavailable"); return available; },
-      cancel() { queued.length = 0; },
+      cancel() { cancelCalls++; queued.length = 0; },
       speak(utter) { queued.push(utter); },
     };
     const setGlobal = (key, value) => Object.defineProperty(globalThis, key, { configurable: true, value });
@@ -291,6 +292,23 @@ for (const extension of ["ts"]) {
         assert.deepEqual(queued.map((utter) => utter.text), ["Preferred voice."]);
         assert.equal(queued[0].voice, samantha);
         waitingForPreferred();
+
+        if (id === "emma") {
+          const daniel = voice("Daniel", "en-GB");
+          available = [daniel];
+          const timedOutWarmup = speech.speakEnSentences("First Mike speech.", callbacks, "mike");
+          assert.deepEqual(queued.map((utter) => utter.text), ["."]);
+          const cancelCallsBeforeTimeout = cancelCalls;
+          advance(1000);
+          assert.equal(cancelCalls, cancelCallsBeforeTimeout + 1);
+          assert.deepEqual(queued, []);
+          advance(249);
+          assert.deepEqual(queued, []);
+          advance(1);
+          assert.deepEqual(queued.map((utter) => utter.text), ["First Mike speech."]);
+          assert.equal(queued[0].voice, daniel);
+          timedOutWarmup();
+        }
 
         available = [voice("Samantha", "en-US")];
         const sequentialCancel = speakSentences("One. Two. Three.", callbacks, "emma");

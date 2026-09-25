@@ -143,6 +143,7 @@ function deferSpeechStart(
     window.clearTimeout(timer);
     synth.removeEventListener("voiceschanged", onVoicesChanged);
     if (warmup) {
+      warmup.onstart = null;
       warmup.onend = null;
       warmup.onerror = null;
     }
@@ -187,21 +188,39 @@ function deferSpeechStart(
         return;
       }
       warmup.volume = 0;
-      tossaPerf("warmup start", { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key, ...voiceDetails(warmup.voice), lang: warmup.lang });
+      const warmupDetails = () => ({
+        kind: "warmup",
+        characterId: warmupVoice.characterId,
+        voiceKey: key,
+        ...voiceDetails(warmup?.voice ?? null),
+        lang: warmup?.lang ?? warmupVoice.locale,
+        synthesisSpeaking: synth.speaking,
+        synthesisPending: synth.pending,
+      });
+      tossaPerf("warmup start", warmupDetails());
       let finished = false;
       const finishWarmup = (outcome: "onend" | "onerror" | "timeout") => {
         if (disposed || finished) return;
         finished = true;
         warming = false;
         warmedVoiceKeys.add(key);
-        tossaPerf(`warmup ${outcome}`, { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key });
+        tossaPerf(`warmup ${outcome}`, warmupDetails());
         window.clearTimeout(timer);
         if (warmup) {
+          warmup.onstart = null;
           warmup.onend = null;
           warmup.onerror = null;
         }
+        if (outcome === "timeout" && detectDeviceGroup() === "ios") {
+          cancelSpeechSynthesis(synth, {
+            reason: "warmup-timeout-reset-native-queue",
+            source: "deferSpeechStart.warmup-timeout",
+            characterId: warmupVoice.characterId,
+          });
+        }
         scheduleStart();
       };
+      warmup.onstart = () => tossaPerf("warmup onstart", warmupDetails());
       warmup.onend = () => finishWarmup("onend");
       warmup.onerror = () => finishWarmup("onerror");
       timer = window.setTimeout(() => finishWarmup("timeout"), SPEECH_WARMUP_TIMEOUT_MS);
