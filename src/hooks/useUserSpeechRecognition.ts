@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mergeRecognitionResults } from "../ai/conversationTypes";
 import { tossaPerf } from "../debug/tossaPerf";
+import { APPLE_ERROR7_MAX_RETRIES, APPLE_ERROR7_RETRY_DELAY_MS, isAppleAssistantError7 } from "../ai/speechRecognitionRetry";
 
 type Callbacks = {
   onStart: () => void;
@@ -31,12 +32,15 @@ export function useUserSpeechRecognition() {
   const finalTranscriptRef = useRef("");
   const interimTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
+  const error7RetryTimerRef = useRef<number | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
   const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
   const dispose = useCallback(() => {
     sessionRef.current += 1;
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
+    if (error7RetryTimerRef.current !== null) window.clearTimeout(error7RetryTimerRef.current);
+    error7RetryTimerRef.current = null;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     finalTranscriptRef.current = "";
@@ -77,6 +81,7 @@ export function useUserSpeechRecognition() {
       callbacks.onError("unsupported");
       return;
     }
+    const startAttempt = (retryCount: number) => {
     const session = ++sessionRef.current;
     const current = () => sessionRef.current === session;
     finalTranscriptRef.current = "";
@@ -187,17 +192,48 @@ export function useUserSpeechRecognition() {
       recognition.onerror = (event) => {
         if (!current()) return;
         const nativeError = event as Event & { error?: string; message?: string };
+        const error = nativeError.error ?? "unknown";
+        const message = nativeError.message ?? "";
+        const error7 = isAppleAssistantError7(group, error, message);
         tossaPerf("SPEECH", "recognition onerror", {
           deviceGroup: group,
           session,
+          retryCount,
           lifecycle: lifecycleRef.current,
-          error: nativeError.error ?? "unknown",
-          message: nativeError.message ?? "",
+          error,
+          message,
           name: nativeError.constructor?.name ?? "Event",
         });
         debug("onerror", { error: event.error });
         dispose();
         setActive(false);
+        if (error7 && retryCount < APPLE_ERROR7_MAX_RETRIES) {
+          const nextRetryCount = retryCount + 1;
+          tossaPerf("SPEECH", "recognition error7 retry scheduled", {
+            deviceGroup: group,
+            session,
+            retryCount: nextRetryCount,
+            delayMs: APPLE_ERROR7_RETRY_DELAY_MS,
+          });
+          error7RetryTimerRef.current = window.setTimeout(() => {
+            error7RetryTimerRef.current = null;
+            const retrySession = sessionRef.current + 1;
+            tossaPerf("SPEECH", "recognition error7 retry start", {
+              deviceGroup: group,
+              session: retrySession,
+              retryCount: nextRetryCount,
+            });
+            startAttempt(nextRetryCount);
+          }, APPLE_ERROR7_RETRY_DELAY_MS);
+          return;
+        }
+        if (error7) {
+          tossaPerf("SPEECH", "recognition error7 retry exhausted", {
+            deviceGroup: group,
+            session,
+            retryCount,
+          });
+        }
         callbacks.onError(event.error);
       };
       setActive(true); // Includes permission/startup pending; does not start Listening.
@@ -219,6 +255,8 @@ export function useUserSpeechRecognition() {
       setActive(false);
       callbacks.onError("start-failed");
     }
+    };
+    startAttempt(0);
   }, [dispose]);
   useEffect(() => dispose, [dispose]);
   return { active, start, finish, cancel };

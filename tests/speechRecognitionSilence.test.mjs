@@ -14,7 +14,7 @@ const compiled = ts.transpileModule(testableSource, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
 
-function createHarness() {
+function createHarness(device = "desktop") {
   let now = 0;
   let nextTimerId = 1;
   const timers = new Map();
@@ -26,9 +26,17 @@ function createHarness() {
   globalThis.useEffect = () => {};
   globalThis.mergeRecognitionResults = (chunks) => chunks.filter(Boolean).join(" ").trim();
   globalThis.tossaPerf = () => {};
+  globalThis.APPLE_ERROR7_MAX_RETRIES = 1;
+  globalThis.APPLE_ERROR7_RETRY_DELAY_MS = 500;
+  globalThis.isAppleAssistantError7 = (group, error, message) =>
+    group === "ios/fallback" && error === "aborted" && /kAFAssistantErrorDomain[\s\S]*7\b/.test(message);
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
-    value: { userAgent: "test", platform: "test", maxTouchPoints: 0 },
+    value: device === "ios"
+      ? { userAgent: "Mozilla/5.0 (iPad)", platform: "iPad", maxTouchPoints: 5 }
+      : device === "android"
+        ? { userAgent: "Mozilla/5.0 (Linux; Android 15)", platform: "Linux", maxTouchPoints: 5 }
+        : { userAgent: "Mozilla/5.0 (Windows NT 10.0)", platform: "Win32", maxTouchPoints: 0 },
   });
 
   class MockRecognition {
@@ -119,4 +127,36 @@ test("a later result resets the armed timer", () => {
   assert.equal(recognition.stopCalls, 0);
   advance(2_000);
   assert.equal(recognition.stopCalls, 1);
+});
+
+test("Apple assistant error 7 creates one fresh instance after 500ms", () => {
+  const harness = createHarness("ios");
+  const errors = [];
+  const hook = recognitionModule.useUserSpeechRecognition();
+  hook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError(error) { errors.push(error); } });
+  harness.instances[0].onerror({ error: "aborted", message: "kAFAssistantErrorDomain エラー7" });
+  harness.advance(499);
+  assert.equal(harness.instances.length, 1);
+  harness.advance(1);
+  assert.equal(harness.instances.length, 2);
+  harness.instances[1].onerror({ error: "aborted", message: "kAFAssistantErrorDomain エラー7" });
+  harness.advance(500);
+  assert.equal(harness.instances.length, 2);
+  assert.deepEqual(errors, ["aborted"]);
+});
+
+test("other errors and non-Apple devices never use the error 7 retry", () => {
+  for (const [device, error, message] of [
+    ["ios", "no-speech", "kAFAssistantErrorDomain エラー7"],
+    ["ios", "aborted", "different error"],
+    ["android", "aborted", "kAFAssistantErrorDomain エラー7"],
+    ["desktop", "aborted", "kAFAssistantErrorDomain エラー7"],
+  ]) {
+    const harness = createHarness(device);
+    const hook = recognitionModule.useUserSpeechRecognition();
+    hook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError() {} });
+    harness.instances[0].onerror({ error, message });
+    harness.advance(500);
+    assert.equal(harness.instances.length, 1, `${device}/${error}/${message}`);
+  }
 });
