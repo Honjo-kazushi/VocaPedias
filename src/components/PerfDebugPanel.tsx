@@ -45,6 +45,9 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
     duration(entries, "speechend → final", "SPEECH", "onspeechend/onsoundend", "SPEECH", "final result"),
     duration(entries, "final → soft timer", "SPEECH", "final result", "SPEECH", "soft timer fire"),
     duration(entries, "soft timer → Gemini send", "SPEECH", "soft timer fire", "SPEECH", "Gemini request start"),
+    duration(entries, "TTS onend → restart request", "SPEECH", "TTS onend", "SPEECH", "recognition restart requested"),
+    duration(entries, "restart request → start()", "SPEECH", "recognition restart requested", "SPEECH", "recognition start() about to call"),
+    duration(entries, "start() → onstart", "SPEECH", "recognition start() about to call", "SPEECH", "recognition onstart"),
   ].filter(Boolean);
   const current = last(entries, "TTS", "speechSynthesis.speak") ?? last(entries, "TTS", "utterance onstart");
   const sections = AREAS.map((area) => {

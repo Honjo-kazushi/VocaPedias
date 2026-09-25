@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mergeRecognitionResults } from "../ai/conversationTypes";
+import { tossaPerf } from "../debug/tossaPerf";
 
 type Callbacks = {
   onStart: () => void;
@@ -16,6 +17,12 @@ type Callbacks = {
 
 export const SPEECH_SILENCE_TIMEOUT_MS = 3000;
 
+function deviceGroup(): "ios/fallback" | "android" | "desktop" {
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return "ios/fallback";
+  return /Android/i.test(ua) ? "android" : "desktop";
+}
+
 // Each start owns its callbacks and transcript. Late events cannot touch a later session.
 export function useUserSpeechRecognition() {
   const [active, setActive] = useState(false);
@@ -25,6 +32,7 @@ export function useUserSpeechRecognition() {
   const interimTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
+  const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
   const dispose = useCallback(() => {
     sessionRef.current += 1;
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
@@ -36,8 +44,11 @@ export function useUserSpeechRecognition() {
     cancelCallbackRef.current = null;
     if (recognition) {
       recognition.onstart = recognition.onaudiostart = recognition.onaudioend = recognition.onspeechstart = recognition.onspeechend = recognition.onsoundstart = recognition.onsoundend = recognition.onresult = recognition.onend = recognition.onerror = null;
+      lifecycleRef.current = "aborting";
+      tossaPerf("SPEECH", "recognition abort", { deviceGroup: deviceGroup() });
       try { recognition.abort(); } catch { /* Already stopped. */ }
     }
+    lifecycleRef.current = "idle";
   }, []);
   const cancel = useCallback(() => {
     const notify = cancelCallbackRef.current;
@@ -48,10 +59,19 @@ export function useUserSpeechRecognition() {
   const finish = useCallback(() => {
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
-    try { recognitionRef.current?.stop(); } catch { /* Already stopped. */ }
+    if (recognitionRef.current) {
+      lifecycleRef.current = "stopping";
+      tossaPerf("SPEECH", "recognition stop", { deviceGroup: deviceGroup() });
+      try { recognitionRef.current.stop(); } catch { /* Already stopped. */ }
+    }
   }, []);
   const start = useCallback((callbacks: Callbacks, lang: "en-US" | "ja-JP" = "en-US") => {
-    if (recognitionRef.current) return;
+    const group = deviceGroup();
+    tossaPerf("SPEECH", "recognition start requested", { deviceGroup: group, lifecycle: lifecycleRef.current, lang });
+    if (recognitionRef.current) {
+      tossaPerf("SPEECH", "recognition start blocked", { deviceGroup: group, lifecycle: lifecycleRef.current, reason: "existing-instance" });
+      return;
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
       callbacks.onError("unsupported");
@@ -84,6 +104,8 @@ export function useUserSpeechRecognition() {
       };
       recognition.onstart = () => {
         if (!current()) return;
+        lifecycleRef.current = "running";
+        tossaPerf("SPEECH", "recognition onstart", { deviceGroup: group, session, lifecycle: lifecycleRef.current });
         debug("onstart");
         callbacks.onStart();
       };
@@ -147,6 +169,8 @@ export function useUserSpeechRecognition() {
       };
       recognition.onend = () => {
         if (!current()) return;
+        lifecycleRef.current = "idle";
+        tossaPerf("SPEECH", "recognition onend", { deviceGroup: group, session, lifecycle: lifecycleRef.current, final: finalTranscriptRef.current });
         debug("onend", { final: finalTranscriptRef.current });
         if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -162,16 +186,35 @@ export function useUserSpeechRecognition() {
       };
       recognition.onerror = (event) => {
         if (!current()) return;
+        const nativeError = event as Event & { error?: string; message?: string };
+        tossaPerf("SPEECH", "recognition onerror", {
+          deviceGroup: group,
+          session,
+          lifecycle: lifecycleRef.current,
+          error: nativeError.error ?? "unknown",
+          message: nativeError.message ?? "",
+          name: nativeError.constructor?.name ?? "Event",
+        });
         debug("onerror", { error: event.error });
         dispose();
         setActive(false);
         callbacks.onError(event.error);
       };
       setActive(true); // Includes permission/startup pending; does not start Listening.
+      lifecycleRef.current = "starting";
+      tossaPerf("SPEECH", "recognition start() about to call", { deviceGroup: group, session, lifecycle: lifecycleRef.current, lang });
       debug("start called", { lang });
       recognition.start();
-    } catch {
+      tossaPerf("SPEECH", "recognition start() returned", { deviceGroup: group, session, lifecycle: lifecycleRef.current, lang });
+    } catch (error) {
       if (!current()) return;
+      tossaPerf("SPEECH", "recognition start() threw", {
+        deviceGroup: group,
+        session,
+        lifecycle: lifecycleRef.current,
+        error: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : "unknown",
+      });
       dispose();
       setActive(false);
       callbacks.onError("start-failed");

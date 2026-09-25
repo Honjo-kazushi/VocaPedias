@@ -110,12 +110,12 @@ function deferSpeechStart(
       warmup.volume = 0;
       tossaPerf("warmup start", { characterId: warmupVoice.characterId, voiceKey: key, voiceName: warmup.voice?.name ?? "Browser default", lang: warmup.lang });
       let finished = false;
-      const finishWarmup = () => {
+      const finishWarmup = (outcome: "onend" | "onerror" | "timeout") => {
         if (disposed || finished) return;
         finished = true;
         warming = false;
         warmedVoiceKeys.add(key);
-        tossaPerf("warmup end", { characterId: warmupVoice.characterId, voiceKey: key });
+        tossaPerf(`warmup ${outcome}`, { characterId: warmupVoice.characterId, voiceKey: key });
         window.clearTimeout(timer);
         if (warmup) {
           warmup.onend = null;
@@ -123,9 +123,9 @@ function deferSpeechStart(
         }
         scheduleStart();
       };
-      warmup.onend = finishWarmup;
-      warmup.onerror = finishWarmup;
-      timer = window.setTimeout(finishWarmup, SPEECH_WARMUP_TIMEOUT_MS);
+      warmup.onend = () => finishWarmup("onend");
+      warmup.onerror = () => finishWarmup("onerror");
+      timer = window.setTimeout(() => finishWarmup("timeout"), SPEECH_WARMUP_TIMEOUT_MS);
       synth.speak(warmup);
     } catch {
       // Warm-up is best-effort; never prevent the real utterance.
@@ -337,8 +337,11 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
             callbacks.onFinish?.("complete");
           }
         };
-        utterance.onerror = () => cancel("error");
-        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch });
+        utterance.onerror = (event) => {
+          tossaPerf("utterance onerror", { characterId: item.characterId ?? characterId, index, error: event.error });
+          cancel("error");
+        };
+        tossaPerf("speechSynthesis.speak", { characterId: item.characterId ?? characterId, index, ...voiceDetails(utterance.voice), lang: utterance.lang, rate: utterance.rate, pitch: utterance.pitch, volume: utterance.volume });
         synth.speak(utterance);
       });
     } catch {
@@ -414,8 +417,11 @@ export function speakEnSentences(
             callbacks.onFinish?.("complete");
           }
         };
-        utter.onerror = () => cancel("error");
-        tossaPerf("speechSynthesis.speak", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch });
+        utter.onerror = (event) => {
+          tossaPerf("utterance onerror", { characterId, index, error: event.error });
+          cancel("error");
+        };
+        tossaPerf("speechSynthesis.speak", { characterId, index, ...voiceDetails(utter.voice), lang: utter.lang, rate: utter.rate, pitch: utter.pitch, volume: utter.volume });
         synth.speak(utter);
       });
     } catch {

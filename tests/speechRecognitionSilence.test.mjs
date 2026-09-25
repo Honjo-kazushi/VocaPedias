@@ -25,6 +25,11 @@ function createHarness() {
   globalThis.useCallback = (callback) => callback;
   globalThis.useEffect = () => {};
   globalThis.mergeRecognitionResults = (chunks) => chunks.filter(Boolean).join(" ").trim();
+  globalThis.tossaPerf = () => {};
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { userAgent: "test", platform: "test", maxTouchPoints: 0 },
+  });
 
   class MockRecognition {
     stopCalls = 0;

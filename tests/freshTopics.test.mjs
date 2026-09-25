@@ -12,7 +12,11 @@ const freshSource = await read("../src/data/freshTopics.ts");
 const uiSource = await read("../src/components/AiConversationUI.tsx");
 const functionSource = await read("../functions/index.js");
 const firebaseSource = await read("../firebase.json");
-const freshModule = await import(toModule(freshSource));
+const freshModule = await import(toModule(
+  freshSource
+    .replace(/import type[^;]+;\s*/g, "")
+    .replace(/import \{ tossaPerf \}[^;]+;\s*/g, "const tossaPerf = () => {};\n"),
+));
 
 const sampleTopics = Array.from({ length: 10 }, (_, index) => ({
   id: `fresh-2026-09-17-${index + 1}`,

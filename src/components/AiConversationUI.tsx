@@ -284,10 +284,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const scheduleMicrophoneStart = useCallback((token: number, delay = 250, continuation = false) => {
     if (lessonEndingRef.current) return;
     if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
+    tossaPerf("SPEECH", "recognition restart requested", { generation: token, userTurnId: userTurnIdRef.current, delayMs: delay, continuation });
     speechDebug("recognition restart scheduled", { generation: token, userTurnId: userTurnIdRef.current, delay, continuation });
     recognitionRestartTimerRef.current = window.setTimeout(() => {
       recognitionRestartTimerRef.current = null;
       if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || lessonEndingRef.current) return;
+      tossaPerf("SPEECH", "recognition restart timer fired", { generation: token, userTurnId: userTurnIdRef.current, delayMs: delay, continuation });
       speechDebug("recognition restart executed", { generation: token, userTurnId: userTurnIdRef.current, continuation });
       startMicrophoneRef.current(continuation ? token : undefined);
     }, delay);
@@ -312,6 +314,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         onFinish: (reason) => {
           if (startTokenRef.current !== token) return;
           speechDebug("TTS finish", { generation: token, userTurnId: userTurnIdRef.current, reason });
+          tossaPerf("SPEECH", "TTS onend", { generation: token, userTurnId: userTurnIdRef.current, reason });
           setPartnerExpression("neutral");
           setPhase("idle");
           if (reason === "complete" && !lessonEndingRef.current) scheduleMicrophoneStart(token);
@@ -362,7 +365,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   const beginLesson = useCallback((nextTopic: TalkTopic) => {
     topicFlowStartedAtRef.current = performance.now();
-    tossaPerf("FLOW", "Talk Topic click / topic selected", { topicId: nextTopic.id, topicType: isFreshTalkTopic(nextTopic) ? "fresh" : "fixed" });
+    const topicType = isFreshTalkTopic(nextTopic) ? "fresh" : "fixed";
+    tossaPerf("FLOW", "Talk Topic click / topic selected", { topicId: nextTopic.id, topicType });
+    tossaPerf("FRESH", "selected topic", { topicId: nextTopic.id, topicType, topicTitle: nextTopic.title });
     ++startTokenRef.current;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
@@ -804,6 +809,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         if (startTokenRef.current !== token || lessonEndingRef.current) return;
         speechDebug("recognition start", { generation: token, userTurnId, continuing });
         setPhase("recognizing");
+        tossaPerf("SPEECH", "UI_STATE_LISTENING", { generation: token, userTurnId, continuing });
         setAwaitingUserInput(true);
         if (!continuing) {
           setHasRecognizedSpeech(false);

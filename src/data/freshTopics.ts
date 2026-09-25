@@ -1,7 +1,8 @@
 import type { TalkTopic, TalkTopicCategory } from "./talkTopics.seed";
+import { tossaPerf } from "../debug/tossaPerf";
 
 function perfFresh(event: string, details: Record<string, unknown> = {}): void {
-  window.__tossaPerf?.("FRESH", event, details);
+  tossaPerf("FRESH", event, details);
 }
 
 export type FreshTalkTopic = TalkTopic & {
@@ -53,6 +54,7 @@ function normalizeTopics(value: unknown): FreshTalkTopic[] {
 }
 
 function readCache(now: number): FreshTalkTopic[] | null {
+  perfFresh("cache check", { cacheKey: CACHE_KEY, now });
   try {
     const parsed = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null") as FreshTopicCache | null;
     if (!parsed || parsed.expiresAt <= now) return null;
