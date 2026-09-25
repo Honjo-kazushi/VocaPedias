@@ -23,5 +23,5 @@ export type SpeechQueueCallbacks = {
     onItemEnd: (item: SpeechQueueItem, index: number) => void;
     onBoundary?: (event: SpeechSynthesisEvent) => void;
 };
-export declare function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): () => void;
-export declare function speakEnSentences(text: string, callbacks: SentenceSpeechCallbacks, characterId?: CharacterId, locale?: SpeechLocale, rateMultiplier?: number): () => void;
+export declare function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): (requestReason?: string) => void;
+export declare function speakEnSentences(text: string, callbacks: SentenceSpeechCallbacks, characterId?: CharacterId, locale?: SpeechLocale, rateMultiplier?: number): (requestReason?: string) => void;

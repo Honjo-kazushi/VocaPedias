@@ -27,6 +27,7 @@ import {
 import { useCharacterListening } from "../hooks/useCharacterListening";
 import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
+import { setTtsConversationState } from "../sound/cancelSpeechSynthesis";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
 import { ANYONE_THUMBNAIL, PARTNER_THUMBNAILS, SCENE_THUMBNAILS } from "../data/imageThumbnails";
@@ -191,6 +192,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const activeMouthOpenRef = review ? reviewMouthOpenRef : rescueBusy ? miyabiMouthOpenRef : partnerMouthOpenRef;
   const idleProfile = partnerId ? CHARACTER_PROFILES[partnerId] : CHARACTER_PROFILES.emma;
   const openingIdleActive = showIntro && introOpeningComplete;
+
+  useEffect(() => {
+    setTtsConversationState(`AiConversationUI stage=${lessonStage} phase=${phase} intro=${showIntro} partner=${partnerId ?? "none"}`);
+  }, [lessonStage, partnerId, phase, showIntro]);
   const idleActive = !review && !busy && phase === "idle" && !partnerIsSpeaking && (
     openingIdleActive || (!showIntro && (lessonStage !== "partnerSelect" || partnerSelectionReady))
   );
@@ -247,7 +252,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }, CONVERSATION_INACTIVITY_TIMEOUT_MS);
   }, []);
 
-  const stopInteraction = useCallback(() => {
+  const stopInteraction = useCallback((reason = "conversation:stop-interaction") => {
     if (recognitionRestartTimerRef.current !== null) {
       window.clearTimeout(recognitionRestartTimerRef.current);
       recognitionRestartTimerRef.current = null;
@@ -272,9 +277,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     utteranceSentRef.current = false;
     cancelRecognition();
     stopListening();
-    stopAssistantSpeech();
-    stopReviewSpeech();
-    stopMiyabiSpeech();
+    stopAssistantSpeech(`${reason}:partner-speech`);
+    stopReviewSpeech(`${reason}:review-speech`);
+    stopMiyabiSpeech(`${reason}:miyabi-speech`);
     setPartnerExpression("neutral");
     setAwaitingUserInput(false);
     setHasRecognizedSpeech(false);
@@ -331,7 +336,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       characterId: REVIEW_CHARACTER.id,
       avoidVoiceCharacterId: conversationLanguage === "ja" && item.lang === "ja-JP" ? partnerId ?? undefined : undefined,
     }));
-    stopAssistantSpeech();
+    stopAssistantSpeech("conversation:review-replaces-partner-speech");
     speakReviewItems(items, {
       onItemStart: () => setReviewExpression("neutral"),
       onFinish: () => setReviewExpression("neutral"),
@@ -371,7 +376,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     ++startTokenRef.current;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:talk-topic-selected");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -400,7 +405,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const token = ++startTokenRef.current;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:scene-selection-opened");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -441,7 +446,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     startTokenRef.current += 1;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:scene-selection-canceled");
     setShowIntro(true);
     setLessonStage("partnerSelect");
     setTopic(null);
@@ -459,7 +464,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     tossaPerf("FLOW", "Scene selected", { sceneId: sceneFamily.id, situationId: nextScene.id, characterId: nextPartnerId });
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:scene-selected");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -485,7 +490,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     tossaPerf("FLOW", "Partner selected", { characterId: id });
     startTokenRef.current += 1;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:partner-selected");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -507,7 +512,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     startTokenRef.current += 1;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction();
+    stopInteraction("conversation:partner-selection-canceled");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -710,7 +715,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     processedSnapshotIdsRef.current.add(snapshot.id);
     requestBusyRef.current = true;
     const token = ++startTokenRef.current;
-    stopInteraction();
+    stopInteraction("conversation:user-turn-processing");
     setPhase("thinking");
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: snapshot.text }];
     setMessages(nextMessages);
@@ -753,7 +758,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (continuing) {
       if (startTokenRef.current !== token) return;
     } else {
-      stopInteraction();
+      stopInteraction("conversation:microphone-manual-start");
       userTurnIdRef.current += 1;
       utteranceSentRef.current = false;
       setError(null);
@@ -894,7 +899,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (!lastAssistantMessage) return;
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
-    stopInteraction();
+    stopInteraction("conversation:miyabi-rescue-requested");
     setAwaitingUserInput(false);
     setRescueBusy(true);
     setRescueMessage("");
@@ -937,7 +942,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     lessonEndingRef.current = true;
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
-    stopInteraction();
+    stopInteraction("conversation:lesson-ended");
     setRescueBusy(false);
     setRescueMessage("");
     setAwaitingUserInput(false);

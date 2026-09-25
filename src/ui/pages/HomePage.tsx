@@ -9,6 +9,7 @@ import { InMemoryPhraseRepository } from "../../infra/InMemoryPhraseRepository";
 import type { Phrase } from "../../app/ports/PhraseRepository";
 import { playSe } from "../../sound/playSe";
 import { speakEn } from "../../sound/speakEn.ts";
+import { cancelSpeechSynthesis } from "../../sound/cancelSpeechSynthesis";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
@@ -373,7 +374,7 @@ export default function HomePage() {
 
     // safety timeout（TTSが死んだ時の保険）
     const safetyTimer = window.setTimeout(() => {
-      speechSynthesis.cancel();
+      cancelSpeechSynthesis(speechSynthesis, { reason: "home:speak-safe-timeout", source: "HomePage.speakEnSafe", conversationState: speechState });
       finishOnce();
     }, timeoutMs);
 
@@ -417,7 +418,7 @@ export default function HomePage() {
     // =========================
     // 音声すべて停止
     // =========================
-    speechSynthesis.cancel();
+    cancelSpeechSynthesis(speechSynthesis, { reason: "home:hard-stop-to-idle", source: "HomePage.hardStopToIdle", conversationState: speechState });
     speakGenRef.current += 1; // callback 無効化
 
     // =========================
@@ -491,7 +492,7 @@ export default function HomePage() {
       }
 
       // ===== 認識完了 =====
-      speechSynthesis.cancel();
+      cancelSpeechSynthesis(speechSynthesis, { reason: "home:recognition-finalized", source: "HomePage.recognition.onresult", conversationState: speechState });
       setSpeechState("RECOGNIZED");
       // ★ 無音・失敗時の補正（UI 文言をそのまま入れる）
       setSpokenText((prev) => {
@@ -816,7 +817,7 @@ export default function HomePage() {
   const [speakingPhraseId, setSpeakingPhraseId] = useState<string | null>(null);
   const speakPractice = (p: Phrase) => {
     // いま喋っている音声を止める
-    speechSynthesis.cancel();
+    cancelSpeechSynthesis(speechSynthesis, { reason: "home:practice-replace-speech", source: "HomePage.speakPractice", conversationState: speechState });
 
     setSpeakingPhraseId(p.id);
 
@@ -951,7 +952,7 @@ export default function HomePage() {
     }
 
     // TTS 停止
-    speechSynthesis.cancel();
+    cancelSpeechSynthesis(speechSynthesis, { reason: "home:training-reset", source: "HomePage.resetTrainingState", conversationState: speechState });
 
     // 発声世代を進めて、古い callback を無効化
     speakGenRef.current += 1;
@@ -1059,7 +1060,7 @@ export default function HomePage() {
       enTimerRef.current = null;
     }
     speakGenRef.current += 1; // 以後、古いTTS callbackは無効
-    speechSynthesis.cancel(); // 発声自体も止める
+    cancelSpeechSynthesis(speechSynthesis, { reason: "home:clear-en-triggers", source: "HomePage.clearEnTriggers", conversationState: speechState }); // 発声自体も止める
   };
 
   const scheduleGoNext2s = () => {
@@ -1115,7 +1116,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!ttsOn) {
-      speechSynthesis.cancel();
+      cancelSpeechSynthesis(speechSynthesis, { reason: "home:tts-disabled", source: "HomePage.ttsOnEffect", conversationState: "tts disabled" });
     }
   }, [ttsOn]);
 
@@ -1704,7 +1705,7 @@ export default function HomePage() {
                   }
                   // 停止中なら解除（既存仕様）
                   if (isPaused) {
-                    speechSynthesis.cancel();
+                    cancelSpeechSynthesis(speechSynthesis, { reason: "home:resume-from-paused", source: "HomePage.modeSelection", conversationState: speechState });
                     setIsPaused(false);
                   }
 

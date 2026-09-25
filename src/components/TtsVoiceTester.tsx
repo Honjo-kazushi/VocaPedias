@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { cancelSpeechSynthesis } from "../sound/cancelSpeechSynthesis";
 
 const SAMPLES = {
   Conversation: "Hi. How are you today? Tell me something about your day. What did you enjoy most?",
@@ -76,7 +77,11 @@ export default function TtsVoiceTester() {
     window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
     return () => {
       window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
-      window.speechSynthesis.cancel();
+      cancelSpeechSynthesis(window.speechSynthesis, {
+        reason: "tts-voice-tester:component-unmount",
+        source: "TtsVoiceTester.cleanup",
+        conversationState: "voice tester",
+      });
     };
   }, []);
 
@@ -100,7 +105,11 @@ export default function TtsVoiceTester() {
     utterance.lang = voice.lang;
     utterance.rate = rate;
     utterance.pitch = pitch;
-    window.speechSynthesis.cancel();
+    cancelSpeechSynthesis(window.speechSynthesis, {
+      reason: "tts-voice-tester:replace-preview",
+      source: "TtsVoiceTester.play",
+      conversationState: "voice tester",
+    });
     window.speechSynthesis.speak(utterance);
   };
 

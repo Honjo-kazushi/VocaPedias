@@ -96,7 +96,7 @@ test("Emma blinks after the opening and guides Scene selection with cancellable 
 test("Emma Review has a dedicated Emma speech path", () => {
   assert.match(uiSource, /useCharacterSpeech\(REVIEW_CHARACTER\.id, "ja-JP"\)/);
   assert.match(uiSource, /speakReviewItems\(items/);
-  assert.match(uiSource, /stopAssistantSpeech\(\);\s*stopReviewSpeech\(\)/);
+  assert.match(uiSource, /stopAssistantSpeech\(`\$\{reason\}:partner-speech`\);\s*stopReviewSpeech\(`\$\{reason\}:review-speech`\)/);
   assert.match(uiSource, /mouthOpenRef: reviewMouthOpenRef/);
   assert.match(uiSource, /characterId: REVIEW_CHARACTER\.id/);
   assert.match(uiSource, /avoidVoiceCharacterId: conversationLanguage === "ja"/);

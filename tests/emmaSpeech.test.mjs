@@ -10,6 +10,10 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 const profiles = moduleUrl(await read("../src/characters/characterProfiles.ts"));
 const selector = moduleUrl((await read("../src/sound/selectCharacterVoice.ts"))
   .replaceAll('"../characters/characterProfiles"', JSON.stringify(profiles)));
+const cancelDiagnostics = moduleUrl(`
+  export const setActiveTtsState = () => {};
+  export const cancelSpeechSynthesis = (synth) => synth.cancel();
+`);
 const { CHARACTER_PROFILES } = await import(profiles);
 const voice = (name, lang) => ({ name, lang });
 const us = voice("Google US English", "en-US");
@@ -22,6 +26,7 @@ for (const extension of ["ts"]) {
   const speech = await import(moduleUrl(((await read(`../src/sound/speakEn.${extension}`))
     .replaceAll('"../characters/characterProfiles"', JSON.stringify(profiles))
     .replaceAll('"./selectCharacterVoice"', JSON.stringify(selector))
+    .replaceAll('"./cancelSpeechSynthesis"', JSON.stringify(cancelDiagnostics))
     .replace(/import \{ tossaPerf as logTossaPerf \} from "\.\.\/debug\/tossaPerf";/, "const logTossaPerf = () => {};")) + `\n// ${extension} test module`));
 
   test(`${extension}: Emma queue settings, fallback, Review and lifecycle`, () => {

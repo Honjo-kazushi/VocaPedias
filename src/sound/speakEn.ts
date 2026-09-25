@@ -1,6 +1,7 @@
 import type { CharacterId } from "../characters/characterProfiles";
 import { tossaPerf as logTossaPerf } from "../debug/tossaPerf";
 import { detectDeviceGroup, selectCharacterVoice } from "./selectCharacterVoice";
+import { cancelSpeechSynthesis, setActiveTtsState } from "./cancelSpeechSynthesis";
 
 export type TossaTtsProbe = {
   phase: "speak" | "onstart" | "onend" | "onerror";
@@ -48,6 +49,7 @@ function voiceDetails(voice: SpeechSynthesisVoice | null): Record<string, unknow
 }
 
 let utteranceSequence = 0;
+let speechGenerationSequence = 0;
 
 function writeTtsProbe(
   phase: TossaTtsProbe["phase"],
@@ -104,7 +106,8 @@ export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese
 const SPEECH_START_DELAY_MS = 250;
 const VOICE_READY_TIMEOUT_MS = 1000;
 const SPEECH_WARMUP_TIMEOUT_MS = 1000;
-let cancelPendingStart: (() => void) | undefined;
+type CancelSpeech = (requestReason?: string) => void;
+let cancelPendingStart: CancelSpeech | undefined;
 const warmedVoiceKeys = new Set<string>();
 
 type WarmupVoice = {
@@ -298,30 +301,38 @@ export function speakEn(
   onBoundary?: (event: SpeechSynthesisEvent) => void
 ): string | null {
   if (!window.speechSynthesis) return null;
-  cancelPendingStart?.();
+  cancelPendingStart?.("speakEn:replace-pending-start");
   const utter = createUtterance(text, lang);
   const utteranceId = ++utteranceSequence;
+  const generation = ++speechGenerationSequence;
   let speakCalledAt = 0;
 
   utter.onstart = () => {
+    setActiveTtsState({ phase: "onstart" });
     writeTtsProbe("onstart", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onstart", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onStart) onStart();
   };
   utter.onboundary = (event) => onBoundary?.(event);
   utter.onend = () => {
+    setActiveTtsState({ phase: "onend" });
     writeTtsProbe("onend", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onend", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
     if (onEnd) onEnd();
   };
   utter.onerror = (event) => {
+    setActiveTtsState({ phase: `onerror:${event.error}` });
     writeTtsProbe("onerror", utter, undefined, "speakEn", utteranceId, speakCalledAt, event.error);
     tossaPerf("TTS main onerror", { ...mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0), error: event.error });
     if (onEnd) onEnd();
   };
 
-  speechSynthesis.cancel();
+  cancelSpeechSynthesis(speechSynthesis, {
+    reason: "speakEn:reset-native-queue",
+    source: "speakEn.before-speak",
+  });
   speakCalledAt = performance.now();
+  setActiveTtsState({ characterId: null, utteranceId, generation, phase: "speak-called", source: "speakEn" });
   writeTtsProbe("speak", utter, undefined, "speakEn", utteranceId, speakCalledAt);
   tossaPerf("TTS main speak", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
   speechSynthesis.speak(utter);
@@ -368,8 +379,9 @@ function runPreparedUtterances(
   run(0);
 }
 
-export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): () => void {
+export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): CancelSpeech {
   const synth = window.speechSynthesis;
+  const generation = ++speechGenerationSequence;
   const sequential = detectDeviceGroup() === "ios";
   const queue = items.filter((item) => item.text.trim());
   if (!synth || queue.length === 0) {
@@ -379,21 +391,30 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
   let stopped = false;
   let activeIndex = -1;
   const ended = new Set<number>();
-  const cancel = (reason: SpeechFinishReason = "cancel") => {
+  const cancel = (finishReason: SpeechFinishReason = "cancel", requestReason = "speakSpeechQueue:cancel-callback") => {
     if (stopped) return;
     stopped = true;
     disposeStart?.();
-    if (cancelPendingStart === cancel) cancelPendingStart = undefined;
-    synth.cancel();
+    if (cancelPendingStart === pendingCancel) cancelPendingStart = undefined;
+    cancelSpeechSynthesis(synth, {
+      reason: requestReason,
+      source: "speakSpeechQueue.cancel",
+      characterId,
+      generation,
+    });
     if (activeIndex >= 0 && !ended.has(activeIndex)) {
       callbacks.onItemEnd(queue[activeIndex], activeIndex);
     }
-    callbacks.onFinish?.(reason);
+    callbacks.onFinish?.(finishReason);
   };
 
-  cancelPendingStart?.();
-  synth.cancel();
-  cancelPendingStart = cancel;
+  cancelPendingStart?.("speakSpeechQueue:replace-pending-start");
+  cancelSpeechSynthesis(synth, {
+    reason: "speakSpeechQueue:reset-native-queue",
+    source: "speakSpeechQueue.before-start",
+  });
+  const pendingCancel: CancelSpeech = (requestReason) => cancel("cancel", requestReason);
+  cancelPendingStart = pendingCancel;
   // Resolve the main utterances while the selected voice is warming and
   // settling. Once the delay ends, speak() is the only remaining startup work.
   let preparedUtterances: SpeechSynthesisUtterance[] = [];
@@ -414,7 +435,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
     ));
   }, () => {
     if (stopped) return;
-    if (cancelPendingStart === cancel) cancelPendingStart = undefined;
+    if (cancelPendingStart === pendingCancel) cancelPendingStart = undefined;
     try {
       runPreparedUtterances(queue.length, sequential, (index, advance) => {
         if (stopped) return;
@@ -426,6 +447,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
           callbacks.onItemStart(item, index);
@@ -435,6 +457,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         };
         utterance.onend = () => {
           if (stopped || ended.has(index)) return;
+          setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
           ended.add(index);
@@ -450,20 +473,28 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           }
         };
         utterance.onerror = (event) => {
+          setActiveTtsState({ phase: `onerror:${event.error}` });
           writeTtsProbe("onerror", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt, event.error);
           tossaPerf("TTS main onerror", { ...details(), error: event.error });
-          cancel("error");
+          cancel("error", "speakSpeechQueue:utterance-onerror");
         };
         speakCalledAt = performance.now();
+        setActiveTtsState({
+          characterId: item.characterId ?? characterId ?? null,
+          utteranceId,
+          generation,
+          phase: "speak-called",
+          source: "speakSpeechQueue",
+        });
         writeTtsProbe("speak", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
         synth.speak(utterance);
       });
     } catch {
-      cancel("error");
+      cancel("error", "speakSpeechQueue:start-exception");
     }
   });
-  return cancel;
+  return (requestReason) => cancel("cancel", requestReason);
 }
 
 // The native speech queue owns progression. No boundary or delayed JS callback
@@ -474,8 +505,9 @@ export function speakEnSentences(
   characterId?: CharacterId,
   locale: SpeechLocale = "en-US",
   rateMultiplier = 1,
-): () => void {
+): CancelSpeech {
   const synth = window.speechSynthesis;
+  const generation = ++speechGenerationSequence;
   const sequential = detectDeviceGroup() === "ios";
   const sentences = splitSpeechSentences(text);
   if (!synth || sentences.length === 0) {
@@ -486,19 +518,28 @@ export function speakEnSentences(
   let stopped = false;
   let activeIndex = -1;
   const ended = new Set<number>();
-  const cancel = (reason: SpeechFinishReason = "cancel") => {
+  const cancel = (finishReason: SpeechFinishReason = "cancel", requestReason = "speakEnSentences:cancel-callback") => {
     if (stopped) return;
     stopped = true;
     disposeStart?.();
-    if (cancelPendingStart === cancel) cancelPendingStart = undefined;
-    synth.cancel();
+    if (cancelPendingStart === pendingCancel) cancelPendingStart = undefined;
+    cancelSpeechSynthesis(synth, {
+      reason: requestReason,
+      source: "speakEnSentences.cancel",
+      characterId,
+      generation,
+    });
     callbacks.onSentenceEnd();
-    callbacks.onFinish?.(reason);
+    callbacks.onFinish?.(finishReason);
   };
 
-  cancelPendingStart?.();
-  synth.cancel();
-  cancelPendingStart = cancel;
+  cancelPendingStart?.("speakEnSentences:replace-pending-start");
+  cancelSpeechSynthesis(synth, {
+    reason: "speakEnSentences:reset-native-queue",
+    source: "speakEnSentences.before-start",
+  });
+  const pendingCancel: CancelSpeech = (requestReason) => cancel("cancel", requestReason);
+  cancelPendingStart = pendingCancel;
   // Prepare real speech before warm-up completion so voice initialization does
   // not compete with the first audible word.
   let preparedUtterances: SpeechSynthesisUtterance[] = [];
@@ -506,7 +547,7 @@ export function speakEnSentences(
     preparedUtterances = sentences.map((sentence) => createUtterance(sentence, locale, characterId, false, undefined, rateMultiplier));
   }, () => {
     if (stopped) return;
-    if (cancelPendingStart === cancel) cancelPendingStart = undefined;
+    if (cancelPendingStart === pendingCancel) cancelPendingStart = undefined;
     try {
       runPreparedUtterances(sentences.length, sequential, (index, advance) => {
         if (stopped) return;
@@ -518,6 +559,7 @@ export function speakEnSentences(
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
           activeIndex = index;
+          setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
           callbacks.onSentenceStart(sentence);
@@ -527,6 +569,7 @@ export function speakEnSentences(
         };
         utter.onend = () => {
           if (stopped || ended.has(index)) return;
+          setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
           ended.add(index);
@@ -542,18 +585,26 @@ export function speakEnSentences(
           }
         };
         utter.onerror = (event) => {
+          setActiveTtsState({ phase: `onerror:${event.error}` });
           writeTtsProbe("onerror", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt, event.error);
           tossaPerf("TTS main onerror", { ...details(), error: event.error });
-          cancel("error");
+          cancel("error", "speakEnSentences:utterance-onerror");
         };
         speakCalledAt = performance.now();
+        setActiveTtsState({
+          characterId: characterId ?? null,
+          utteranceId,
+          generation,
+          phase: "speak-called",
+          source: "speakEnSentences",
+        });
         writeTtsProbe("speak", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
         synth.speak(utter);
       });
     } catch {
-      cancel("error");
+      cancel("error", "speakEnSentences:start-exception");
     }
   });
-  return cancel;
+  return (requestReason) => cancel("cancel", requestReason);
 }

@@ -105,7 +105,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
   const mouthGenerationRef = useRef(0);
   const mouthTimerRef = useRef<number | null>(null);
   const finalCloseTimerRef = useRef<number | null>(null);
-  const cancelSpeechRef = useRef<(() => void) | null>(null);
+  const cancelSpeechRef = useRef<((reason?: string) => void) | null>(null);
   const mouthImageRef = useRef<HTMLImageElement | null>(null);
   const mouthBoundaryRef = useRef<((event: SpeechSynthesisEvent) => void) | null>(null);
   const mountedRef = useRef(false);
@@ -251,7 +251,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
 
   const speakAssistantMessage = useCallback((text: string, callbacks?: { onStart?: () => void; onFinish?: (reason: SpeechFinishReason) => void; rateMultiplier?: number }) => {
     if (!mountedRef.current) return;
-    cancelSpeechRef.current?.();
+    cancelSpeechRef.current?.("useCharacterSpeech:speak-assistant-replaces-current");
     const speechToken = ++speechTokenRef.current;
     stopMouthTimeline();
     let started = false;
@@ -293,7 +293,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     speechCharacterId?: CharacterId
   ) => {
     if (!mountedRef.current) return;
-    cancelSpeechRef.current?.();
+    cancelSpeechRef.current?.("useCharacterSpeech:speak-items-replaces-current");
     const speechToken = ++speechTokenRef.current;
     stopMouthTimeline();
     cancelSpeechRef.current = speakSpeechQueue(items, {
@@ -316,9 +316,9 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
     }, speechCharacterId);
   }, [startMouthTimeline, stopMouthTimeline]);
 
-  const stopAssistantSpeech = useCallback(() => {
+  const stopAssistantSpeech = useCallback((reason = "useCharacterSpeech:explicit-stop") => {
     speechTokenRef.current += 1;
-    cancelSpeechRef.current?.();
+    cancelSpeechRef.current?.(reason);
     cancelSpeechRef.current = null;
     stopMouthTimeline();
   }, [stopMouthTimeline]);
@@ -338,7 +338,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
         mouthTimerRef.current = null;
       }
       speechTokenRef.current += 1;
-      cancelSpeechRef.current?.();
+      cancelSpeechRef.current?.("useCharacterSpeech:component-unmount");
       cancelSpeechRef.current = null;
     };
   }, []);

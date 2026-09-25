@@ -1,5 +1,6 @@
 import { CHARACTER_PROFILES } from "../characters/characterProfiles";
 import { selectCharacterVoice } from "./selectCharacterVoice";
+import { cancelSpeechSynthesis } from "./cancelSpeechSynthesis";
 // cancel() stops the native queue, but the voice engine may still be settling.
 const SPEECH_START_DELAY_MS = 250;
 const VOICE_READY_TIMEOUT_MS = 1000;
@@ -183,7 +184,7 @@ export function speakEn(text, onEnd, lang = "en", onStart, onBoundary) {
         if (onEnd)
             onEnd();
     };
-    speechSynthesis.cancel();
+    cancelSpeechSynthesis(speechSynthesis, { reason: "legacy-speakEn:reset-native-queue", source: "speakEn.js:speakEn" });
     speechSynthesis.speak(utter);
     return utter.voice?.name ?? "Browser default voice";
 }
@@ -209,14 +210,14 @@ export function speakSpeechQueue(items, callbacks, characterId) {
         disposeStart?.();
         if (cancelPendingStart === cancel)
             cancelPendingStart = undefined;
-        synth.cancel();
+        cancelSpeechSynthesis(synth, { reason: "legacy-speakSpeechQueue:cancel-callback", source: "speakEn.js:speakSpeechQueue.cancel", characterId });
         if (activeIndex >= 0 && !ended.has(activeIndex)) {
             callbacks.onItemEnd(queue[activeIndex], activeIndex);
         }
         callbacks.onFinish?.(reason);
     };
     cancelPendingStart?.();
-    synth.cancel();
+    cancelSpeechSynthesis(synth, { reason: "legacy-speakSpeechQueue:reset-native-queue", source: "speakEn.js:speakSpeechQueue.before-start", characterId });
     cancelPendingStart = cancel;
     // Resolve the main utterances while the selected voice is warming and
     // settling. Once the delay ends, speak() is the only remaining startup work.
@@ -292,12 +293,12 @@ export function speakEnSentences(text, callbacks, characterId, locale = "en-US",
         disposeStart?.();
         if (cancelPendingStart === cancel)
             cancelPendingStart = undefined;
-        synth.cancel();
+        cancelSpeechSynthesis(synth, { reason: "legacy-speakEnSentences:cancel-callback", source: "speakEn.js:speakEnSentences.cancel", characterId });
         callbacks.onSentenceEnd();
         callbacks.onFinish?.(reason);
     };
     cancelPendingStart?.();
-    synth.cancel();
+    cancelSpeechSynthesis(synth, { reason: "legacy-speakEnSentences:reset-native-queue", source: "speakEn.js:speakEnSentences.before-start", characterId });
     cancelPendingStart = cancel;
     // Prepare real speech before warm-up completion so voice initialization does
     // not compete with the first audible word.

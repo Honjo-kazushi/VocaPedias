@@ -23,7 +23,7 @@ test("voice trials are isolated and use fixed comparison text and candidate tuni
   assert.match(source, /utterance\.voice = candidate\.voice/);
   assert.match(source, /utterance\.rate = candidate\.rate/);
   assert.match(source, /utterance\.pitch = candidate\.pitch/);
-  assert.match(source, /speechSynthesis\.cancel\(\)/);
+  assert.match(source, /cancelSpeechSynthesis\(window\.speechSynthesis/);
   assert.match(source, /speechSynthesis\.speak\(utterance\)/);
   assert.doesNotMatch(source, /speakEn|speakSpeechQueue|speakEnSentences|startRecognition/);
 });

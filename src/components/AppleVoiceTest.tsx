@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CHARACTER_PROFILES, type CharacterId } from "../characters/characterProfiles";
 import { getCharacterVoiceCandidates } from "../sound/selectCharacterVoice";
+import { cancelSpeechSynthesis } from "../sound/cancelSpeechSynthesis";
 
 type CandidateTuning = { rate: number; pitch: number };
 type VoiceCandidate = CandidateTuning & { voice: SpeechSynthesisVoice };
@@ -48,7 +49,12 @@ export default function AppleVoiceTest() {
     utterance.lang = candidate.voice.lang;
     utterance.rate = candidate.rate;
     utterance.pitch = candidate.pitch;
-    window.speechSynthesis.cancel();
+    cancelSpeechSynthesis(window.speechSynthesis, {
+      reason: "apple-voice-test:replace-preview",
+      source: "AppleVoiceTest.play",
+      characterId,
+      conversationState: "perfDebug voice test",
+    });
     window.speechSynthesis.speak(utterance);
   };
 
