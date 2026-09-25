@@ -12,6 +12,7 @@ import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
 import { applySpeechRateIntent, detectSpeechRateIntent } from "../ai/conversationControls";
 import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
+import { ttsRecognitionRestartDelayMs } from "../ai/speechRecognitionTiming";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -29,6 +30,7 @@ import { useCharacterListening } from "../hooks/useCharacterListening";
 import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
 import { setTtsConversationState } from "../sound/cancelSpeechSynthesis";
+import { detectDeviceGroup } from "../sound/selectCharacterVoice";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
 import { ANYONE_THUMBNAIL, PARTNER_THUMBNAILS, SCENE_THUMBNAILS } from "../data/imageThumbnails";
@@ -287,7 +289,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setPhase("idle");
   }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech, stopMiyabiSpeech]);
 
-  const scheduleMicrophoneStart = useCallback((token: number, delay = 250, continuation = false) => {
+  const scheduleMicrophoneStart = useCallback((
+    token: number,
+    delay = ttsRecognitionRestartDelayMs(detectDeviceGroup()),
+    continuation = false,
+  ) => {
     if (lessonEndingRef.current) return;
     if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
     tossaPerf("SPEECH", "recognition restart requested", { generation: token, userTurnId: userTurnIdRef.current, delayMs: delay, continuation });
