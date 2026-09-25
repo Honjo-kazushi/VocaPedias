@@ -23,6 +23,7 @@ test("PERF diagnostics are opt-in, bounded, and expose copy/clear/voice data", a
   assert.match(panel, /TTS speak → onstart/);
   assert.match(panel, /TTS onstart → onend/);
   assert.match(panel, /=== VOICES ===/);
+  assert.match(panel, /<AppleVoiceTest \/>/);
   assert.match(panel, /=== DIRECT TTS PROBE ===/);
   assert.match(panel, /window\.__TOSSA_TTS_PROBE__/);
   assert.match(speech, /window\.__TOSSA_TTS_PROBE__ =/);

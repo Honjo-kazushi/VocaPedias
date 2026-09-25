@@ -103,3 +103,22 @@
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+.apple-voice-test {
+  margin-bottom: 10px;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid #365263;
+  border-radius: 8px;
+  background: #0b1c28;
+}
+
+.apple-voice-test h2 { margin: 0 0 8px; font-size: 15px; }
+.apple-voice-test-note { margin: 4px 0 8px; color: #ffd78a; font-size: 12px; }
+.apple-voice-test select { min-height: 36px; font-size: 16px; }
+.apple-voice-candidates { display: grid; gap: 6px; margin-top: 8px; }
+.apple-voice-candidates article { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; align-items: center; padding: 7px; border: 1px solid #294555; border-radius: 6px; }
+.apple-voice-candidates strong,
+.apple-voice-candidates span { overflow-wrap: anywhere; }
+.apple-voice-candidates span { grid-column: 1; font-size: 12px; }
+.apple-voice-candidates button { grid-column: 2; grid-row: 1 / span 2; min-width: 64px; min-height: 40px; }

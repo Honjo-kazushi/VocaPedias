@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { TossaTtsProbe } from "../sound/speakEn.ts";
+import AppleVoiceTest from "./AppleVoiceTest";
 import {
   clearTossaPerfEntries,
   getTossaPerfEntries,
@@ -123,6 +124,7 @@ export default function PerfDebugPanel() {
               <button type="button" onClick={() => { clearTossaPerfEntries(); setCopyStatus("Cleared"); }}>Clear</button>
               <span aria-live="polite">{copyStatus}</span>
             </div>
+            <AppleVoiceTest />
             <textarea ref={textareaRef} readOnly value={report} aria-label="PERF diagnostic report" />
           </section>
         </div>
