@@ -12,7 +12,7 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(uiSource, /conversationLanguage === "en"[\s\S]*awaitingUserInput[\s\S]*!rescueBusy/);
   assert.match(uiSource, /uiLanguage === "en" \? "\? Help" : "？ わからない"/);
   const rescueBlock = uiSource.slice(uiSource.indexOf("const requestRescue"), uiSource.indexOf("const endLesson"));
-  assert.match(rescueBlock, /stopInteraction\(\)/);
+  assert.match(rescueBlock, /stopInteraction\("conversation:miyabi-rescue-requested"\)/);
   assert.doesNotMatch(rescueBlock, /createUserTurnSnapshot|setMessages/);
   assert.match(rescueBlock, /explainEnglishMessageInJapanese/);
   assert.match(rescueBlock, /lang: "ja-JP"/);
@@ -21,7 +21,7 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(uiSource, /const visibleCharacter = rescueBusy \? getCharacter\("miyabi"\) : character/);
   assert.match(uiSource, /mouthOpenRef: miyabiMouthOpenRef/);
   assert.match(uiSource, /rescueBusy \? miyabiMouthOpenRef : partnerMouthOpenRef/);
-  assert.match(uiSource, /stopMiyabiSpeech\(\)/);
+  assert.match(uiSource, /stopMiyabiSpeech\(`\$\{reason\}:miyabi-speech`\)/);
   assert.match(rescueBlock, /speakMiyabiItems/);
   assert.match(rescueBlock, /characterId: "miyabi"/);
   assert.match(rescueBlock, /\}, "miyabi"\)/);
@@ -107,7 +107,7 @@ test("conversation transitions replace the character before applying the next ba
 test("conversation and selection inactivity return directly to top with bounded timers", () => {
   assert.match(uiSource, /CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 \* 60 \* 1000/);
   assert.match(uiSource, /SELECTION_INACTIVITY_TIMEOUT_MS = 3 \* 60 \* 1000/);
-  assert.match(uiSource, /conversationInactivityTimerRef[\s\S]*returnToTopRef\.current\(\)/);
+  assert.match(uiSource, /conversationInactivityTimerRef[\s\S]*returnToTopRef\.current\("conversation-inactivity"\)/);
   assert.match(uiSource, /lessonStage !== "sceneSelect"[\s\S]*SELECTION_INACTIVITY_TIMEOUT_MS/);
   assert.match(uiSource, /lessonStage !== "partnerSelect" \|\| !partnerSelectionReady[\s\S]*SELECTION_INACTIVITY_TIMEOUT_MS/);
   assert.match(uiSource, /returnToTopRef\.current = cancelPartnerSelection/);
@@ -141,7 +141,7 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
   assert.match(endLessonBlock, /lessonEndingRef\.current/);
   assert.doesNotMatch(endLessonBlock.split("return;")[0], /requestBusyRef\.current/);
   assert.match(endLessonBlock, /\+\+startTokenRef\.current/);
-  assert.match(endLessonBlock, /stopInteraction\(\)/);
+  assert.match(endLessonBlock, /stopInteraction\("conversation:lesson-ended"\)/);
   assert.match(endLessonBlock, /setRescueBusy\(false\)/);
   assert.match(endLessonBlock, /requestLessonReview\(messages, token\)/);
   assert.doesNotMatch(uiSource, /onClick=\{\(\) => void endLesson\(\)\}[\s\S]{0,100}disabled=\{busy\}/);
@@ -150,9 +150,9 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
 test("Review actions keep next-topic behavior and Cancel returns to the AI conversation top", () => {
   const reviewBlock = uiSource.slice(uiSource.indexOf("{review ? ("), uiSource.indexOf(') : lessonStage === "sceneSelect"'));
   assert.match(reviewBlock, /scene \? beginSceneSelection\(\) : void beginLesson\(chooseTopic\(freshTopics\)\)/);
-  assert.match(reviewBlock, /onClick=\{\(\) => runButtonAction\(cancelPartnerSelection\)\}>Cancel/);
+  assert.match(reviewBlock, /onClick=\{\(\) => runButtonAction\(\(\) => cancelPartnerSelection\("user"\)\)\}>Cancel/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*\+\+startTokenRef\.current|cancelPartnerSelection[\s\S]*startTokenRef\.current \+= 1/);
-  assert.match(uiSource, /cancelPartnerSelection[\s\S]*stopInteraction\(\)/);
+  assert.match(uiSource, /cancelPartnerSelection[\s\S]*stopInteraction\(`conversation:partner-selection-canceled:\$\{trigger\}`\)/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setReview\(null\)/);
   assert.doesNotMatch(reviewBlock, /chooseTopic\(freshTopics\)[\s\S]*onClick=\{cancelPartnerSelection\}[\s\S]*chooseTopic/);

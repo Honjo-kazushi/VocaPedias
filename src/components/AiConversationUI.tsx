@@ -11,6 +11,7 @@ import {
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
 import { applySpeechRateIntent, detectSpeechRateIntent } from "../ai/conversationControls";
+import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -212,7 +213,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const hardFinalizeTimerRef = useRef<number | null>(null);
   const conversationInactivityTimerRef = useRef<number | null>(null);
   const reviewInactivityTimerRef = useRef<number | null>(null);
-  const returnToTopRef = useRef<() => void>(() => {});
+  const returnToTopRef = useRef<(trigger: ConversationCancelTrigger) => void>(() => {});
   const pendingPartnerAnnouncementRef = useRef<string | null>(null);
   const utteranceBufferRef = useRef("");
   const utteranceSentRef = useRef(false);
@@ -240,7 +241,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
     conversationInactivityTimerRef.current = window.setTimeout(() => {
       conversationInactivityTimerRef.current = null;
-      returnToTopRef.current();
+      returnToTopRef.current("conversation-inactivity");
     }, CONVERSATION_INACTIVITY_TIMEOUT_MS);
   }, []);
 
@@ -248,7 +249,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (reviewInactivityTimerRef.current !== null) window.clearTimeout(reviewInactivityTimerRef.current);
     reviewInactivityTimerRef.current = window.setTimeout(() => {
       reviewInactivityTimerRef.current = null;
-      returnToTopRef.current();
+      returnToTopRef.current("review-inactivity");
     }, CONVERSATION_INACTIVITY_TIMEOUT_MS);
   }, []);
 
@@ -508,11 +509,20 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     selectPartner(ENGLISH_CONVERSATION_PARTNER_IDS[randomIndex]);
   };
 
-  const cancelPartnerSelection = useCallback(() => {
+  const cancelPartnerSelection = useCallback((trigger: ConversationCancelTrigger = "user") => {
+    if (!shouldCancelConversation(trigger, {
+      lessonStage,
+      phase,
+      partnerSelectionReady,
+      reviewActive: Boolean(review),
+    })) {
+      tossaPerf("FLOW", "return to top ignored", { trigger, lessonStage, phase, partnerSelectionReady, reviewActive: Boolean(review) });
+      return;
+    }
     startTokenRef.current += 1;
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
-    stopInteraction("conversation:partner-selection-canceled");
+    stopInteraction(`conversation:partner-selection-canceled:${trigger}`);
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -531,7 +541,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setElapsedSeconds(0);
     setBusy(false);
     setError(null);
-  }, [stopInteraction]);
+  }, [lessonStage, partnerSelectionReady, phase, review, stopInteraction]);
 
   returnToTopRef.current = cancelPartnerSelection;
 
@@ -599,13 +609,13 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   useEffect(() => {
     if (showIntro || lessonStage !== "sceneSelect") return;
-    const timer = window.setTimeout(() => returnToTopRef.current(), SELECTION_INACTIVITY_TIMEOUT_MS);
+    const timer = window.setTimeout(() => returnToTopRef.current("selection-inactivity"), SELECTION_INACTIVITY_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [lessonStage, showIntro]);
 
   useEffect(() => {
     if (showIntro || lessonStage !== "partnerSelect" || !partnerSelectionReady) return;
-    const timer = window.setTimeout(() => returnToTopRef.current(), SELECTION_INACTIVITY_TIMEOUT_MS);
+    const timer = window.setTimeout(() => returnToTopRef.current("selection-inactivity"), SELECTION_INACTIVITY_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [lessonStage, partnerSelectionReady, showIntro]);
 
@@ -1050,7 +1060,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             >
               {scene ? "別のSceneを選ぶ" : "次のトピックへ"}
             </button>
-            <button className="ai-end-button" type="button" onClick={() => runButtonAction(cancelPartnerSelection)}>Cancel</button>
+            <button className="ai-end-button" type="button" onClick={() => runButtonAction(() => cancelPartnerSelection("user"))}>Cancel</button>
           </div>
         </div>
       ) : lessonStage === "sceneSelect" ? (
@@ -1134,7 +1144,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             )}
           </div>
           {error && <p className="ai-error" role="alert">{error}</p>}
-          <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={() => runButtonAction(cancelPartnerSelection)}>Cancel</button>
+          <button ref={partnerCancelRef} className="ai-end-button" type="button" onClick={() => runButtonAction(() => cancelPartnerSelection("user"))}>Cancel</button>
           <div ref={partnerListEndRef} className="ai-partner-list-end" aria-hidden="true" />
         </div>
       ) : (

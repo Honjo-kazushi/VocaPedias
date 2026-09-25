@@ -171,9 +171,9 @@ test("review prompts require no more than three concise one-sentence points", ()
 });
 
 test("partner selection can be cancelled without entering Review", () => {
-  assert.match(uiSource, /const cancelPartnerSelection = (?:useCallback\()?\(\) =>/);
+  assert.match(uiSource, /const cancelPartnerSelection = useCallback\(\(trigger:/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
-  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(cancelPartnerSelection\)\}>Cancel/);
+  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(\(\) => cancelPartnerSelection\("user"\)\)\}>Cancel/);
   assert.match(uiSource, />\s*End Lesson\s*</);
   assert.doesNotMatch(uiSource, /やーめた|やめーた/);
   assert.match(uiSource, /if \(!hasUserResponse\(messages\)\)/);
