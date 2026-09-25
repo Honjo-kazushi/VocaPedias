@@ -257,7 +257,11 @@ for (const extension of ["ts"]) {
         for (const fail of [false, true]) {
           available = []; failDiscovery = fail;
           speakSentences("Fallback. Still speaking.", callbacks, id);
+          assert.equal(queued.length, 1);
+          assert.equal(queued[0].text, "Fallback.");
+          queued[0].onend();
           assert.equal(queued.length, 2);
+          assert.equal(queued[1].text, "Still speaking.");
           for (const utter of queued) {
             assert.equal(utter.voice, null);
             assert.equal(utter.rate, applePreference.rate);
@@ -265,6 +269,46 @@ for (const extension of ["ts"]) {
             assert.equal(utter.lang, "en-US");
           }
         }
+        failDiscovery = false;
+        available = [voice("Fallback English", "en-US")];
+        const waitingForPreferred = speech.speakEnSentences("Preferred voice.", callbacks, "emma");
+        advance(999);
+        assert.equal(queued.length, 0);
+        assert.equal(listeners.size, 1);
+        const samantha = voice("Samantha", "en-US");
+        available = [samantha];
+        for (const listener of [...listeners]) listener();
+        settleWarmupAndStart();
+        assert.deepEqual(queued.map((utter) => utter.text), ["Preferred voice."]);
+        assert.equal(queued[0].voice, samantha);
+        waitingForPreferred();
+
+        available = [voice("Samantha", "en-US")];
+        const sequentialCancel = speakSentences("One. Two. Three.", callbacks, "emma");
+        assert.deepEqual(queued.map((utter) => utter.text), ["One."]);
+        const cancelledFirst = queued[0];
+        sequentialCancel();
+        cancelledFirst.onend();
+        assert.deepEqual(queued, []);
+
+        speakSentences("Error one. Error two.", callbacks, "emma");
+        assert.deepEqual(queued.map((utter) => utter.text), ["Error one."]);
+        queued[0].onerror({ error: "synthesis-failed" });
+        assert.deepEqual(queued, []);
+
+        const appleQueueEvents = [];
+        speakQueue([
+          { lang: "en-US", text: "Queue one." },
+          { lang: "en-US", text: "Queue two." },
+        ], {
+          onItemStart() {}, onItemEnd: (item) => appleQueueEvents.push(`end:${item.text}`),
+          onFinish: (reason) => appleQueueEvents.push(reason),
+        }, "emma");
+        assert.deepEqual(queued.map((utter) => utter.text), ["Queue one."]);
+        queued[0].onend();
+        assert.deepEqual(queued.map((utter) => utter.text), ["Queue one.", "Queue two."]);
+        queued[1].onend();
+        assert.deepEqual(appleQueueEvents, ["complete"]);
         failDiscovery = false;
         available = [...pcVoices, japanese];
         setDevice("Windows NT Chrome");
@@ -329,8 +373,8 @@ for (const extension of ["ts"]) {
       speakSentences("Fallback.", callbacks, "emma");
       assert.ok(queued.length > 0);
       for (const utter of queued) {
-        assert.equal(utter.voice, gb);
-        assert.equal(utter.lang, "en-gb");
+        assert.equal(utter.voice, legacy);
+        assert.equal(utter.lang, "en-us");
         assert.equal(utter.rate, 1);
         assert.equal(utter.pitch, .98);
       }

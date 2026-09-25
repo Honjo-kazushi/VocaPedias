@@ -10,7 +10,7 @@ const toModule = (source) => `data:text/javascript;base64,${Buffer.from(ts.trans
 const profileUrl = toModule(await readFile(new URL("../src/characters/characterProfiles.ts", import.meta.url), "utf8"));
 const { CHARACTER_PROFILES, CONVERSATION_PARTNER_IDS, ENGLISH_CONVERSATION_PARTNER_IDS } = await import(profileUrl);
 const selectorSource = await readFile(new URL("../src/sound/selectCharacterVoice.ts", import.meta.url), "utf8");
-const { selectCharacterVoice: select, normalizeLang } = await import(toModule(
+const { selectCharacterVoice: select, getCharacterVoiceCandidates, normalizeLang } = await import(toModule(
   selectorSource.replaceAll('"../characters/characterProfiles"', JSON.stringify(profileUrl)),
 ));
 const voice = (name, lang) => ({ name, lang, localService: true, default: false, voiceURI: name });
@@ -115,15 +115,15 @@ test("device detection includes iPad desktop UA and ignores missing named voices
 
 test("all nine characters use the selected Apple production settings with safe language fallback", () => {
   const appleRows = [
-    ["emma", "Serena", "en-GB", 1, .98],
+    ["emma", "Samantha", "en-US", 1, .98],
     ["mike", "Daniel", "en-GB", 1.03, .98],
-    ["sophie", "Zoe", "en-US", 1.02, 1.06],
-    ["jamie", "Jamie", "en-GB", .96, .98],
+    ["sophie", "Flo", "en-US", 1.02, 1.06],
+    ["jamie", "Reed", "en-US", .96, .98],
     ["lily", "Moira", "en-IE", 1.02, 1.06],
-    ["grandma_rose", "Moira", "en-IE", .84, .96],
-    ["dr_dan", "Daniel", "en-GB", .92, .96],
-    ["leo", "Moira", "en-IE", 1.08, 1.1],
-    ["miyabi", "O-Ren", "ja-JP", 1.1, 1.02],
+    ["grandma_rose", "Grandma", "en-GB", .84, .96],
+    ["dr_dan", "Grandpa", "en-GB", .92, .96],
+    ["leo", "Junior", "en-US", 1.08, 1.1],
+    ["miyabi", "Kyoko", "ja-JP", 1.1, 1.02],
   ];
   for (const [id, name, lang, rate, pitch] of appleRows) {
     const selectedVoice = voice(name, lang);
@@ -138,7 +138,12 @@ test("all nine characters use the selected Apple production settings with safe l
     assert.equal(fallbackResult.voice, languageFallback, id);
     assert.notEqual(fallbackResult.selectionReason, "browserDefault", id);
   }
-  assert.deepEqual(CHARACTER_PROFILES.leo.voicePreferences.ios.preferredNames.slice(0, 1), ["Moira"]);
-  assert.deepEqual(CHARACTER_PROFILES.leo.voicePreferences.ios.preferredLangs.slice(0, 1), ["en-IE"]);
-  assert.equal(select("emma", [voice("Serena (Enhanced)", "en-GB")], { deviceGroup: "ios" }).voice.name, "Serena (Enhanced)");
+  const actualAppleVoices = [
+    voice("Karen", "en-AU"), voice("Samantha", "en-US"), voice("Tessa", "en-ZA"), voice("Daniel", "en-GB"),
+  ];
+  assert.deepEqual(
+    getCharacterVoiceCandidates("emma", actualAppleVoices, { deviceGroup: "ios" }).map((item) => item.name),
+    ["Samantha", "Karen", "Tessa"],
+  );
+  assert.equal(select("emma", [voice("Samantha (Enhanced)", "en-US")], { deviceGroup: "ios" }).voice.name, "Samantha (Enhanced)");
 });

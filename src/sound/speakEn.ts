@@ -1,6 +1,6 @@
 import type { CharacterId } from "../characters/characterProfiles";
 import { tossaPerf as logTossaPerf } from "../debug/tossaPerf";
-import { selectCharacterVoice } from "./selectCharacterVoice";
+import { detectDeviceGroup, selectCharacterVoice } from "./selectCharacterVoice";
 
 export type TossaTtsProbe = {
   phase: "speak" | "onstart" | "onend" | "onerror";
@@ -211,6 +211,13 @@ function deferSpeechStart(
       tossaPerf("getVoices start", { characterId: warmupVoice.characterId, locale: warmupVoice.locale });
       const voices = synth.getVoices();
       tossaPerf("getVoices complete", { characterId: warmupVoice.characterId, locale: warmupVoice.locale, voiceCount: voices.length });
+      if (detectDeviceGroup() === "ios" && warmupVoice.characterId) {
+        const selection = selectCharacterVoice(warmupVoice.characterId, voices, {
+          locale: warmupVoice.locale,
+          brightJapanese: warmupVoice.brightJapanese,
+        });
+        if (selection.deviceGroup === "ios") return selection.selectionReason === "preferredName";
+      }
       return voices.some((voice) => new RegExp(`^${prefix}(?:[-_]|$)`, "i").test(voice.lang));
     } catch {
       return false;
@@ -343,8 +350,27 @@ export type SpeechQueueCallbacks = {
   onBoundary?: (event: SpeechSynthesisEvent) => void;
 };
 
+function runPreparedUtterances(
+  count: number,
+  sequential: boolean,
+  speakAt: (index: number, advance: () => void) => void,
+): void {
+  if (!count) return;
+  if (!sequential) {
+    for (let index = 0; index < count; index += 1) speakAt(index, () => {});
+    return;
+  }
+  const run = (index: number) => {
+    speakAt(index, () => {
+      if (index + 1 < count) run(index + 1);
+    });
+  };
+  run(0);
+}
+
 export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueueCallbacks, characterId?: CharacterId): () => void {
   const synth = window.speechSynthesis;
+  const sequential = detectDeviceGroup() === "ios";
   const queue = items.filter((item) => item.text.trim());
   if (!synth || queue.length === 0) {
     callbacks.onFinish?.(!synth ? "error" : "complete");
@@ -390,8 +416,9 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
     if (stopped) return;
     if (cancelPendingStart === cancel) cancelPendingStart = undefined;
     try {
-      queue.forEach((item, index) => {
+      runPreparedUtterances(queue.length, sequential, (index, advance) => {
         if (stopped) return;
+        const item = queue[index];
         const utterance = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
@@ -418,6 +445,8 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           if (index === queue.length - 1) {
             stopped = true;
             callbacks.onFinish?.("complete");
+          } else {
+            advance();
           }
         };
         utterance.onerror = (event) => {
@@ -447,6 +476,7 @@ export function speakEnSentences(
   rateMultiplier = 1,
 ): () => void {
   const synth = window.speechSynthesis;
+  const sequential = detectDeviceGroup() === "ios";
   const sentences = splitSpeechSentences(text);
   if (!synth || sentences.length === 0) {
     callbacks.onSentenceEnd();
@@ -478,8 +508,9 @@ export function speakEnSentences(
     if (stopped) return;
     if (cancelPendingStart === cancel) cancelPendingStart = undefined;
     try {
-      sentences.forEach((sentence, index) => {
+      runPreparedUtterances(sentences.length, sequential, (index, advance) => {
         if (stopped) return;
+        const sentence = sentences[index];
         const utter = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
@@ -506,6 +537,8 @@ export function speakEnSentences(
           if (index === sentences.length - 1) {
             stopped = true;
             callbacks.onFinish?.("complete");
+          } else {
+            advance();
           }
         };
         utter.onerror = (event) => {

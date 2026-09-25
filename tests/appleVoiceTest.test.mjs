@@ -11,7 +11,10 @@ test("Apple Voice Test covers all characters with at most three actual device vo
     assert.match(profiles, new RegExp(`^  ${id}: \\{`, "m"));
   }
   assert.match(source, /speechSynthesis\.getVoices\(\)/);
-  assert.match(source, /selected\.length === 3/);
+  assert.match(source, /getCharacterVoiceCandidates/);
+  assert.match(source, /deviceGroup: "ios"/);
+  assert.match(source, /limit: 3/);
+  assert.match(source, /voicePreferences\.ios/);
   assert.match(source, /voiceschanged/);
 });
 

@@ -17,7 +17,7 @@ export function normalizeLang(lang: string): string {
   return lang.trim().toLowerCase().replaceAll("_", "-");
 }
 
-function detectDeviceGroup(): DeviceGroup {
+export function detectDeviceGroup(): DeviceGroup {
   if (typeof navigator === "undefined") return "fallback";
   const ua = navigator.userAgent;
   if (/android/i.test(ua)) return "android";
@@ -25,6 +25,56 @@ function detectDeviceGroup(): DeviceGroup {
   if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
   if (/windows|macintosh|linux|cros/i.test(ua)) return "desktop";
   return "fallback";
+}
+
+function matchingNamedVoices(
+  voices: readonly SpeechSynthesisVoice[],
+  preference: CharacterVoicePreferences["fallback"],
+  allowAppleSuffixes: boolean,
+): SpeechSynthesisVoice[] {
+  const preferredVoices = preference.preferredVoices
+    ?? (preference.preferredNames ?? []).map((name) => ({ name, lang: undefined }));
+  const matched: SpeechSynthesisVoice[] = [];
+  for (const { name, lang } of preferredVoices) {
+    const normalizedName = name.toLowerCase();
+    const voice = voices.find((candidate) => {
+      if (matched.includes(candidate)) return false;
+      const candidateName = candidate.name.toLowerCase();
+      const nameMatches = candidateName === normalizedName || (allowAppleSuffixes && candidateName.includes(normalizedName));
+      return nameMatches && (!lang || normalizeLang(candidate.lang) === normalizeLang(lang));
+    });
+    if (voice) matched.push(voice);
+  }
+  return matched;
+}
+
+export function getCharacterVoiceCandidates(
+  characterId: CharacterId,
+  availableVoices: readonly SpeechSynthesisVoice[],
+  options: { deviceGroup?: DeviceGroup; locale?: "en-US" | "ja-JP"; limit?: number } = {},
+): SpeechSynthesisVoice[] {
+  const profile: CharacterProfile = CHARACTER_PROFILES[characterId];
+  const locale = options.locale ?? (profile.conversationLanguage === "ja" ? "ja-JP" : "en-US");
+  const preferences: CharacterVoicePreferences = locale === "ja-JP"
+    ? profile.japaneseVoicePreferences ?? profile.voicePreferences
+    : profile.voicePreferences;
+  const requestedGroup = options.deviceGroup ?? detectDeviceGroup();
+  const deviceGroup = requestedGroup !== "fallback" && preferences[requestedGroup] ? requestedGroup : "fallback";
+  const preference = (deviceGroup === "fallback" ? undefined : preferences[deviceGroup]) ?? preferences.fallback;
+  const prefix = locale === "ja-JP" ? "ja" : "en";
+  const eligible = availableVoices.filter((voice) => new RegExp(`^${prefix}(?:-|$)`).test(normalizeLang(voice.lang)));
+  const named = matchingNamedVoices(eligible, preference, deviceGroup === "ios");
+  const remaining = eligible.filter((voice) => !named.includes(voice));
+  const preferredLangs = (preference.preferredLangs ?? []).map(normalizeLang);
+  remaining.sort((left, right) => {
+    const rank = (voice: SpeechSynthesisVoice) => {
+      const lang = normalizeLang(voice.lang);
+      const index = preferredLangs.findIndex((preferred) => lang === preferred || lang.startsWith(`${preferred}-`));
+      return index < 0 ? preferredLangs.length : index;
+    };
+    return rank(left) - rank(right) || Number(right.localService) - Number(left.localService) || left.name.localeCompare(right.name);
+  });
+  return [...named, ...remaining].slice(0, options.limit ?? 3);
 }
 
 /** Pass a fresh getVoices() result; call again after voiceschanged if initially empty.
@@ -54,22 +104,8 @@ export function selectCharacterVoice(
   let voice: SpeechSynthesisVoice | undefined;
   let selectionReason: SelectionReason = "browserDefault";
 
-  for (const name of preference.preferredNames ?? []) {
-    voice = languageVoices.find((candidate) => candidate.name === name);
-    if (voice) { selectionReason = "preferredName"; break; }
-  }
-  // Apple may suffix downloaded variants (for example Enhanced/Premium),
-  // while the Voice Test intentionally ranks them by their base voice name.
-  if (!voice && deviceGroup === "ios") {
-    for (const name of preference.preferredNames ?? []) {
-      const normalizedName = name.toLowerCase();
-      voice = languageVoices.find((candidate) => {
-        const candidateName = candidate.name.toLowerCase();
-        return candidateName === normalizedName || candidateName.includes(normalizedName);
-      });
-      if (voice) { selectionReason = "preferredName"; break; }
-    }
-  }
+  voice = matchingNamedVoices(languageVoices, preference, deviceGroup === "ios")[0];
+  if (voice) selectionReason = "preferredName";
   if (!voice) {
     for (const lang of preferredLangs) {
       voice = languageVoices.find((candidate) => normalizeLang(candidate.lang) === lang);
