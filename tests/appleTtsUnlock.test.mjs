@@ -120,4 +120,6 @@ test("startup guide appears once per App mount and OK synchronously unlocks befo
   const handler = appSource.slice(appSource.indexOf("const closeStartupGuide"), appSource.indexOf("return ("));
   assert.match(handler, /unlockAppleTtsOnUserGesture\("startup-dialog"\);\s*setShowStartupGuide\(false\)/);
   assert.doesNotMatch(handler, /await|Promise|setTimeout|requestAnimationFrame|useEffect/);
+  assert.ok(appSource.indexOf("<HomePage />") < appSource.indexOf("startup-guide-overlay"));
+  assert.match(appSource, /\{showStartupGuide && \(/);
 });

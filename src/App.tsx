@@ -15,23 +15,23 @@ function App() {
     unlockAppleTtsOnUserGesture("startup-dialog");
     setShowStartupGuide(false);
   };
-  if (showStartupGuide) {
-    return (
-      <div className="startup-guide-overlay" role="presentation">
-        <section className="startup-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-guide-title">
-          <h1 id="startup-guide-title">TossaSpeak</h1>
-          <p>会話中は字幕のON/OFFを切り替えられます。</p>
-          <p>話す速さも「ゆっくり / ややゆっくり / 通常」から変更できます。</p>
-          <p>設定はいつでも変更できます。</p>
-          <button type="button" autoFocus onClick={closeStartupGuide}>OK</button>
-        </section>
-      </div>
-    );
-  }
   return (
     <>
       <HomePage />
       {isTossaPerfDebugEnabled() && <PerfDebugPanel />}
+      {showStartupGuide && (
+        <div className="startup-guide-overlay" role="presentation">
+          <section className="startup-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-guide-title">
+            <h1 id="startup-guide-title">TossaSpeak</h1>
+            <p>会話中は字幕のON/OFFを切り替えられます。</p>
+            <p>話す速さも</p>
+            <p>「ゆっくり / ややゆっくり / 通常」</p>
+            <p>から変更できます。</p>
+            <p>設定はいつでも変更できます。</p>
+            <button type="button" autoFocus onClick={closeStartupGuide}>OK</button>
+          </section>
+        </div>
+      )}
     </>
   );
 }
