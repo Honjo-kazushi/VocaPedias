@@ -109,6 +109,8 @@ export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese
 const SPEECH_START_DELAY_MS = 250;
 const VOICE_READY_TIMEOUT_MS = 1000;
 const SPEECH_WARMUP_TIMEOUT_MS = 1000;
+const APPLE_VOICE_RETRY_INTERVAL_MS = 120;
+const APPLE_VOICE_RETRY_MAX = 4;
 export const APPLE_UTTERANCE_GAP_MS = 120;
 type CancelSpeech = (requestReason?: string) => void;
 let cancelPendingStart: CancelSpeech | undefined;
@@ -187,31 +189,37 @@ function deferSpeechStart(
         scheduleStart();
         return;
       }
-      warmup.volume = 0;
+      const appleWarmup = detectDeviceGroup() === "ios";
+      const firstWarmup = warmup;
       const warmupDetails = () => ({
         kind: "warmup",
         characterId: warmupVoice.characterId,
         voiceKey: key,
+        retryCount,
         ...voiceDetails(warmup?.voice ?? null),
         lang: warmup?.lang ?? warmupVoice.locale,
         synthesisSpeaking: synth.speaking,
         synthesisPending: synth.pending,
       });
-      tossaPerf("warmup start", warmupDetails());
       let finished = false;
+      let retryCount = 0;
+      let warmupStarted = false;
+      const clearWarmupHandlers = () => {
+        if (!warmup) return;
+        warmup.onstart = null;
+        warmup.onend = null;
+        warmup.onerror = null;
+      };
       const finishWarmup = (outcome: "onend" | "onerror" | "timeout") => {
         if (disposed || finished) return;
         finished = true;
         warming = false;
-        warmedVoiceKeys.add(key);
+        if (!appleWarmup || warmupStarted || outcome !== "timeout") warmedVoiceKeys.add(key);
+        if (retryCount > 0) tossaPerf(`warmup retry ${outcome}`, warmupDetails());
         tossaPerf(`warmup ${outcome}`, warmupDetails());
         window.clearTimeout(timer);
-        if (warmup) {
-          warmup.onstart = null;
-          warmup.onend = null;
-          warmup.onerror = null;
-        }
-        if (outcome === "timeout" && detectDeviceGroup() === "ios") {
+        clearWarmupHandlers();
+        if (outcome === "timeout" && appleWarmup) {
           cancelSpeechSynthesis(synth, {
             reason: "warmup-timeout-reset-native-queue",
             source: "deferSpeechStart.warmup-timeout",
@@ -220,12 +228,56 @@ function deferSpeechStart(
         }
         scheduleStart();
       };
-      warmup.onstart = () => tossaPerf("warmup onstart", warmupDetails());
-      warmup.onend = () => finishWarmup("onend");
-      warmup.onerror = () => finishWarmup("onerror");
-      timer = window.setTimeout(() => finishWarmup("timeout"), SPEECH_WARMUP_TIMEOUT_MS);
-      tossaPerf("TTS warmup speak", { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key, textLength: warmup.text.length, ...voiceDetails(warmup.voice), lang: warmup.lang, rate: warmup.rate, pitch: warmup.pitch, volume: warmup.volume });
-      synth.speak(warmup);
+      const startWarmup = (isRetry: boolean) => {
+        if (disposed || finished) return;
+        retryCount = isRetry ? 1 : 0;
+        warmupStarted = false;
+        const attempt = isRetry
+          ? createUtterance(
+              ".",
+              warmupVoice.locale,
+              warmupVoice.characterId,
+              warmupVoice.brightJapanese,
+              warmupVoice.avoidVoiceCharacterId,
+            )
+          : firstWarmup;
+        warmup = attempt;
+        if (isRetry) {
+          attempt.voice = firstWarmup.voice;
+          attempt.lang = firstWarmup.lang;
+          attempt.rate = firstWarmup.rate;
+          attempt.pitch = firstWarmup.pitch;
+          tossaPerf("warmup retry start", warmupDetails());
+        }
+        attempt.volume = 0;
+        if (!isRetry) tossaPerf("warmup start", warmupDetails());
+        attempt.onstart = () => {
+          warmupStarted = true;
+          if (isRetry) tossaPerf("warmup retry onstart", warmupDetails());
+          tossaPerf("warmup onstart", warmupDetails());
+        };
+        attempt.onend = () => finishWarmup("onend");
+        attempt.onerror = () => finishWarmup("onerror");
+        timer = window.setTimeout(() => {
+          if (disposed || finished) return;
+          if (appleWarmup && !warmupStarted && !isRetry) {
+            tossaPerf("warmup timeout", warmupDetails());
+            clearWarmupHandlers();
+            cancelSpeechSynthesis(synth, {
+              reason: "apple-warmup-not-started-retry",
+              source: "deferSpeechStart.warmup-retry",
+              characterId: warmupVoice.characterId,
+            });
+            tossaPerf("warmup retry scheduled", warmupDetails());
+            timer = window.setTimeout(() => startWarmup(true), SPEECH_START_DELAY_MS);
+            return;
+          }
+          finishWarmup("timeout");
+        }, SPEECH_WARMUP_TIMEOUT_MS);
+        tossaPerf("TTS warmup speak", { kind: "warmup", characterId: warmupVoice.characterId, voiceKey: key, retryCount, textLength: attempt.text.length, ...voiceDetails(attempt.voice), lang: attempt.lang, rate: attempt.rate, pitch: attempt.pitch, volume: attempt.volume });
+        synth.speak(attempt);
+      };
+      startWarmup(false);
     } catch {
       // Warm-up is best-effort; never prevent the real utterance.
       scheduleStart();
@@ -256,8 +308,23 @@ function deferSpeechStart(
     warmThenSchedule();
   } else {
     synth.addEventListener("voiceschanged", onVoicesChanged);
-    // Keep the existing browser-default fallback if discovery never succeeds.
-    timer = window.setTimeout(warmThenSchedule, VOICE_READY_TIMEOUT_MS);
+    if (detectDeviceGroup() === "ios") {
+      const retryAppleVoice = (retryIndex: number) => {
+        timer = window.setTimeout(() => {
+          if (disposed || scheduled || warming) return;
+          let voiceCount = 0;
+          try { voiceCount = synth.getVoices().length; } catch { /* logged by hasRequestedVoice */ }
+          tossaPerf("apple voice retry", { characterId: warmupVoice.characterId, retryIndex, voiceCount });
+          if (hasRequestedVoice()) warmThenSchedule();
+          else if (retryIndex < APPLE_VOICE_RETRY_MAX) retryAppleVoice(retryIndex + 1);
+          else warmThenSchedule();
+        }, APPLE_VOICE_RETRY_INTERVAL_MS);
+      };
+      retryAppleVoice(1);
+    } else {
+      // Keep the existing browser-default fallback if discovery never succeeds.
+      timer = window.setTimeout(warmThenSchedule, VOICE_READY_TIMEOUT_MS);
+    }
     onVoicesChanged();
   }
   return dispose;

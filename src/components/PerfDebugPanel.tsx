@@ -58,6 +58,7 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
   const timings = [
     duration(entries, "Talk click → Emma TTS request", "FLOW", "Talk Topic click / topic selected", "FLOW", "Emma guide TTS requested"),
     duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "TTS main speak"),
+    duration(entries, "TTS request → onstart", "FLOW", "Emma guide TTS requested", "TTS", "TTS main onstart"),
     utteranceDuration(entries, "TTS speak → onstart", "TTS main speak", "TTS main onstart"),
     utteranceDuration(entries, "TTS onstart → onend", "TTS main onstart", "TTS main onend"),
     duration(entries, "Partner selected → Opening request", "FLOW", "Partner selected", "FLOW", "Opening request start"),

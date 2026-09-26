@@ -282,13 +282,29 @@ for (const extension of ["ts"]) {
         failDiscovery = false;
         available = [voice("Fallback English", "en-US")];
         const waitingForPreferred = speech.speakEnSentences("Preferred voice.", callbacks, "emma");
-        advance(999);
+        advance(119);
         assert.equal(queued.length, 0);
         assert.equal(listeners.size, 1);
         const samantha = voice("Samantha", "en-US");
         available = [samantha];
-        for (const listener of [...listeners]) listener();
-        settleWarmupAndStart();
+        advance(1);
+        if (queued[0]?.text === ".") {
+          if (id === "emma") assert.deepEqual(queued.map((utter) => utter.text), ["."]);
+          const startedAppleWarmup = queued[0];
+          const cancelCallsBeforeStartedWarmup = cancelCalls;
+          startedAppleWarmup.onstart();
+          advance(1000);
+          assert.equal(cancelCalls, cancelCallsBeforeStartedWarmup + 1);
+          assert.deepEqual(queued, []);
+          advance(249);
+          assert.deepEqual(queued, []);
+          advance(1);
+        } else {
+          // This voice was warmed by an earlier character iteration.
+          advance(249);
+          assert.deepEqual(queued, []);
+          advance(1);
+        }
         assert.deepEqual(queued.map((utter) => utter.text), ["Preferred voice."]);
         assert.equal(queued[0].voice, samantha);
         waitingForPreferred();
@@ -296,18 +312,48 @@ for (const extension of ["ts"]) {
         if (id === "emma") {
           const daniel = voice("Daniel", "en-GB");
           available = [daniel];
-          const timedOutWarmup = speech.speakEnSentences("First Mike speech.", callbacks, "mike");
+          const retriedAppleSpeech = speech.speakEnSentences("First Mike speech.", callbacks, "mike");
+          const cancelCallsBeforeRetry = cancelCalls;
           assert.deepEqual(queued.map((utter) => utter.text), ["."]);
-          const cancelCallsBeforeTimeout = cancelCalls;
+          const firstAttempt = queued[0];
           advance(1000);
-          assert.equal(cancelCalls, cancelCallsBeforeTimeout + 1);
+          assert.equal(cancelCalls, cancelCallsBeforeRetry + 1);
           assert.deepEqual(queued, []);
           advance(249);
           assert.deepEqual(queued, []);
           advance(1);
+          assert.deepEqual(queued.map((utter) => utter.text), ["."]);
+          const retryAttempt = queued[0];
+          assert.notEqual(retryAttempt, firstAttempt);
+          assert.equal(retryAttempt.voice, firstAttempt.voice);
+          assert.equal(retryAttempt.lang, firstAttempt.lang);
+          assert.equal(retryAttempt.rate, firstAttempt.rate);
+          assert.equal(retryAttempt.pitch, firstAttempt.pitch);
+          retryAttempt.onstart();
+          advance(1000);
+          assert.equal(cancelCalls, cancelCallsBeforeRetry + 2);
+          assert.deepEqual(queued, []);
+          advance(250);
           assert.deepEqual(queued.map((utter) => utter.text), ["First Mike speech."]);
           assert.equal(queued[0].voice, daniel);
-          timedOutWarmup();
+          retriedAppleSpeech();
+
+          const danielPremium = voice("Daniel Premium", "en-GB");
+          available = [danielPremium];
+          const exhaustedAppleSpeech = speech.speakEnSentences("Retry exhausted.", callbacks, "mike");
+          const cancelCallsBeforeExhaustion = cancelCalls;
+          assert.deepEqual(queued.map((utter) => utter.text), ["."]);
+          advance(1000);
+          advance(250);
+          assert.deepEqual(queued.map((utter) => utter.text), ["."]);
+          advance(1000);
+          assert.equal(cancelCalls, cancelCallsBeforeExhaustion + 2);
+          assert.deepEqual(queued, []);
+          advance(250);
+          assert.deepEqual(queued.map((utter) => utter.text), ["Retry exhausted."]);
+          advance(2000);
+          assert.deepEqual(queued.map((utter) => utter.text), ["Retry exhausted."]);
+          exhaustedAppleSpeech();
         }
 
         available = [voice("Samantha", "en-US")];
