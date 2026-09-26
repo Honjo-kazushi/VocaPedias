@@ -3,26 +3,36 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("../src/components/AppleVoiceTest.tsx", import.meta.url), "utf8");
-test("Apple Voice Test exposes three fixed trials for each character under review", () => {
-  for (const id of ["sophie", "jamie", "grandma_rose", "leo"]) {
+
+test("Apple Voice Test selects all nine production characters", () => {
+  for (const id of ["emma", "mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi"]) {
     assert.match(source, new RegExp(`"${id}"`));
   }
+  assert.match(source, /CHARACTER_PROFILES\[characterId\]/);
+  assert.match(source, /profile\.voicePreferences\.ios/);
+  assert.match(source, /preference\.preferredVoices\?\.\[0\]/);
   assert.match(source, /speechSynthesis\.getVoices\(\)/);
   assert.match(source, /voiceschanged/);
-  assert.equal((source.match(/\{ label: "[ABC]"/g) ?? []).length, 12);
-  assert.match(source, /voiceName: "Samantha", lang: "en-US", rate: 0\.93, pitch: 1\.06/);
-  assert.match(source, /voiceName: "Reed", lang: "en-US", rate: 0\.96, pitch: 0\.98/);
-  assert.match(source, /voiceName: "Moira", lang: "en-IE", rate: 0\.9, pitch: 0\.96/);
-  assert.match(source, /voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1\.1/);
-  assert.match(source, /voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1\.14/);
-  assert.match(source, /voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1\.16/);
 });
 
-test("voice trials are isolated and use fixed comparison text and candidate tuning", () => {
-  assert.match(source, /new SpeechSynthesisUtterance/);
+test("A, B, and C keep the production voice while varying only rate and pitch", () => {
+  assert.match(source, /label: "A Calm"/);
+  assert.match(source, /label: "B Current", rate: preference\.rate, pitch: preference\.pitch/);
+  assert.match(source, /label: "C Bright"/);
+  assert.match(source, /preference\.rate - 0\.05/);
+  assert.match(source, /preference\.pitch - 0\.04/);
+  assert.match(source, /preference\.rate \+ 0\.05/);
+  assert.match(source, /preference\.pitch \+ 0\.04/);
+  assert.match(source, /clamp\(preference\.rate/);
+  assert.doesNotMatch(source, /setCharacterProfile|localStorage|sessionStorage/);
+});
+
+test("voice trials are isolated and Miyabi uses Japanese comparison text", () => {
+  assert.match(source, /profile\.conversationLanguage === "ja" \? JAPANESE_SAMPLE : ENGLISH_SAMPLE/);
+  assert.match(source, /new SpeechSynthesisUtterance\(sample\)/);
   assert.match(source, /utterance\.voice = voice/);
-  assert.match(source, /utterance\.rate = candidate\.rate/);
-  assert.match(source, /utterance\.pitch = candidate\.pitch/);
+  assert.match(source, /utterance\.rate = trial\.rate/);
+  assert.match(source, /utterance\.pitch = trial\.pitch/);
   assert.match(source, /cancelSpeechSynthesis\(window\.speechSynthesis/);
   assert.match(source, /speechSynthesis\.speak\(utterance\)/);
   assert.doesNotMatch(source, /speakEn|speakSpeechQueue|speakEnSentences|startRecognition/);

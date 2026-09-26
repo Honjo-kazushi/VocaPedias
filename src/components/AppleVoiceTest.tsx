@@ -1,80 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CharacterId } from "../characters/characterProfiles";
+import { CHARACTER_PROFILES, type CharacterId, type VoicePreference } from "../characters/characterProfiles";
+import { normalizeLang } from "../sound/selectCharacterVoice";
 import { cancelSpeechSynthesis } from "../sound/cancelSpeechSynthesis";
 
 type TrialDefinition = {
-  label: "A" | "B" | "C";
-  voiceName: string;
-  lang: string;
+  label: "A Calm" | "B Current" | "C Bright";
   rate: number;
   pitch: number;
 };
 
-type CharacterTrial = {
-  characterId: CharacterId;
-  displayName: string;
-  sample: string;
-  candidates: readonly TrialDefinition[];
-};
-
-const COMMON_SAMPLE = "Hey! It's nice to talk with you today. What have you been up to?";
-const GRANDMA_ROSE_SAMPLE = "It's lovely to talk with you today. Tell me, what have you been up to?";
-
-const CHARACTER_TRIALS: readonly CharacterTrial[] = [
-  {
-    characterId: "sophie",
-    displayName: "Sophie",
-    sample: COMMON_SAMPLE,
-    candidates: [
-      { label: "A", voiceName: "Samantha", lang: "en-US", rate: 0.93, pitch: 1.06 },
-      { label: "B", voiceName: "Karen", lang: "en-AU", rate: 0.93, pitch: 1.06 },
-      { label: "C", voiceName: "Tessa", lang: "en-ZA", rate: 0.93, pitch: 1.06 },
-    ],
-  },
-  {
-    characterId: "jamie",
-    displayName: "Jamie",
-    sample: COMMON_SAMPLE,
-    candidates: [
-      { label: "A", voiceName: "Reed", lang: "en-US", rate: 0.96, pitch: 0.98 },
-      { label: "B", voiceName: "Rishi", lang: "en-IN", rate: 0.96, pitch: 0.98 },
-      { label: "C", voiceName: "Rocko", lang: "en-GB", rate: 0.96, pitch: 0.98 },
-    ],
-  },
-  {
-    characterId: "grandma_rose",
-    displayName: "Grandma Rose",
-    sample: GRANDMA_ROSE_SAMPLE,
-    candidates: [
-      { label: "A", voiceName: "Moira", lang: "en-IE", rate: 0.9, pitch: 0.96 },
-      { label: "B", voiceName: "Karen", lang: "en-AU", rate: 0.9, pitch: 0.96 },
-      { label: "C", voiceName: "Samantha", lang: "en-US", rate: 0.9, pitch: 0.96 },
-    ],
-  },
-  {
-    characterId: "leo",
-    displayName: "Leo",
-    sample: COMMON_SAMPLE,
-    candidates: [
-      { label: "A", voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1.1 },
-      { label: "B", voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1.14 },
-      { label: "C", voiceName: "Junior", lang: "en-US", rate: 1, pitch: 1.16 },
-    ],
-  },
+const CHARACTER_IDS: readonly CharacterId[] = [
+  "emma", "mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi",
 ];
+
+const ENGLISH_SAMPLE = "Hey! It's nice to talk with you today. What have you been up to?";
+const JAPANESE_SAMPLE = "こんにちは。今日はどんな一日でしたか？";
 
 function isAppleTouchDevice(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 }
 
-function findVoice(voices: readonly SpeechSynthesisVoice[], candidate: TrialDefinition): SpeechSynthesisVoice | undefined {
+function clamp(value: number, min: number, max: number): number {
+  return Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
+}
+
+function buildTrials(preference: VoicePreference): readonly TrialDefinition[] {
+  return [
+    { label: "A Calm", rate: clamp(preference.rate - 0.05, 0.7, 1.2), pitch: clamp(preference.pitch - 0.04, 0.7, 1.3) },
+    { label: "B Current", rate: preference.rate, pitch: preference.pitch },
+    { label: "C Bright", rate: clamp(preference.rate + 0.05, 0.7, 1.2), pitch: clamp(preference.pitch + 0.04, 0.7, 1.3) },
+  ];
+}
+
+function findConfiguredVoice(voices: readonly SpeechSynthesisVoice[], preference: VoicePreference): SpeechSynthesisVoice | undefined {
+  const configured = preference.preferredVoices?.[0];
+  if (!configured) return undefined;
+  const configuredName = configured.name.toLowerCase();
   return voices.find((voice) =>
-    voice.name === candidate.voiceName && voice.lang.toLowerCase() === candidate.lang.toLowerCase()
+    (voice.name.toLowerCase() === configuredName || voice.name.toLowerCase().includes(configuredName)) &&
+    normalizeLang(voice.lang) === normalizeLang(configured.lang)
   );
 }
 
 export default function AppleVoiceTest() {
+  const [characterId, setCharacterId] = useState<CharacterId>("emma");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
@@ -85,23 +55,24 @@ export default function AppleVoiceTest() {
     return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
   }, []);
 
-  const availableVoiceKeys = useMemo(
-    () => new Set(voices.map((voice) => `${voice.name}\n${voice.lang.toLowerCase()}`)),
-    [voices],
-  );
+  const profile = CHARACTER_PROFILES[characterId];
+  const preference = profile.voicePreferences.ios!;
+  const configuredVoice = preference.preferredVoices![0];
+  const voice = useMemo(() => findConfiguredVoice(voices, preference), [voices, preference]);
+  const trials = useMemo(() => buildTrials(preference), [preference]);
+  const sample = profile.conversationLanguage === "ja" ? JAPANESE_SAMPLE : ENGLISH_SAMPLE;
 
-  const play = (trial: CharacterTrial, candidate: TrialDefinition) => {
-    const voice = findVoice(voices, candidate);
+  const play = (trial: TrialDefinition) => {
     if (!voice) return;
-    const utterance = new SpeechSynthesisUtterance(trial.sample);
+    const utterance = new SpeechSynthesisUtterance(sample);
     utterance.voice = voice;
     utterance.lang = voice.lang;
-    utterance.rate = candidate.rate;
-    utterance.pitch = candidate.pitch;
+    utterance.rate = trial.rate;
+    utterance.pitch = trial.pitch;
     cancelSpeechSynthesis(window.speechSynthesis, {
       reason: "apple-voice-test:replace-preview",
       source: "AppleVoiceTest.play",
-      characterId: trial.characterId,
+      characterId,
       conversationState: "perfDebug voice test",
     });
     window.speechSynthesis.speak(utterance);
@@ -111,27 +82,26 @@ export default function AppleVoiceTest() {
     <section className="apple-voice-test" aria-labelledby="apple-voice-test-heading">
       <h2 id="apple-voice-test-heading">APPLE VOICE TEST</h2>
       {!isAppleTouchDevice() && <p className="apple-voice-test-note">Apple Voice Test is intended for iPhone/iPad.</p>}
-      <p className="apple-voice-test-note">Compare A / B / C, then report the preferred candidate for each character.</p>
-      <div className="apple-voice-characters">
-        {CHARACTER_TRIALS.map((trial) => (
-          <section className="apple-voice-character" key={trial.characterId}>
-            <h3>{trial.displayName}</h3>
-            <p className="apple-voice-sample">{trial.sample}</p>
-            <div className="apple-voice-candidates">
-              {trial.candidates.map((candidate) => {
-                const available = availableVoiceKeys.has(`${candidate.voiceName}\n${candidate.lang.toLowerCase()}`);
-                return (
-                  <article key={candidate.label}>
-                    <strong>{candidate.label}: {candidate.voiceName}</strong>
-                    <span>{candidate.lang} / rate {candidate.rate.toFixed(2)} / pitch {candidate.pitch.toFixed(2)}</span>
-                    <button type="button" disabled={!available} onClick={() => play(trial, candidate)}>
-                      {available ? "Test" : "Unavailable"}
-                    </button>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+      <label>
+        Character:{" "}
+        <select value={characterId} onChange={(event) => setCharacterId(event.target.value as CharacterId)}>
+          {CHARACTER_IDS.map((id) => <option key={id} value={id}>{CHARACTER_PROFILES[id].displayName}</option>)}
+        </select>
+      </label>
+      <p className="apple-voice-current">
+        Voice: <strong>{configuredVoice.name}</strong><br />
+        Lang: <strong>{configuredVoice.lang}</strong>
+      </p>
+      <p className="apple-voice-sample">{sample}</p>
+      <div className="apple-voice-candidates">
+        {trials.map((trial) => (
+          <article key={trial.label}>
+            <strong>{trial.label}</strong>
+            <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
+            <button type="button" disabled={!voice} onClick={() => play(trial)}>
+              {voice ? "Test" : "Unavailable"}
+            </button>
+          </article>
         ))}
       </div>
     </section>

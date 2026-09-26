@@ -115,9 +115,8 @@
 
 .apple-voice-test h2 { margin: 0 0 8px; font-size: 15px; }
 .apple-voice-test-note { margin: 4px 0 8px; color: #ffd78a; font-size: 12px; }
-.apple-voice-characters { display: grid; gap: 12px; }
-.apple-voice-character { padding-top: 10px; border-top: 1px solid #365263; }
-.apple-voice-character h3 { margin: 0; font-size: 14px; }
+.apple-voice-test select { min-height: 36px; font-size: 16px; }
+.apple-voice-current { margin: 10px 0 4px; }
 .apple-voice-sample { margin: 4px 0; color: #c7dce8; font-size: 11px; }
 .apple-voice-candidates { display: grid; gap: 6px; margin-top: 8px; }
 .apple-voice-candidates article { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; align-items: center; padding: 7px; border: 1px solid #294555; border-radius: 6px; }
