@@ -124,22 +124,23 @@ type WarmupVoice = {
   avoidVoiceCharacterId?: CharacterId;
 };
 
-export function unlockAppleTtsOnUserGesture(): void {
+export type AppleTtsUnlockSource = "startup-dialog" | "topic-fallback" | "scene-fallback";
+
+export function unlockAppleTtsOnUserGesture(unlockSource: AppleTtsUnlockSource): void {
   const deviceGroup = detectDeviceGroup();
   if (deviceGroup !== "ios") {
-    tossaPerf("apple tts unlock skipped", { reason: "non-apple", detectedDeviceGroup: deviceGroup });
+    tossaPerf("apple tts unlock skipped", { unlockSource, reason: "non-apple", detectedDeviceGroup: deviceGroup });
     return;
   }
   if (appleTtsUnlocked) {
-    tossaPerf("apple tts unlock skipped", { reason: "already-requested" });
+    tossaPerf("apple tts unlock skipped", { unlockSource, reason: "already-unlocked" });
     return;
   }
   if (typeof window === "undefined" || !window.speechSynthesis) {
-    tossaPerf("apple tts unlock skipped", { reason: "speech-synthesis-unavailable" });
+    tossaPerf("apple tts unlock skipped", { unlockSource, reason: "speech-synthesis-unavailable" });
     return;
   }
 
-  appleTtsUnlocked = true;
   const synth = window.speechSynthesis;
   let voices: SpeechSynthesisVoice[] = [];
   try {
@@ -149,6 +150,7 @@ export function unlockAppleTtsOnUserGesture(): void {
   }
   const selectedVoice = selectCharacterVoice("emma", voices, { locale: "en-US" }).voice;
   tossaPerf("apple tts unlock requested", {
+    unlockSource,
     voiceCount: voices.length,
     ...voiceDetails(selectedVoice),
     synthesisSpeaking: synth.speaking,
@@ -163,6 +165,7 @@ export function unlockAppleTtsOnUserGesture(): void {
     utterance.volume = 0.01;
     if (selectedVoice) utterance.voice = selectedVoice;
     const details = () => ({
+      unlockSource,
       voiceCount: voices.length,
       ...voiceDetails(utterance.voice),
       lang: utterance.lang,
@@ -177,8 +180,10 @@ export function unlockAppleTtsOnUserGesture(): void {
     utterance.onerror = (event) => tossaPerf("apple tts unlock onerror", { ...details(), error: event.error });
     tossaPerf("apple tts unlock speak", details());
     synth.speak(utterance);
+    appleTtsUnlocked = true;
   } catch (error) {
     tossaPerf("apple tts unlock onerror", {
+      unlockSource,
       voiceCount: voices.length,
       ...voiceDetails(selectedVoice),
       error: error instanceof Error ? error.message : String(error),

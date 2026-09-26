@@ -385,7 +385,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction("conversation:talk-topic-selected");
-    unlockAppleTtsOnUserGesture();
+    unlockAppleTtsOnUserGesture("topic-fallback");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
@@ -415,6 +415,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction("conversation:scene-selection-opened");
+    unlockAppleTtsOnUserGesture("scene-fallback");
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");

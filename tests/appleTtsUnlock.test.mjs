@@ -16,6 +16,7 @@ const cancelDiagnostics = moduleUrl(`
 `);
 const speechSource = await read("../src/sound/speakEn.ts");
 const uiSource = await read("../src/components/AiConversationUI.tsx");
+const appSource = await read("../src/App.tsx");
 
 async function loadSpeech(suffix) {
   return import(moduleUrl((speechSource
@@ -64,20 +65,20 @@ test("Apple Talk unlock runs synchronously once and supports an empty voice list
   const speech = await loadSpeech("empty voices");
   const environment = installSpeechEnvironment({ userAgent: "Windows NT Chrome", voices: [] });
   try {
-    speech.unlockAppleTtsOnUserGesture();
+    speech.unlockAppleTtsOnUserGesture("topic-fallback");
     environment.setDevice("Android Chrome");
-    speech.unlockAppleTtsOnUserGesture();
+    speech.unlockAppleTtsOnUserGesture("scene-fallback");
     assert.equal(environment.queued.length, 0);
 
     environment.setDevice("iPhone Safari");
-    speech.unlockAppleTtsOnUserGesture();
+    speech.unlockAppleTtsOnUserGesture("startup-dialog");
     assert.equal(environment.queued.length, 1);
     assert.equal(environment.queued[0].text, ".");
     assert.equal(environment.queued[0].volume, 0.01);
     assert.equal(environment.queued[0].lang, "en-US");
     assert.equal(environment.queued[0].voice, null);
 
-    speech.unlockAppleTtsOnUserGesture();
+    speech.unlockAppleTtsOnUserGesture("topic-fallback");
     assert.equal(environment.queued.length, 1);
   } finally {
     environment.restore();
@@ -89,7 +90,7 @@ test("Apple Talk unlock uses Samantha immediately when she is already available"
   const samantha = { name: "Samantha", lang: "en-US", voiceURI: "Samantha" };
   const environment = installSpeechEnvironment({ userAgent: "iPhone Safari", voices: [samantha] });
   try {
-    speech.unlockAppleTtsOnUserGesture();
+    speech.unlockAppleTtsOnUserGesture("startup-dialog");
     assert.equal(environment.queued.length, 1);
     assert.equal(environment.queued[0].voice, samantha);
     assert.equal(environment.queued[0].rate, 1);
@@ -99,11 +100,24 @@ test("Apple Talk unlock uses Samantha immediately when she is already available"
   }
 });
 
-test("Talk calls Apple unlock after the existing cancel and before React state updates", () => {
+test("Topic and Scene fallbacks call Apple unlock after the existing cancel", () => {
   const beginLesson = uiSource.slice(uiSource.indexOf("const beginLesson"), uiSource.indexOf("const beginSceneSelection"));
   const cancelIndex = beginLesson.indexOf('stopInteraction("conversation:talk-topic-selected")');
-  const unlockIndex = beginLesson.indexOf("unlockAppleTtsOnUserGesture()");
+  const unlockIndex = beginLesson.indexOf('unlockAppleTtsOnUserGesture("topic-fallback")');
   const stateIndex = beginLesson.indexOf("setTopic(nextTopic)");
   assert.ok(cancelIndex >= 0 && cancelIndex < unlockIndex && unlockIndex < stateIndex);
   assert.doesNotMatch(beginLesson.slice(cancelIndex, stateIndex), /await|Promise|setTimeout|requestAnimationFrame/);
+
+  const beginScene = uiSource.slice(uiSource.indexOf("const beginSceneSelection"), uiSource.indexOf("const beginScene", uiSource.indexOf("const beginSceneSelection") + 20));
+  assert.match(beginScene, /stopInteraction\("conversation:scene-selection-opened"\);\s*unlockAppleTtsOnUserGesture\("scene-fallback"\)/);
+});
+
+test("startup guide appears once per App mount and OK synchronously unlocks before closing", () => {
+  assert.match(appSource, /useState\(true\)/);
+  assert.match(appSource, /role="dialog"[^>]*aria-modal="true"/);
+  assert.match(appSource, /字幕のON\/OFF/);
+  assert.match(appSource, /ゆっくり \/ ややゆっくり \/ 通常/);
+  const handler = appSource.slice(appSource.indexOf("const closeStartupGuide"), appSource.indexOf("return ("));
+  assert.match(handler, /unlockAppleTtsOnUserGesture\("startup-dialog"\);\s*setShowStartupGuide\(false\)/);
+  assert.doesNotMatch(handler, /await|Promise|setTimeout|requestAnimationFrame|useEffect/);
 });
