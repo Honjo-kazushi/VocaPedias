@@ -115,6 +115,7 @@ export const APPLE_UTTERANCE_GAP_MS = 120;
 type CancelSpeech = (requestReason?: string) => void;
 let cancelPendingStart: CancelSpeech | undefined;
 const warmedVoiceKeys = new Set<string>();
+let appleTtsUnlocked = false;
 
 type WarmupVoice = {
   locale: SpeechLocale;
@@ -122,6 +123,70 @@ type WarmupVoice = {
   brightJapanese?: boolean;
   avoidVoiceCharacterId?: CharacterId;
 };
+
+export function unlockAppleTtsOnUserGesture(): void {
+  const deviceGroup = detectDeviceGroup();
+  if (deviceGroup !== "ios") {
+    tossaPerf("apple tts unlock skipped", { reason: "non-apple", detectedDeviceGroup: deviceGroup });
+    return;
+  }
+  if (appleTtsUnlocked) {
+    tossaPerf("apple tts unlock skipped", { reason: "already-requested" });
+    return;
+  }
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    tossaPerf("apple tts unlock skipped", { reason: "speech-synthesis-unavailable" });
+    return;
+  }
+
+  appleTtsUnlocked = true;
+  const synth = window.speechSynthesis;
+  let voices: SpeechSynthesisVoice[] = [];
+  try {
+    voices = synth.getVoices();
+  } catch {
+    // Synchronous user-gesture execution is more important than voice discovery.
+  }
+  const selectedVoice = selectCharacterVoice("emma", voices, { locale: "en-US" }).voice;
+  tossaPerf("apple tts unlock requested", {
+    voiceCount: voices.length,
+    ...voiceDetails(selectedVoice),
+    synthesisSpeaking: synth.speaking,
+    synthesisPending: synth.pending,
+  });
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(".");
+    utterance.lang = "en-US";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 0.01;
+    if (selectedVoice) utterance.voice = selectedVoice;
+    const details = () => ({
+      voiceCount: voices.length,
+      ...voiceDetails(utterance.voice),
+      lang: utterance.lang,
+      rate: utterance.rate,
+      pitch: utterance.pitch,
+      volume: utterance.volume,
+      synthesisSpeaking: synth.speaking,
+      synthesisPending: synth.pending,
+    });
+    utterance.onstart = () => tossaPerf("apple tts unlock onstart", details());
+    utterance.onend = () => tossaPerf("apple tts unlock onend", details());
+    utterance.onerror = (event) => tossaPerf("apple tts unlock onerror", { ...details(), error: event.error });
+    tossaPerf("apple tts unlock speak", details());
+    synth.speak(utterance);
+  } catch (error) {
+    tossaPerf("apple tts unlock onerror", {
+      voiceCount: voices.length,
+      ...voiceDetails(selectedVoice),
+      error: error instanceof Error ? error.message : String(error),
+      synthesisSpeaking: synth.speaking,
+      synthesisPending: synth.pending,
+    });
+  }
+}
 
 function voiceKey(utterance: SpeechSynthesisUtterance): string {
   const voice = utterance.voice;

@@ -30,6 +30,7 @@ import { useCharacterListening } from "../hooks/useCharacterListening";
 import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
 import { setTtsConversationState } from "../sound/cancelSpeechSynthesis";
+import { unlockAppleTtsOnUserGesture } from "../sound/speakEn.ts";
 import { detectDeviceGroup } from "../sound/selectCharacterVoice";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
@@ -384,6 +385,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction("conversation:talk-topic-selected");
+    unlockAppleTtsOnUserGesture();
     speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
