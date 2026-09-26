@@ -9,6 +9,7 @@ import {
 } from "../debug/tossaPerf";
 
 const AREAS = ["FLOW", "TTS", "SPEECH", "FRESH", "IMAGE"] as const;
+const PERF_SESSION_ID = `${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`;
 
 function detailText(data: Record<string, unknown>): string {
   return Object.entries(data).map(([key, value]) => `${key}=${String(value)}`).join("  ");
@@ -77,6 +78,10 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
     return [`=== ${area} ===`, ...areaEntries.map((entry) => `+${Math.round(entry.at)}ms ${entry.event}${Object.keys(entry.data).length ? `  ${detailText(entry.data)}` : ""}`)].join("\n");
   });
   return [
+    "=== BUILD ===",
+    `BUILD DATETIME: ${new Date(__BUILD_TIME__).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}`,
+    `SESSION ID: ${PERF_SESSION_ID}`,
+    "",
     deviceText(),
     "=== DURATIONS ===",
     timings.length ? timings.join("\n") : "No completed timing pairs yet.",

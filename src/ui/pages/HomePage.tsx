@@ -13,6 +13,7 @@ import { cancelSpeechSynthesis } from "../../sound/cancelSpeechSynthesis";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
+import type { SpeechSpeed } from "../../ai/conversationControls";
 
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
@@ -82,6 +83,10 @@ export default function HomePage() {
   const [showConversationCaptions, setShowConversationCaptions] = useState<boolean>(() =>
     readBool("showConversationCaptions", false)
   );
+  const [speechSpeed, setSpeechSpeed] = useState<SpeechSpeed>(() => {
+    const saved = localStorage.getItem("speechSpeed");
+    return saved === "slow" || saved === "slightlySlow" ? saved : "normal";
+  });
 
   const [debugMode, setDebugMode] = useState<boolean>(() =>
     readBool("debugMode", false)
@@ -1113,6 +1118,7 @@ export default function HomePage() {
   useEffect(() => {
     localStorage.setItem("showConversationCaptions", JSON.stringify(showConversationCaptions));
   }, [showConversationCaptions]);
+  useEffect(() => { localStorage.setItem("speechSpeed", speechSpeed); }, [speechSpeed]);
 
   useEffect(() => {
     if (!ttsOn) {
@@ -1570,7 +1576,7 @@ export default function HomePage() {
             </>
           )}
 
-          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} onButtonPress={playClickSe} />}
+          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} onButtonPress={playClickSe} speechSpeed={speechSpeed} onSpeechSpeedChange={setSpeechSpeed} />}
 
           {/* =====================================================
               関連フレーズ（Overlay）
@@ -1804,6 +1810,7 @@ export default function HomePage() {
                     <input type="checkbox" checked={ttsOn} onChange={(e) => setTtsOn(e.target.checked)} />
                     <span>{UI.ttsLabel}<small>（{UI.ttsDescription}）</small></span>
                   </label>
+                  <fieldset className="settings-item"><legend>発話速度</legend>{(["slow", "slightlySlow", "normal"] as const).map((speed) => <label key={speed}><input type="radio" name="speechSpeed" checked={speechSpeed === speed} onChange={() => setSpeechSpeed(speed)} />{speed === "slow" ? "ゆっくり" : speed === "slightlySlow" ? "ややゆっくり" : "通常"}</label>)}</fieldset>
                 </section>
 
                 <section className="settings-group" aria-labelledby="learning-settings-heading">

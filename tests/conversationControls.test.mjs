@@ -18,10 +18,10 @@ test("detects slow, normal, and faster requests without matching ordinary conver
 });
 
 test("rate multiplier stays within the session range", () => {
-  assert.equal(applySpeechRateIntent(1, "slow"), 0.9);
-  assert.equal(applySpeechRateIntent(0.9, "slow"), 0.8);
-  assert.equal(applySpeechRateIntent(0.8, "slow"), 0.8);
-  assert.equal(applySpeechRateIntent(0.8, "faster"), 0.9);
-  assert.equal(applySpeechRateIntent(0.9, "faster"), 1);
-  assert.equal(applySpeechRateIntent(0.8, "normal"), 1);
+  assert.equal(applySpeechRateIntent("normal", "slow"), "slightlySlow");
+  assert.equal(applySpeechRateIntent("slightlySlow", "slow"), "slow");
+  assert.equal(applySpeechRateIntent("slow", "slow"), "slow");
+  assert.equal(applySpeechRateIntent("slow", "faster"), "slightlySlow");
+  assert.equal(applySpeechRateIntent("slightlySlow", "faster"), "normal");
+  assert.equal(applySpeechRateIntent("normal", "normal"), "normal");
 });

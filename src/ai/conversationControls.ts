@@ -1,4 +1,6 @@
 export type SpeechRateIntent = "slow" | "normal" | "faster" | null;
+export type SpeechSpeed = "normal" | "slightlySlow" | "slow";
+export const SPEECH_SPEED_MULTIPLIERS: Record<SpeechSpeed, number> = { normal: 1, slightlySlow: 0.92, slow: 0.84 };
 
 const normalizeEnglish = (text: string) => text.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z'\s]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -14,9 +16,9 @@ export function detectSpeechRateIntent(text: string): SpeechRateIntent {
   return null;
 }
 
-export function applySpeechRateIntent(current: number, intent: SpeechRateIntent): number {
-  if (intent === "normal") return 1;
-  if (intent === "slow") return Math.max(0.8, Math.round((current - 0.1) * 10) / 10);
-  if (intent === "faster") return Math.min(1, Math.round((current + 0.1) * 10) / 10);
+export function applySpeechRateIntent(current: SpeechSpeed, intent: SpeechRateIntent): SpeechSpeed {
+  if (intent === "normal") return "normal";
+  if (intent === "slow") return current === "normal" ? "slightlySlow" : "slow";
+  if (intent === "faster") return current === "slow" ? "slightlySlow" : "normal";
   return current;
 }

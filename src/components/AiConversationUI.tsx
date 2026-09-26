@@ -10,7 +10,7 @@ import {
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
-import { applySpeechRateIntent, detectSpeechRateIntent } from "../ai/conversationControls";
+import { applySpeechRateIntent, detectSpeechRateIntent, SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../ai/conversationControls";
 import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
 import { ttsRecognitionRestartDelayMs } from "../ai/speechRecognitionTiming";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
@@ -137,9 +137,11 @@ type AiConversationUIProps = {
   showConversationCaptions: boolean;
   uiLanguage?: "ja" | "en";
   onButtonPress: () => void;
+  speechSpeed: SpeechSpeed;
+  onSpeechSpeedChange: (speed: SpeechSpeed) => void;
 };
 
-export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja", onButtonPress }: AiConversationUIProps) {
+export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja", onButtonPress, speechSpeed, onSpeechSpeedChange }: AiConversationUIProps) {
   const [topic, setTopic] = useState<TalkTopic | null>(null);
   const [freshTopics, setFreshTopics] = useState<FreshTalkTopic[]>([]);
   const [scene, setScene] = useState<SceneSituation | null>(null);
@@ -224,7 +226,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
   const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
-  const speechRateMultiplierRef = useRef(1);
+  const speechRateMultiplierRef = useRef(SPEECH_SPEED_MULTIPLIERS[speechSpeed]);
+  speechRateMultiplierRef.current = SPEECH_SPEED_MULTIPLIERS[speechSpeed];
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
   const partnerListEndRef = useRef<HTMLDivElement | null>(null);
   const topicFlowStartedAtRef = useRef<number | null>(null);
@@ -386,7 +389,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     lessonEndingRef.current = false;
     stopInteraction("conversation:talk-topic-selected");
     unlockAppleTtsOnUserGesture("topic-fallback");
-    speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
     setTopic(nextTopic);
@@ -416,7 +418,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     lessonEndingRef.current = false;
     stopInteraction("conversation:scene-selection-opened");
     unlockAppleTtsOnUserGesture("scene-fallback");
-    speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
     setTopic(null);
@@ -475,7 +476,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction("conversation:scene-selected");
-    speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
     setTopic(null);
@@ -501,7 +501,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     startTokenRef.current += 1;
     lessonEndingRef.current = false;
     stopInteraction("conversation:partner-selected");
-    speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
     setPartnerId(id);
@@ -532,7 +531,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = false;
     lessonEndingRef.current = false;
     stopInteraction(`conversation:partner-selection-canceled:${trigger}`);
-    speechRateMultiplierRef.current = 1;
     setRescueBusy(false);
     setRescueMessage("");
     partnerOpeningStartedRef.current = null;
@@ -747,7 +745,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     tossaPerf("SPEECH", "Gemini request start", { snapshotId: snapshot.id, generation: snapshot.generation, userTurnId: snapshot.id });
     if (conversationLanguage === "en") {
       const rateIntent = detectSpeechRateIntent(snapshot.text);
-      speechRateMultiplierRef.current = applySpeechRateIntent(speechRateMultiplierRef.current, rateIntent);
+      if (rateIntent) onSpeechSpeedChange(applySpeechRateIntent(speechSpeed, rateIntent));
     }
     try {
       const response = scene
