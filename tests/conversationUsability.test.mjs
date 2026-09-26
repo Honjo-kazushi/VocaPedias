@@ -36,6 +36,8 @@ test("shared speech speed applies to partner English TTS without a session reset
   assert.match(uiSource, /rateMultiplier: speechRateMultiplierRef\.current/);
   assert.match(uiSource, /speechRateMultiplierRef\.current = SPEECH_SPEED_MULTIPLIERS\[speechSpeed\]/);
   assert.doesNotMatch(uiSource, /speechRateMultiplierRef\.current = 1/);
+  assert.match(uiSource, /text: PARTNER_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef\.current/);
+  assert.match(uiSource, /text: SCENE_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef\.current/);
   assert.match(speechSource, /if \(!isJapanese\) utter\.rate \*=/);
 });
 

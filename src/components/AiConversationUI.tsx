@@ -346,6 +346,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       brightJapanese: conversationLanguage === "ja" && item.lang === "ja-JP",
       characterId: REVIEW_CHARACTER.id,
       avoidVoiceCharacterId: conversationLanguage === "ja" && item.lang === "ja-JP" ? partnerId ?? undefined : undefined,
+      rateMultiplier: speechRateMultiplierRef.current,
     }));
     stopAssistantSpeech("conversation:review-replaces-partner-speech");
     speakReviewItems(items, {
@@ -359,8 +360,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     window.requestAnimationFrame(() => {
       if (!mountedRef.current || startTokenRef.current !== token) return;
       speakCharacterItems([
-        { lang: "en-US", text: lessonAnnouncement },
-        { lang: "en-US", text: PARTNER_SELECTION_PROMPT },
+        { lang: "en-US", text: lessonAnnouncement, rateMultiplier: speechRateMultiplierRef.current },
+        { lang: "en-US", text: PARTNER_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef.current },
       ], {
         onItemStart: () => {
           if (startTokenRef.current === token) {
@@ -437,7 +438,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     window.requestAnimationFrame(() => {
       if (!mountedRef.current || startTokenRef.current !== token) return;
       tossaPerf("FLOW", "Scene TTS request");
-      speakCharacterItems([{ lang: "en-US", text: SCENE_SELECTION_PROMPT }], {
+      speakCharacterItems([{ lang: "en-US", text: SCENE_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef.current }], {
         onItemStart: () => {
           if (startTokenRef.current !== token) return;
           setPartnerExpression("neutral");

@@ -408,6 +408,15 @@ for (const extension of ["ts"]) {
         assert.equal(queued[0].voice, us);
         assert.equal(queued[0].rate, .95);
         assert.equal(queued[0].pitch, 1);
+        speakQueue([{ lang: "en-US", text: "Slightly slow guide.", rateMultiplier: 0.92 }], {
+          onItemStart() {}, onItemEnd() {},
+        }, "emma");
+        assert.equal(queued[0].rate, .95 * .92);
+        speakQueue([{ lang: "en-US", text: "Slow guide.", rateMultiplier: 0.84 }], {
+          onItemStart() {}, onItemEnd() {},
+        }, "emma");
+        assert.equal(queued[0].rate, .95 * .84);
+        assert.equal(queued[0].pitch, 1);
       }
       available = [japanese];
       setDevice("Windows NT Chrome");
