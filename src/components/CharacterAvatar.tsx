@@ -16,10 +16,9 @@ type Props = {
 export function CharacterAvatar({ character, expression = "neutral", intro = false, isSpeaking = false, isListening = false, listeningPose = "neutral", mouthOpenRef, onIntroImageLoad }: Props) {
   const listening = isListening && !isSpeaking;
   const images = character.expressions[expression];
-  const neutral = character.expressions.neutral;
   const closed = listening
     ? (listeningPose !== "neutral" ? character.listening?.[listeningPose] : undefined) ?? character.expressions.neutral.closed
-    : isSpeaking ? neutral.closed : images.closed;
+    : images.closed;
   if (intro) return <img className={`character-avatar intro intro-${character.id}-${expression}`} src={closed} alt={character.name} onLoad={onIntroImageLoad} />;
   return (
     <div className={`character-avatar-stack avatar-${character.id} ${isSpeaking ? "is-speaking" : ""}`}>
@@ -27,8 +26,8 @@ export function CharacterAvatar({ character, expression = "neutral", intro = fal
         ref={mouthOpenRef}
         className="character-avatar character-mouth"
         src={closed}
-        data-closed-src={neutral.closed}
-        data-open-src={neutral.open}
+        data-closed-src={images.closed}
+        data-open-src={images.open}
         alt={character.name}
       />
     </div>

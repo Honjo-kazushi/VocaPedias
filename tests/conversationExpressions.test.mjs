@@ -32,14 +32,16 @@ test("conversation expression follows meaning and character bias rather than ran
   assert.doesNotMatch(expressionSource, /Math\.random/);
 });
 
-test("speech uses one avatar image and only the neutral mouth pair", () => {
+test("speech uses one avatar image and keeps the selected expression mouth pair", () => {
   assert.match(uiSource, /queueAssistantSpeech = useCallback\(\(text: string, token: number\)/);
   assert.doesNotMatch(uiSource, /setPartnerExpression\(expression\)/);
   assert.doesNotMatch(uiSource, /selectConversationExpression/);
   assert.match(uiSource, /phase === "recognizing"/);
   assert.match(avatarSource, /const images = character\.expressions\[expression\]/);
-  assert.match(avatarSource, /data-closed-src=\{neutral\.closed\}/);
-  assert.match(avatarSource, /data-open-src=\{neutral\.open\}/);
+  assert.match(avatarSource, /data-closed-src=\{images\.closed\}/);
+  assert.match(avatarSource, /data-open-src=\{images\.open\}/);
+  assert.match(avatarSource, /const listening = isListening && !isSpeaking/);
+  assert.doesNotMatch(avatarSource, /isSpeaking \? neutral\.closed/);
   assert.match(avatarSource, /className="character-avatar character-mouth"/);
   assert.doesNotMatch(avatarSource, /character-mouth-open|character-mouth-closed/);
 });
