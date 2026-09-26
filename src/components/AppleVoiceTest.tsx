@@ -25,14 +25,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
 }
 
-function buildTrials(characterId: CharacterId, preference: VoicePreference): readonly TrialDefinition[] {
-  if (characterId === "miyabi") {
-    return [
-      { label: "A Calm", rate: 0.85, pitch: 0.9 },
-      { label: "B Current", rate: preference.rate, pitch: preference.pitch },
-      { label: "C Bright", rate: 1.3, pitch: 1.18 },
-    ];
-  }
+function buildTrials(preference: VoicePreference): readonly TrialDefinition[] {
   return [
     { label: "A Calm", rate: clamp(preference.rate - 0.05, 0.7, 1.2), pitch: clamp(preference.pitch - 0.04, 0.7, 1.3) },
     { label: "B Current", rate: preference.rate, pitch: preference.pitch },
@@ -66,7 +59,7 @@ export default function AppleVoiceTest() {
   const preference = profile.voicePreferences.ios!;
   const configuredVoice = preference.preferredVoices![0];
   const voice = useMemo(() => findConfiguredVoice(voices, preference), [voices, preference]);
-  const trials = useMemo(() => buildTrials(characterId, preference), [characterId, preference]);
+  const trials = useMemo(() => buildTrials(preference), [preference]);
   const sample = profile.conversationLanguage === "ja" ? JAPANESE_SAMPLE : ENGLISH_SAMPLE;
 
   const play = (selectedVoice: SpeechSynthesisVoice, rate: number, pitch: number) => {

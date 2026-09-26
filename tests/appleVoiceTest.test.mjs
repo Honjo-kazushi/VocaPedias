@@ -15,7 +15,7 @@ test("Apple Voice Test selects all nine production characters", () => {
   assert.match(source, /voiceschanged/);
 });
 
-test("eight non-Miyabi characters keep the production voice while varying only rate and pitch", () => {
+test("all nine characters keep the production voice while varying only rate and pitch", () => {
   assert.match(source, /label: "A Calm"/);
   assert.match(source, /label: "B Current", rate: preference\.rate, pitch: preference\.pitch/);
   assert.match(source, /label: "C Bright"/);
@@ -38,11 +38,13 @@ test("voice trials are isolated and Miyabi uses Japanese comparison text", () =>
   assert.doesNotMatch(source, /speakEn|speakSpeechQueue|speakEnSentences|startRecognition/);
 });
 
-test("Miyabi uses three intentionally wide Kyoko rate and pitch trials", () => {
-  assert.match(source, /characterId === "miyabi"/);
-  assert.match(source, /label: "A Calm", rate: 0\.85, pitch: 0\.9/);
+test("Miyabi uses the standard trials around its current Kyoko production tuning", () => {
+  assert.doesNotMatch(source, /characterId === "miyabi"/);
+  assert.match(source, /preference\.rate - 0\.05/);
+  assert.match(source, /preference\.pitch - 0\.04/);
   assert.match(source, /label: "B Current", rate: preference\.rate, pitch: preference\.pitch/);
-  assert.match(source, /label: "C Bright", rate: 1\.3, pitch: 1\.18/);
+  assert.match(source, /preference\.rate \+ 0\.05/);
+  assert.match(source, /preference\.pitch \+ 0\.04/);
   assert.doesNotMatch(source, /japaneseVoiceCandidates|MIYABI_CANDIDATE_LABELS/);
   assert.match(source, /そうなんですね。私もそれ、ちょっと気になってました。/);
   assert.doesNotMatch(source, /setCharacterProfile|localStorage|sessionStorage/);

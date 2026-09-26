@@ -35,9 +35,17 @@ function utteranceDuration(entries: readonly TossaPerfEntry[], label: string, fr
   return start ? `${label}: ${Math.round(end.at - start.at)} ms` : null;
 }
 
+function deviceLabel(userAgent: string, platform: string, maxTouchPoints: number): "iPhone" | "iPad" | "Android" | "PC Chrome" {
+  if (/iphone/i.test(userAgent)) return "iPhone";
+  if (/ipad/i.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1)) return "iPad";
+  if (/android/i.test(userAgent)) return "Android";
+  return "PC Chrome";
+}
+
 function deviceText(): string {
   return [
     "=== DEVICE ===",
+    `DEVICE LABEL: ${deviceLabel(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)}`,
     `UA: ${navigator.userAgent}`,
     `platform: ${navigator.platform || "unknown"}`,
     `maxTouchPoints: ${navigator.maxTouchPoints}`,
