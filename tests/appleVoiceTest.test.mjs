@@ -38,12 +38,12 @@ test("voice trials are isolated and Miyabi uses Japanese comparison text", () =>
   assert.doesNotMatch(source, /speakEn|speakSpeechQueue|speakEnSentences|startRecognition/);
 });
 
-test("Miyabi compares up to four actual ja-JP voices with identical production tuning", () => {
+test("Miyabi uses three intentionally wide Kyoko rate and pitch trials", () => {
   assert.match(source, /characterId === "miyabi"/);
-  assert.match(source, /normalizeLang\(voice\.lang\) === "ja-jp"/);
-  assert.match(source, /MIYABI_CANDIDATE_LABELS = \["A", "B", "C", "D"\]/);
-  assert.match(source, /\.slice\(0, MIYABI_CANDIDATE_LABELS\.length\)/);
-  assert.match(source, /play\(candidate, preference\.rate, preference\.pitch\)/);
+  assert.match(source, /label: "A Calm", rate: 0\.85, pitch: 0\.9/);
+  assert.match(source, /label: "B Current", rate: preference\.rate, pitch: preference\.pitch/);
+  assert.match(source, /label: "C Bright", rate: 1\.3, pitch: 1\.18/);
+  assert.doesNotMatch(source, /japaneseVoiceCandidates|MIYABI_CANDIDATE_LABELS/);
   assert.match(source, /そうなんですね。私もそれ、ちょっと気になってました。/);
   assert.doesNotMatch(source, /setCharacterProfile|localStorage|sessionStorage/);
 });

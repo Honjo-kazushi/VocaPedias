@@ -15,7 +15,6 @@ const CHARACTER_IDS: readonly CharacterId[] = [
 
 const ENGLISH_SAMPLE = "Hey! It's nice to talk with you today. What have you been up to?";
 const JAPANESE_SAMPLE = "そうなんですね。私もそれ、ちょっと気になってました。ところで、今日はこのあと何をする予定ですか？";
-const MIYABI_CANDIDATE_LABELS = ["A", "B", "C", "D"] as const;
 
 function isAppleTouchDevice(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
@@ -26,7 +25,14 @@ function clamp(value: number, min: number, max: number): number {
   return Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
 }
 
-function buildTrials(preference: VoicePreference): readonly TrialDefinition[] {
+function buildTrials(characterId: CharacterId, preference: VoicePreference): readonly TrialDefinition[] {
+  if (characterId === "miyabi") {
+    return [
+      { label: "A Calm", rate: 0.85, pitch: 0.9 },
+      { label: "B Current", rate: preference.rate, pitch: preference.pitch },
+      { label: "C Bright", rate: 1.3, pitch: 1.18 },
+    ];
+  }
   return [
     { label: "A Calm", rate: clamp(preference.rate - 0.05, 0.7, 1.2), pitch: clamp(preference.pitch - 0.04, 0.7, 1.3) },
     { label: "B Current", rate: preference.rate, pitch: preference.pitch },
@@ -42,15 +48,6 @@ function findConfiguredVoice(voices: readonly SpeechSynthesisVoice[], preference
     (voice.name.toLowerCase() === configuredName || voice.name.toLowerCase().includes(configuredName)) &&
     normalizeLang(voice.lang) === normalizeLang(configured.lang)
   );
-}
-
-function japaneseVoiceCandidates(voices: readonly SpeechSynthesisVoice[], preference: VoicePreference): SpeechSynthesisVoice[] {
-  const current = findConfiguredVoice(voices, preference);
-  const japaneseVoices = voices.filter((voice) => normalizeLang(voice.lang) === "ja-jp");
-  return [
-    ...(current ? [current] : []),
-    ...japaneseVoices.filter((voice) => voice !== current),
-  ].slice(0, MIYABI_CANDIDATE_LABELS.length);
 }
 
 export default function AppleVoiceTest() {
@@ -69,8 +66,7 @@ export default function AppleVoiceTest() {
   const preference = profile.voicePreferences.ios!;
   const configuredVoice = preference.preferredVoices![0];
   const voice = useMemo(() => findConfiguredVoice(voices, preference), [voices, preference]);
-  const trials = useMemo(() => buildTrials(preference), [preference]);
-  const miyabiVoices = useMemo(() => japaneseVoiceCandidates(voices, preference), [voices, preference]);
+  const trials = useMemo(() => buildTrials(characterId, preference), [characterId, preference]);
   const sample = profile.conversationLanguage === "ja" ? JAPANESE_SAMPLE : ENGLISH_SAMPLE;
 
   const play = (selectedVoice: SpeechSynthesisVoice, rate: number, pitch: number) => {
@@ -104,25 +100,16 @@ export default function AppleVoiceTest() {
       </p>
       <p className="apple-voice-sample">{sample}</p>
       <div className="apple-voice-candidates">
-        {characterId === "miyabi"
-          ? miyabiVoices.map((candidate, index) => (
-            <article key={`${candidate.voiceURI}-${candidate.lang}`}>
-              <strong>{MIYABI_CANDIDATE_LABELS[index]}: {candidate.name}</strong>
-              <span>{candidate.lang} / rate {preference.rate.toFixed(2)} / pitch {preference.pitch.toFixed(2)}</span>
-              <button type="button" onClick={() => play(candidate, preference.rate, preference.pitch)}>Test</button>
-            </article>
-          ))
-          : trials.map((trial) => (
-            <article key={trial.label}>
-              <strong>{trial.label}</strong>
-              <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
-              <button type="button" disabled={!voice} onClick={() => voice && play(voice, trial.rate, trial.pitch)}>
-                {voice ? "Test" : "Unavailable"}
-              </button>
-            </article>
-          ))}
+        {trials.map((trial) => (
+          <article key={trial.label}>
+            <strong>{trial.label}</strong>
+            <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
+            <button type="button" disabled={!voice} onClick={() => voice && play(voice, trial.rate, trial.pitch)}>
+              {voice ? "Test" : "Unavailable"}
+            </button>
+          </article>
+        ))}
       </div>
-      {characterId === "miyabi" && !miyabiVoices.length && <p>No ja-JP voices are available yet. Waiting for voiceschanged…</p>}
     </section>
   );
 }
