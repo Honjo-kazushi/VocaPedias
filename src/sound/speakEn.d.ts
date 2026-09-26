@@ -8,7 +8,7 @@ export type SpeechQueueItem = {
     avoidVoiceCharacterId?: CharacterId;
     rateMultiplier?: number;
 };
-export declare function speakEn(text: string, onEnd?: () => void, lang?: "en" | "ja", onStart?: () => void, onBoundary?: (event: SpeechSynthesisEvent) => void): string | null;
+export declare function speakEn(text: string, onEnd?: () => void, lang?: "en" | "ja", onStart?: () => void, onBoundary?: (event: SpeechSynthesisEvent) => void, rateMultiplier?: number): string | null;
 export declare function splitSpeechSentences(text: string): string[];
 export type SpeechFinishReason = "complete" | "cancel" | "error";
 export type SentenceSpeechCallbacks = {

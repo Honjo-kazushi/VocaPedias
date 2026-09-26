@@ -31,10 +31,11 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.match(styleSource, /\.character-stage\.help-rescue \.character-avatar-stack\.avatar-miyabi \{[\s\S]*margin: 0 auto;/);
 });
 
-test("session speech rate applies only to partner English TTS and resets for new sessions", () => {
+test("shared speech speed applies to partner English TTS without a session reset", () => {
   assert.match(uiSource, /detectSpeechRateIntent\(snapshot\.text\)/);
   assert.match(uiSource, /rateMultiplier: speechRateMultiplierRef\.current/);
-  assert.match(uiSource, /speechRateMultiplierRef\.current = 1/);
+  assert.match(uiSource, /speechRateMultiplierRef\.current = SPEECH_SPEED_MULTIPLIERS\[speechSpeed\]/);
+  assert.doesNotMatch(uiSource, /speechRateMultiplierRef\.current = 1/);
   assert.match(speechSource, /if \(!isJapanese\) utter\.rate \*=/);
 });
 

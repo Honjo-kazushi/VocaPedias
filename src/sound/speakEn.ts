@@ -437,6 +437,7 @@ function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, charact
 
   utter.lang = isJapanese ? "ja-JP" : "en-US";
   utter.rate = isJapanese ? 1.3 : 1.0;
+  if (!isJapanese) utter.rate *= Math.max(0.8, Math.min(1, rateMultiplier));
 
 
   const voices = speechSynthesis.getVoices();
@@ -458,11 +459,12 @@ export function speakEn(
   onEnd?: () => void,
   lang: "en" | "ja" = "en",
   onStart?: () => void,
-  onBoundary?: (event: SpeechSynthesisEvent) => void
+  onBoundary?: (event: SpeechSynthesisEvent) => void,
+  rateMultiplier = 1,
 ): string | null {
   if (!window.speechSynthesis) return null;
   cancelPendingStart?.("speakEn:replace-pending-start");
-  const utter = createUtterance(text, lang);
+  const utter = createUtterance(text, lang, undefined, false, undefined, rateMultiplier);
   const utteranceId = ++utteranceSequence;
   const generation = ++speechGenerationSequence;
   let speakCalledAt = 0;

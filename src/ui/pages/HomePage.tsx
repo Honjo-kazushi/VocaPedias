@@ -13,7 +13,7 @@ import { cancelSpeechSynthesis } from "../../sound/cancelSpeechSynthesis";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
-import type { SpeechSpeed } from "../../ai/conversationControls";
+import { SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../../ai/conversationControls";
 
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
@@ -390,7 +390,10 @@ export default function HomePage() {
         clearTimeout(safetyTimer);
         finishOnce();
       },
-      lang
+      lang,
+      undefined,
+      undefined,
+      SPEECH_SPEED_MULTIPLIERS[speechSpeed],
     );
   }
 
@@ -1810,7 +1813,7 @@ export default function HomePage() {
                     <input type="checkbox" checked={ttsOn} onChange={(e) => setTtsOn(e.target.checked)} />
                     <span>{UI.ttsLabel}<small>（{UI.ttsDescription}）</small></span>
                   </label>
-                  <fieldset className="settings-item"><legend>発話速度</legend>{(["slow", "slightlySlow", "normal"] as const).map((speed) => <label key={speed}><input type="radio" name="speechSpeed" checked={speechSpeed === speed} onChange={() => setSpeechSpeed(speed)} />{speed === "slow" ? "ゆっくり" : speed === "slightlySlow" ? "ややゆっくり" : "通常"}</label>)}</fieldset>
+                  <fieldset className="settings-item"><legend>{jpLearnMode ? "Speech Speed" : "発話速度"}</legend>{(["slow", "slightlySlow", "normal"] as const).map((speed) => <label key={speed}><input type="radio" name="speechSpeed" checked={speechSpeed === speed} onChange={() => setSpeechSpeed(speed)} />{jpLearnMode ? (speed === "slow" ? "Slow" : speed === "slightlySlow" ? "Slightly Slow" : "Normal") : (speed === "slow" ? "ゆっくり" : speed === "slightlySlow" ? "ややゆっくり" : "通常")}</label>)}</fieldset>
                 </section>
 
                 <section className="settings-group" aria-labelledby="learning-settings-heading">
