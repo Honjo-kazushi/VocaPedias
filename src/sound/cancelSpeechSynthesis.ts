@@ -16,6 +16,7 @@ type ActiveTtsState = {
   generation: number | null;
   phase: string;
   source: string;
+  rateDetails?: Record<string, unknown>;
 };
 
 let activeTtsState: ActiveTtsState = {
@@ -41,6 +42,11 @@ function currentScreen(): string {
 
 export function cancelSpeechSynthesis(synth: SpeechSynthesis, context: TtsCancelContext): void {
   const timestamp = typeof performance === "undefined" ? Date.now() : performance.now();
+  if (activeTtsState.rateDetails) {
+    const rateDetails = { ...activeTtsState.rateDetails, timestamp, event: "cancel" };
+    console.log("[TOSSA TTS RATE]", rateDetails);
+    tossaPerf("TTS", "[TOSSA TTS RATE]", rateDetails);
+  }
   tossaPerf("TTS", "TTS CANCEL REQUEST", {
     timestamp: timestamp,
     reason: context.reason,
@@ -57,6 +63,6 @@ export function cancelSpeechSynthesis(synth: SpeechSynthesis, context: TtsCancel
     currentScreen: currentScreen(),
     conversationState: context.conversationState ?? activeConversationState,
   });
-  activeTtsState = { ...activeTtsState, phase: "cancel-requested" };
+  activeTtsState = { ...activeTtsState, phase: "cancel-requested", rateDetails: undefined };
   synth.cancel();
 }

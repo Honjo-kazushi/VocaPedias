@@ -103,7 +103,35 @@ function mainSpeechDetails(
 }
 
 export type SpeechLocale = "ja-JP" | "en-US";
+export type SpeechFeature = "ai-conversation" | "daily-phrases" | "scene-phrases" | "phrase-learning";
 export type SpeechQueueItem = { lang: SpeechLocale; text: string; brightJapanese?: boolean; characterId?: CharacterId; avoidVoiceCharacterId?: CharacterId; rateMultiplier?: number };
+
+function logSpeechRate(
+  event: "speak" | "start" | "end",
+  utterance: SpeechSynthesisUtterance,
+  feature: SpeechFeature,
+  multiplier = 1,
+  characterId?: CharacterId,
+): void {
+  const language = utterance.lang.toLowerCase().startsWith("ja") ? "ja" : "en";
+  const appliedMultiplier = language === "en" ? multiplier : 1;
+  const details = {
+    timestamp: performance.now(),
+    event,
+    feature,
+    language,
+    voice: utterance.voice?.name ?? "browser default",
+    baseRate: utterance.rate / appliedMultiplier,
+    speedSetting: multiplier === 0.84 ? "slow" : multiplier === 0.92 ? "slightlySlow" : "normal",
+    multiplier: appliedMultiplier,
+    finalRate: utterance.rate,
+    pitch: utterance.pitch,
+    ...(characterId ? { character: characterId } : {}),
+  };
+  console.log("[TOSSA TTS RATE]", details);
+  logTossaPerf("TTS", "[TOSSA TTS RATE]", details);
+  setActiveTtsState({ rateDetails: event === "end" ? undefined : details });
+}
 
 // cancel() stops the native queue, but the voice engine may still be settling.
 const SPEECH_START_DELAY_MS = 250;
@@ -461,6 +489,7 @@ export function speakEn(
   onStart?: () => void,
   onBoundary?: (event: SpeechSynthesisEvent) => void,
   rateMultiplier = 1,
+  feature: Exclude<SpeechFeature, "ai-conversation"> = "daily-phrases",
 ): string | null {
   if (!window.speechSynthesis) return null;
   cancelPendingStart?.("speakEn:replace-pending-start");
@@ -470,6 +499,7 @@ export function speakEn(
   let speakCalledAt = 0;
 
   utter.onstart = () => {
+    logSpeechRate("start", utter, feature, rateMultiplier);
     setActiveTtsState({ phase: "onstart" });
     writeTtsProbe("onstart", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onstart", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
@@ -477,6 +507,7 @@ export function speakEn(
   };
   utter.onboundary = (event) => onBoundary?.(event);
   utter.onend = () => {
+    logSpeechRate("end", utter, feature, rateMultiplier);
     setActiveTtsState({ phase: "onend" });
     writeTtsProbe("onend", utter, undefined, "speakEn", utteranceId, speakCalledAt);
     tossaPerf("TTS main onend", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
@@ -497,6 +528,7 @@ export function speakEn(
   setActiveTtsState({ characterId: null, utteranceId, generation, phase: "speak-called", source: "speakEn" });
   writeTtsProbe("speak", utter, undefined, "speakEn", utteranceId, speakCalledAt);
   tossaPerf("TTS main speak", mainSpeechDetails(utter, undefined, "speakEn", utteranceId, 0));
+  logSpeechRate("speak", utter, feature, rateMultiplier);
   speechSynthesis.speak(utter);
   return utter.voice?.name ?? "Browser default voice";
 }
@@ -618,6 +650,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
+          logSpeechRate("start", utterance, "ai-conversation", item.rateMultiplier, item.characterId ?? characterId);
           callbacks.onItemStart(item, index);
         };
         utterance.onboundary = (event) => {
@@ -628,6 +661,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
           setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
+          logSpeechRate("end", utterance, "ai-conversation", item.rateMultiplier, item.characterId ?? characterId);
           previousOnEndAt = performance.now();
           ended.add(index);
           if (activeIndex === index) {
@@ -657,6 +691,7 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         });
         writeTtsProbe("speak", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
+        logSpeechRate("speak", utterance, "ai-conversation", item.rateMultiplier, item.characterId ?? characterId);
         synth.speak(utterance);
       });
     } catch {
@@ -735,6 +770,7 @@ export function speakEnSentences(
           setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onstart", details());
+          logSpeechRate("start", utter, "ai-conversation", rateMultiplier, characterId);
           callbacks.onSentenceStart(sentence);
         };
         utter.onboundary = (event) => {
@@ -745,6 +781,7 @@ export function speakEnSentences(
           setActiveTtsState({ phase: "onend" });
           writeTtsProbe("onend", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
           tossaPerf("TTS main onend", details());
+          logSpeechRate("end", utter, "ai-conversation", rateMultiplier, characterId);
           previousOnEndAt = performance.now();
           ended.add(index);
           if (activeIndex === index) {
@@ -774,6 +811,7 @@ export function speakEnSentences(
         });
         writeTtsProbe("speak", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);
         tossaPerf("TTS main speak", details());
+        logSpeechRate("speak", utter, "ai-conversation", rateMultiplier, characterId);
         synth.speak(utter);
       });
     } catch {

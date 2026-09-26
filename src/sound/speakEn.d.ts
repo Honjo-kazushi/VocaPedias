@@ -1,5 +1,6 @@
 import type { CharacterId } from "../characters/characterProfiles";
 export type SpeechLocale = "ja-JP" | "en-US";
+export type SpeechFeature = "ai-conversation" | "daily-phrases" | "scene-phrases" | "phrase-learning";
 export type SpeechQueueItem = {
     lang: SpeechLocale;
     text: string;
@@ -8,7 +9,7 @@ export type SpeechQueueItem = {
     avoidVoiceCharacterId?: CharacterId;
     rateMultiplier?: number;
 };
-export declare function speakEn(text: string, onEnd?: () => void, lang?: "en" | "ja", onStart?: () => void, onBoundary?: (event: SpeechSynthesisEvent) => void, rateMultiplier?: number): string | null;
+export declare function speakEn(text: string, onEnd?: () => void, lang?: "en" | "ja", onStart?: () => void, onBoundary?: (event: SpeechSynthesisEvent) => void, rateMultiplier?: number, feature?: Exclude<SpeechFeature, "ai-conversation">): string | null;
 export declare function splitSpeechSentences(text: string): string[];
 export type SpeechFinishReason = "complete" | "cancel" | "error";
 export type SentenceSpeechCallbacks = {

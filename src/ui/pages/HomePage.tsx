@@ -394,6 +394,7 @@ export default function HomePage() {
       undefined,
       undefined,
       SPEECH_SPEED_MULTIPLIERS[speechSpeed],
+      mode === "TRAIN" ? "phrase-learning" : sceneMode ? "scene-phrases" : "daily-phrases",
     );
   }
 
