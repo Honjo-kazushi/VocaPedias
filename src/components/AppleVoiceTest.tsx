@@ -14,7 +14,8 @@ const CHARACTER_IDS: readonly CharacterId[] = [
 ];
 
 const ENGLISH_SAMPLE = "Hey! It's nice to talk with you today. What have you been up to?";
-const JAPANESE_SAMPLE = "こんにちは。今日はどんな一日でしたか？";
+const JAPANESE_SAMPLE = "そうなんですね。私もそれ、ちょっと気になってました。ところで、今日はこのあと何をする予定ですか？";
+const MIYABI_CANDIDATE_LABELS = ["A", "B", "C", "D"] as const;
 
 function isAppleTouchDevice(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
@@ -43,6 +44,15 @@ function findConfiguredVoice(voices: readonly SpeechSynthesisVoice[], preference
   );
 }
 
+function japaneseVoiceCandidates(voices: readonly SpeechSynthesisVoice[], preference: VoicePreference): SpeechSynthesisVoice[] {
+  const current = findConfiguredVoice(voices, preference);
+  const japaneseVoices = voices.filter((voice) => normalizeLang(voice.lang) === "ja-jp");
+  return [
+    ...(current ? [current] : []),
+    ...japaneseVoices.filter((voice) => voice !== current),
+  ].slice(0, MIYABI_CANDIDATE_LABELS.length);
+}
+
 export default function AppleVoiceTest() {
   const [characterId, setCharacterId] = useState<CharacterId>("emma");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -60,15 +70,15 @@ export default function AppleVoiceTest() {
   const configuredVoice = preference.preferredVoices![0];
   const voice = useMemo(() => findConfiguredVoice(voices, preference), [voices, preference]);
   const trials = useMemo(() => buildTrials(preference), [preference]);
+  const miyabiVoices = useMemo(() => japaneseVoiceCandidates(voices, preference), [voices, preference]);
   const sample = profile.conversationLanguage === "ja" ? JAPANESE_SAMPLE : ENGLISH_SAMPLE;
 
-  const play = (trial: TrialDefinition) => {
-    if (!voice) return;
+  const play = (selectedVoice: SpeechSynthesisVoice, rate: number, pitch: number) => {
     const utterance = new SpeechSynthesisUtterance(sample);
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
-    utterance.rate = trial.rate;
-    utterance.pitch = trial.pitch;
+    utterance.voice = selectedVoice;
+    utterance.lang = selectedVoice.lang;
+    utterance.rate = rate;
+    utterance.pitch = pitch;
     cancelSpeechSynthesis(window.speechSynthesis, {
       reason: "apple-voice-test:replace-preview",
       source: "AppleVoiceTest.play",
@@ -94,16 +104,25 @@ export default function AppleVoiceTest() {
       </p>
       <p className="apple-voice-sample">{sample}</p>
       <div className="apple-voice-candidates">
-        {trials.map((trial) => (
-          <article key={trial.label}>
-            <strong>{trial.label}</strong>
-            <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
-            <button type="button" disabled={!voice} onClick={() => play(trial)}>
-              {voice ? "Test" : "Unavailable"}
-            </button>
-          </article>
-        ))}
+        {characterId === "miyabi"
+          ? miyabiVoices.map((candidate, index) => (
+            <article key={`${candidate.voiceURI}-${candidate.lang}`}>
+              <strong>{MIYABI_CANDIDATE_LABELS[index]}: {candidate.name}</strong>
+              <span>{candidate.lang} / rate {preference.rate.toFixed(2)} / pitch {preference.pitch.toFixed(2)}</span>
+              <button type="button" onClick={() => play(candidate, preference.rate, preference.pitch)}>Test</button>
+            </article>
+          ))
+          : trials.map((trial) => (
+            <article key={trial.label}>
+              <strong>{trial.label}</strong>
+              <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
+              <button type="button" disabled={!voice} onClick={() => voice && play(voice, trial.rate, trial.pitch)}>
+                {voice ? "Test" : "Unavailable"}
+              </button>
+            </article>
+          ))}
       </div>
+      {characterId === "miyabi" && !miyabiVoices.length && <p>No ja-JP voices are available yet. Waiting for voiceschanged…</p>}
     </section>
   );
 }

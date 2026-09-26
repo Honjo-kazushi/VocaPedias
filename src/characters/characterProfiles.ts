@@ -189,7 +189,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google UK English Male"], preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
       android: { preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
-      ios: { preferredVoices: [{ name: "Grandpa", lang: "en-GB" }, { name: "Ralph", lang: "en-US" }, { name: "Daniel", lang: "en-GB" }], preferredLangs: ["en-GB", "en-US"], rate: 0.92, pitch: 0.96 },
+      ios: { preferredVoices: [{ name: "Grandpa", lang: "en-GB" }, { name: "Ralph", lang: "en-US" }, { name: "Daniel", lang: "en-GB" }], preferredLangs: ["en-GB", "en-US"], rate: 0.97, pitch: 1 },
       fallback: { preferredLangs: ["en-GB"], rate: 0.85, pitch: 0.85 },
     },
     displayName: "Dr. Dan",
@@ -208,7 +208,7 @@ export const CHARACTER_PROFILES = {
     voicePreferences: {
       desktop: { preferredNames: ["Google US English"], preferredLangs: ["en-US"], rate: 1.1, pitch: 0.92 },
       android: { preferredLangs: ["en-AU"], rate: 1.1, pitch: 0.92 },
-      ios: { preferredVoices: [{ name: "Junior", lang: "en-US" }, { name: "Eddy", lang: "en-US" }, { name: "Reed", lang: "en-US" }], preferredLangs: ["en-US"], rate: 1, pitch: 1.16 },
+      ios: { preferredVoices: [{ name: "Junior", lang: "en-US" }, { name: "Eddy", lang: "en-US" }, { name: "Reed", lang: "en-US" }], preferredLangs: ["en-US"], rate: 0.95, pitch: 1.12 },
       fallback: { preferredLangs: ["en-US"], rate: 1.1, pitch: 0.92 },
     },
     displayName: "Leo",

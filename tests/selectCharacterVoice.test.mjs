@@ -121,8 +121,8 @@ test("all nine characters use the selected Apple production settings with safe l
     ["jamie", "Rishi", "en-IN", .96, .98],
     ["lily", "Moira", "en-IE", 1.02, 1.06],
     ["grandma_rose", "Samantha", "en-US", .9, .92],
-    ["dr_dan", "Grandpa", "en-GB", .92, .96],
-    ["leo", "Junior", "en-US", 1, 1.16],
+    ["dr_dan", "Grandpa", "en-GB", .97, 1],
+    ["leo", "Junior", "en-US", .95, 1.12],
     ["miyabi", "Kyoko", "ja-JP", 1.1, 1.02],
   ];
   for (const [id, name, lang, rate, pitch] of appleRows) {

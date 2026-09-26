@@ -15,7 +15,7 @@ test("Apple Voice Test selects all nine production characters", () => {
   assert.match(source, /voiceschanged/);
 });
 
-test("A, B, and C keep the production voice while varying only rate and pitch", () => {
+test("eight non-Miyabi characters keep the production voice while varying only rate and pitch", () => {
   assert.match(source, /label: "A Calm"/);
   assert.match(source, /label: "B Current", rate: preference\.rate, pitch: preference\.pitch/);
   assert.match(source, /label: "C Bright"/);
@@ -30,10 +30,20 @@ test("A, B, and C keep the production voice while varying only rate and pitch", 
 test("voice trials are isolated and Miyabi uses Japanese comparison text", () => {
   assert.match(source, /profile\.conversationLanguage === "ja" \? JAPANESE_SAMPLE : ENGLISH_SAMPLE/);
   assert.match(source, /new SpeechSynthesisUtterance\(sample\)/);
-  assert.match(source, /utterance\.voice = voice/);
-  assert.match(source, /utterance\.rate = trial\.rate/);
-  assert.match(source, /utterance\.pitch = trial\.pitch/);
+  assert.match(source, /utterance\.voice = selectedVoice/);
+  assert.match(source, /utterance\.rate = rate/);
+  assert.match(source, /utterance\.pitch = pitch/);
   assert.match(source, /cancelSpeechSynthesis\(window\.speechSynthesis/);
   assert.match(source, /speechSynthesis\.speak\(utterance\)/);
   assert.doesNotMatch(source, /speakEn|speakSpeechQueue|speakEnSentences|startRecognition/);
+});
+
+test("Miyabi compares up to four actual ja-JP voices with identical production tuning", () => {
+  assert.match(source, /characterId === "miyabi"/);
+  assert.match(source, /normalizeLang\(voice\.lang\) === "ja-jp"/);
+  assert.match(source, /MIYABI_CANDIDATE_LABELS = \["A", "B", "C", "D"\]/);
+  assert.match(source, /\.slice\(0, MIYABI_CANDIDATE_LABELS\.length\)/);
+  assert.match(source, /play\(candidate, preference\.rate, preference\.pitch\)/);
+  assert.match(source, /そうなんですね。私もそれ、ちょっと気になってました。/);
+  assert.doesNotMatch(source, /setCharacterProfile|localStorage|sessionStorage/);
 });
