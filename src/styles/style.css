@@ -920,6 +920,14 @@ label {
 
 .developer-setting {
   font-size: 0.85em;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.developer-setting.is-off {
+  color: #aaa;
+  opacity: 0.72;
 }
 
 .mode-select {

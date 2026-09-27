@@ -92,6 +92,7 @@ export default function HomePage() {
   const [debugMode, setDebugMode] = useState<boolean>(() =>
     readBool("debugMode", false)
   );
+  const debugHoldTimerRef = useRef<number | null>(null);
 
   const [showSettings, setShowSettings] = useState(false);
   const [aiReviewActive, setAiReviewActive] = useState(false);
@@ -1791,15 +1792,38 @@ export default function HomePage() {
                 <section className="settings-group" aria-labelledby="developer-settings-heading">
                   <h2 id="developer-settings-heading">{UI.developerSettings}</h2>
                   <label
-                    className="settings-item developer-setting"
+                    className={`settings-item developer-setting${debugMode ? "" : " is-off"}`}
+                    onPointerDown={() => {
+                      if (debugHoldTimerRef.current !== null) window.clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = window.setTimeout(() => {
+                        debugHoldTimerRef.current = null;
+                        setDebugMode((current) => {
+                          const next = !current;
+                          console.log("[DEBUG MODE]", next ? "ON" : "OFF");
+                          return next;
+                        });
+                      }, 900);
+                    }}
+                    onPointerUp={() => {
+                      if (debugHoldTimerRef.current !== null) window.clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = null;
+                    }}
+                    onPointerCancel={() => {
+                      if (debugHoldTimerRef.current !== null) window.clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = null;
+                    }}
+                    onPointerLeave={() => {
+                      if (debugHoldTimerRef.current !== null) window.clearTimeout(debugHoldTimerRef.current);
+                      debugHoldTimerRef.current = null;
+                    }}
+                    onClick={(event) => event.preventDefault()}
                   >
                     <input
                       type="checkbox"
                       checked={debugMode}
-                      onChange={(event) => {
-                        setDebugMode(event.target.checked);
-                        console.log("[DEBUG MODE]", event.target.checked ? "ON" : "OFF");
-                      }}
+                      readOnly
+                      tabIndex={-1}
+                      style={{ pointerEvents: "none" }}
                     />
                     <span>{UI.developerMode}</span>
                   </label>
