@@ -173,8 +173,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     start: startRecognition,
     cancel: cancelRecognition,
     cancelAndWaitForRescueEnd,
-    setIgnoreRecognitionDuringMiyabi,
-    getRecognitionState,
   } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
@@ -220,7 +218,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const reviewLectureStartedRef = useRef<LessonReview["sections"] | null>(null);
   const partnerOpeningStartedRef = useRef<string | null>(null);
   const recognitionRestartTimerRef = useRef<number | null>(null);
-  const miyabiIgnoreReleaseTimerRef = useRef<number | null>(null);
+  const postMiyabiRecoveryTimerRef = useRef<number | null>(null);
   const softFinalizeTimerRef = useRef<number | null>(null);
   const hardFinalizeTimerRef = useRef<number | null>(null);
   const conversationInactivityTimerRef = useRef<number | null>(null);
@@ -579,7 +577,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     return () => {
       mountedRef.current = false;
       startTokenRef.current += 1;
-      if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
+      if (postMiyabiRecoveryTimerRef.current !== null) window.clearTimeout(postMiyabiRecoveryTimerRef.current);
     };
   }, []);
 
@@ -941,14 +939,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       tossaPerf("SPEECH", "rescue diagnostic mode", {
         generation: token,
         userTurnId: userTurnIdRef.current,
-        recognitionStrategy: "keep-running-ignore",
+        recognitionStrategy: "safe-stop-new-instance-after-3500ms",
       });
-      setIgnoreRecognitionDuringMiyabi(true);
-      tossaPerf("SPEECH", "Miyabi ignore start", { generation: token, userTurnId: userTurnIdRef.current });
     }
     stopInteraction("conversation:miyabi-rescue-requested", !waitForRecognitionEnd, !rescueDiagnosticMode);
-    const recognitionStopped = waitForRecognitionEnd && !rescueDiagnosticMode
-      ? cancelAndWaitForRescueEnd("abort")
+    const recognitionStopped = waitForRecognitionEnd
+      ? cancelAndWaitForRescueEnd(rescueDiagnosticMode ? "stop" : "abort")
       : Promise.resolve();
     setAwaitingUserInput(false);
     setRescueBusy(true);
@@ -973,35 +969,20 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         },
         onFinish: (reason) => {
           if (!mountedRef.current || startTokenRef.current !== token) return;
-          const finishRescue = () => {
-            if (!mountedRef.current || startTokenRef.current !== token) return;
-            if (rescueDiagnosticMode) {
-              setIgnoreRecognitionDuringMiyabi(false);
-              tossaPerf("SPEECH", "Miyabi ignore end", { generation: token, userTurnId: userTurnIdRef.current, graceMs: 250 });
-            }
-            const recognitionState = getRecognitionState();
-            tossaPerf("SPEECH", "post-Miyabi recognition state", {
-              generation: token,
-              userTurnId: userTurnIdRef.current,
-              ...recognitionState,
-            });
-            setPhase(recognitionState.running ? "recognizing" : "idle");
-            setRescueBusy(false);
-            requestBusyRef.current = false;
-            if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
-            if (recognitionState.running) {
-              setAwaitingUserInput(true);
-              startListening();
-            } else {
-              scheduleMicrophoneStart(token, undefined, true, true);
-            }
-          };
           if (rescueDiagnosticMode) {
-            if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
-            miyabiIgnoreReleaseTimerRef.current = window.setTimeout(() => {
-              miyabiIgnoreReleaseTimerRef.current = null;
-              finishRescue();
-            }, 250);
+            tossaPerf("SPEECH", "Miyabi TTS end", { generation: token, userTurnId: userTurnIdRef.current, reason });
+            tossaPerf("SPEECH", "post-Miyabi recovery wait start", { generation: token, userTurnId: userTurnIdRef.current, waitMs: 3500 });
+            if (postMiyabiRecoveryTimerRef.current !== null) window.clearTimeout(postMiyabiRecoveryTimerRef.current);
+            postMiyabiRecoveryTimerRef.current = window.setTimeout(() => {
+              postMiyabiRecoveryTimerRef.current = null;
+              if (!mountedRef.current || startTokenRef.current !== token) return;
+              tossaPerf("SPEECH", "post-Miyabi recovery wait end", { generation: token, userTurnId: userTurnIdRef.current, waitMs: 3500 });
+              setPhase("idle");
+              setRescueBusy(false);
+              requestBusyRef.current = false;
+              if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
+              scheduleMicrophoneStart(token, 0, true, true);
+            }, 3500);
           } else {
             setPhase("idle");
             setRescueBusy(false);
@@ -1014,23 +995,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     } catch (cause) {
       await recognitionStopped;
       if (!mountedRef.current || startTokenRef.current !== token) return;
-      if (rescueDiagnosticMode) {
-        setIgnoreRecognitionDuringMiyabi(false);
-        tossaPerf("SPEECH", "Miyabi ignore end", { generation: token, userTurnId: userTurnIdRef.current, reason: "rescue-error" });
-      }
       setError(friendlyError(cause));
       setBusy(false);
       setPhase("idle");
       setRescueBusy(false);
       requestBusyRef.current = false;
-      const recognitionState = getRecognitionState();
-      tossaPerf("SPEECH", "post-Miyabi recognition state", { generation: token, userTurnId: userTurnIdRef.current, ...recognitionState });
-      if (recognitionState.running) {
-        setAwaitingUserInput(true);
-        startListening();
-      } else {
-        scheduleMicrophoneStart(token, undefined, true, true);
-      }
+      scheduleMicrophoneStart(token, undefined, true, true);
     }
   };
 
