@@ -138,7 +138,6 @@ export default function HomePage() {
 
   const [pickLogs, setPickLogs] = useState<PickLog[]>([]);
   const [starState, setStarState] = useState<Set<string>>(() => new Set());
-  const [, setOkStreak] = useState<Record<string, number>>({});
 
   // ===== Speech debug log =====
   type SpeechLog = {
@@ -845,61 +844,6 @@ export default function HomePage() {
       JSON.stringify(Array.from(practiceStars))
     );
   }, [practiceStars]);
-
-  // ★ デバッグモード時、認識成功で自動的にスター付与
-  useEffect(() => {
-    if (!debugMode) return;
-    if (speechState !== "RECOGNIZED") return;
-    if (!randomPhrase) return;
-
-    const id = randomPhrase.id;
-    const ok = isSpeechRecognizedOK();
-
-    if (ok) {
-      setOkStreak((prev) => {
-        const nextCount = (prev[id] ?? 0) + 1;
-
-        // ===== ログ（連続成功）=====
-        console.log("[LEARN OK]", {
-          phraseId: id,
-          streak: nextCount,
-        });
-
-        // ★ 3回連続で付与
-        if (nextCount >= 3) {
-          setStarState((starPrev) => {
-            if (starPrev.has(id)) return starPrev;
-            const next = new Set(starPrev);
-            next.add(id);
-
-            console.log("[LEARN ★ SET]", {
-              phraseId: id,
-              jp: randomPhrase.jp,
-              en: randomPhrase.en,
-            });
-
-            return next;
-          });
-        }
-
-        return { ...prev, [id]: nextCount };
-      });
-    } else {
-      // ===== 失敗：連続カウントリセット =====
-      setOkStreak((prev) => {
-        if (!(id in prev)) return prev;
-        const next = { ...prev };
-        delete next[id];
-
-        console.log("[LEARN FAIL]", {
-          phraseId: id,
-          action: "streak reset",
-        });
-
-        return next;
-      });
-    }
-  }, [speechState]);
 
   useEffect(() => {
     if (mode === "TRAIN") return;

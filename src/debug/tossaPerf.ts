@@ -34,11 +34,6 @@ export function isTossaDeveloperModeEnabled(): boolean {
   }
 }
 
-export function isTossaRescueDiagnosticEnabled(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("rescueDiagnostic") === "1" || isTossaDeveloperModeEnabled();
-}
-
 export function setTossaDeveloperModeEnabled(enabled: boolean): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(DEBUG_MODE_STORAGE_KEY, JSON.stringify(enabled));

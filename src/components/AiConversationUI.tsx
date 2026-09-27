@@ -46,7 +46,7 @@ import stationBackground from "../assets/backgrounds/station.webp";
 import hospitalBackground from "../assets/backgrounds/hospital.webp";
 import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { isTossaRescueDiagnosticEnabled, tossaPerf } from "../debug/tossaPerf";
+import { tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
@@ -172,7 +172,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     active: recognitionActive,
     start: startRecognition,
     cancel: cancelRecognition,
-    cancelAndWaitForRescueEnd,
   } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
@@ -218,7 +217,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const reviewLectureStartedRef = useRef<LessonReview["sections"] | null>(null);
   const partnerOpeningStartedRef = useRef<string | null>(null);
   const recognitionRestartTimerRef = useRef<number | null>(null);
-  const postMiyabiRecoveryTimerRef = useRef<number | null>(null);
   const softFinalizeTimerRef = useRef<number | null>(null);
   const hardFinalizeTimerRef = useRef<number | null>(null);
   const conversationInactivityTimerRef = useRef<number | null>(null);
@@ -230,7 +228,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const userTurnIdRef = useRef(0);
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
-  const startMicrophoneRef = useRef<(continuationToken?: number, iosRescueWatchdog?: boolean) => void>(() => {});
+  const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
   const speechRateMultiplierRef = useRef(SPEECH_SPEED_MULTIPLIERS[speechSpeed]);
   speechRateMultiplierRef.current = SPEECH_SPEED_MULTIPLIERS[speechSpeed];
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
@@ -308,7 +306,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     token: number,
     delay = ttsRecognitionRestartDelayMs(detectDeviceGroup()),
     continuation = false,
-    iosRescueWatchdog = false,
   ) => {
     if (lessonEndingRef.current) return;
     if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
@@ -319,7 +316,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || lessonEndingRef.current) return;
       tossaPerf("SPEECH", "recognition restart timer fired", { generation: token, userTurnId: userTurnIdRef.current, delayMs: delay, continuation });
       speechDebug("recognition restart executed", { generation: token, userTurnId: userTurnIdRef.current, continuation });
-      startMicrophoneRef.current(continuation ? token : undefined, iosRescueWatchdog);
+      startMicrophoneRef.current(continuation ? token : undefined);
     }, delay);
   }, []);
 
@@ -577,7 +574,6 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     return () => {
       mountedRef.current = false;
       startTokenRef.current += 1;
-      if (postMiyabiRecoveryTimerRef.current !== null) window.clearTimeout(postMiyabiRecoveryTimerRef.current);
     };
   }, []);
 
@@ -783,7 +779,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
   };
 
-  const startMicrophone = (continuationToken?: number, iosRescueWatchdog = false) => {
+  const startMicrophone = (continuationToken?: number) => {
     const continuing = continuationToken !== undefined;
     if ((!topic && !scene) || !partnerId || lessonStage !== "conversation" || review || lessonEndingRef.current || requestBusyRef.current || (!continuing && recognitionActive)) return;
     const token = continuationToken ?? ++startTokenRef.current;
@@ -923,7 +919,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           : reason === "unsupported" ? "このブラウザは音声認識に対応していません。テキストで入力できます。"
           : "音声認識を開始・継続できませんでした。もう一度お試しください。");
       },
-    }, speechLocale, { iosRescueWatchdog });
+    }, speechLocale);
   };
   startMicrophoneRef.current = startMicrophone;
 
@@ -931,36 +927,33 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (conversationLanguage !== "en" || !awaitingUserInput || hasRecognizedSpeech || rescueBusy || requestBusyRef.current || !partnerId) return;
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
     if (!lastAssistantMessage) return;
-    const waitForRecognitionEnd = detectDeviceGroup() === "ios";
-    const rescueDiagnosticMode = waitForRecognitionEnd && isTossaRescueDiagnosticEnabled();
-    const token = rescueDiagnosticMode ? startTokenRef.current : ++startTokenRef.current;
-    requestBusyRef.current = true;
-    if (rescueDiagnosticMode) {
-      tossaPerf("SPEECH", "rescue diagnostic mode", {
-        generation: token,
-        userTurnId: userTurnIdRef.current,
-        recognitionStrategy: "safe-stop-new-instance-after-3500ms",
-      });
+    const iosTextOnlyRescue = detectDeviceGroup() === "ios";
+    const token = iosTextOnlyRescue ? startTokenRef.current : ++startTokenRef.current;
+    if (!iosTextOnlyRescue) {
+      requestBusyRef.current = true;
+      stopInteraction("conversation:miyabi-rescue-requested");
     }
-    stopInteraction("conversation:miyabi-rescue-requested", !waitForRecognitionEnd, !rescueDiagnosticMode);
-    const recognitionStopped = waitForRecognitionEnd
-      ? cancelAndWaitForRescueEnd(rescueDiagnosticMode ? "stop" : "abort")
-      : Promise.resolve();
-    setAwaitingUserInput(false);
     setRescueBusy(true);
     setRescueMessage("");
-    setInterimCaption("");
     setError(null);
     setBusy(true);
     setPhase("thinking");
     try {
-      const [explanation] = await Promise.all([
-        explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId], { generation: token }),
-        recognitionStopped,
-      ]);
+      const explanation = await explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId], { generation: token });
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setRescueMessage(explanation);
       setBusy(false);
+      if (iosTextOnlyRescue) {
+        setPhase("recognizing");
+        setRescueBusy(false);
+        tossaPerf("SPEECH", "Miyabi TTS skipped", {
+          generation: token,
+          userTurnId: userTurnIdRef.current,
+          reason: "ios-text-only-rescue",
+          recognitionAction: "none",
+        });
+        return;
+      }
       setPhase("ttsPending");
       tossaPerf("SPEECH", "Miyabi TTS request", { generation: token, userTurnId: userTurnIdRef.current });
       speakMiyabiItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
@@ -969,38 +962,25 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         },
         onFinish: (reason) => {
           if (!mountedRef.current || startTokenRef.current !== token) return;
-          if (rescueDiagnosticMode) {
-            tossaPerf("SPEECH", "Miyabi TTS end", { generation: token, userTurnId: userTurnIdRef.current, reason });
-            tossaPerf("SPEECH", "post-Miyabi recovery wait start", { generation: token, userTurnId: userTurnIdRef.current, waitMs: 3500 });
-            if (postMiyabiRecoveryTimerRef.current !== null) window.clearTimeout(postMiyabiRecoveryTimerRef.current);
-            postMiyabiRecoveryTimerRef.current = window.setTimeout(() => {
-              postMiyabiRecoveryTimerRef.current = null;
-              if (!mountedRef.current || startTokenRef.current !== token) return;
-              tossaPerf("SPEECH", "post-Miyabi recovery wait end", { generation: token, userTurnId: userTurnIdRef.current, waitMs: 3500 });
-              setPhase("idle");
-              setRescueBusy(false);
-              requestBusyRef.current = false;
-              if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
-              scheduleMicrophoneStart(token, 0, true, true);
-            }, 3500);
-          } else {
-            setPhase("idle");
-            setRescueBusy(false);
-            requestBusyRef.current = false;
-            if (reason === "complete") scheduleMicrophoneStart(token, undefined, true, true);
-            else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
-          }
+          setPhase("idle");
+          setRescueBusy(false);
+          requestBusyRef.current = false;
+          if (reason === "complete") scheduleMicrophoneStart(token, undefined, true);
+          else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
         },
       }, "miyabi");
     } catch (cause) {
-      await recognitionStopped;
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setError(friendlyError(cause));
       setBusy(false);
       setPhase("idle");
       setRescueBusy(false);
-      requestBusyRef.current = false;
-      scheduleMicrophoneStart(token, undefined, true, true);
+      if (iosTextOnlyRescue) {
+        setPhase("recognizing");
+      } else {
+        requestBusyRef.current = false;
+        scheduleMicrophoneStart(token, undefined, true);
+      }
     }
   };
 
