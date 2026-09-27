@@ -46,7 +46,7 @@ import stationBackground from "../assets/backgrounds/station.webp";
 import hospitalBackground from "../assets/backgrounds/hospital.webp";
 import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { tossaPerf } from "../debug/tossaPerf";
+import { isTossaRescueDiagnosticEnabled, tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
@@ -932,8 +932,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
     const waitForRecognitionEnd = detectDeviceGroup() === "ios";
-    const rescueDiagnosticMode = waitForRecognitionEnd &&
-      new URLSearchParams(window.location.search).get("rescueDiagnostic") === "1";
+    const rescueDiagnosticMode = waitForRecognitionEnd && isTossaRescueDiagnosticEnabled();
     if (rescueDiagnosticMode) {
       tossaPerf("SPEECH", "rescue diagnostic mode", {
         generation: token,

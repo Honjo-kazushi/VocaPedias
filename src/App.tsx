@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import HomePage from "./ui/pages/HomePage";
 import TtsVoiceTester from "./components/TtsVoiceTester";
 import PerfDebugPanel from "./components/PerfDebugPanel";
-import { isTossaPerfDebugEnabled } from "./debug/tossaPerf";
+import { isTossaPerfDebugEnabled, subscribeTossaDebugMode } from "./debug/tossaPerf";
 import { unlockAppleTtsOnUserGesture } from "./sound/speakEn.ts";
 import "./App.css";
 
 function App() {
   const [showStartupGuide, setShowStartupGuide] = useState(true);
+  const perfDebugEnabled = useSyncExternalStore(
+    subscribeTossaDebugMode,
+    isTossaPerfDebugEnabled,
+    () => false,
+  );
   if (new URLSearchParams(window.location.search).get("ttsDebug") === "1") {
     return <TtsVoiceTester />;
   }
@@ -18,7 +23,7 @@ function App() {
   return (
     <>
       <HomePage />
-      {isTossaPerfDebugEnabled() && <PerfDebugPanel />}
+      {perfDebugEnabled && <PerfDebugPanel />}
       {showStartupGuide && (
         <div className="startup-guide-overlay" role="presentation">
           <section className="startup-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-guide-title">

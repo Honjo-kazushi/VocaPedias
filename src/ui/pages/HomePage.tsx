@@ -14,6 +14,7 @@ import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
 import { SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../../ai/conversationControls";
+import { setTossaDeveloperModeEnabled } from "../../debug/tossaPerf";
 
 import { getNextPhrase } from "../../app/usecases/getNextPhrase";
 
@@ -915,7 +916,7 @@ export default function HomePage() {
   }, [mode, practiceSubStats]);
 
   useEffect(() => {
-    localStorage.setItem("debugMode", JSON.stringify(debugMode));
+    setTossaDeveloperModeEnabled(debugMode);
   }, [debugMode]);
 
   function RecentLogs({ logs }: { logs: PickLog[] }) {
@@ -1855,7 +1856,6 @@ export default function HomePage() {
                     debugHoldTimerRef.current = window.setTimeout(() => {
                       const next = !debugMode;
                       setDebugMode(next);
-                      localStorage.setItem("debugMode", JSON.stringify(next));
                       console.log("[DEBUG MODE]", next ? "ON" : "OFF");
                     }, 900); // ★ 長押し 900ms
                   }}

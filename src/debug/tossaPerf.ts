@@ -11,6 +11,8 @@ const MAX_ENTRIES = 300;
 const entries: TossaPerfEntry[] = [];
 let snapshot: readonly TossaPerfEntry[] = [];
 const listeners = new Set<() => void>();
+const DEBUG_MODE_STORAGE_KEY = "debugMode";
+export const TOSSA_DEBUG_MODE_CHANGE_EVENT = "tossa-debug-mode-change";
 
 declare global {
   interface Window {
@@ -19,7 +21,42 @@ declare global {
 }
 
 export function isTossaPerfDebugEnabled(): boolean {
-  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("perfDebug") === "1";
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("perfDebug") === "1" || isTossaDeveloperModeEnabled();
+}
+
+export function isTossaDeveloperModeEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return JSON.parse(window.localStorage.getItem(DEBUG_MODE_STORAGE_KEY) ?? "false") === true;
+  } catch {
+    return false;
+  }
+}
+
+export function isTossaRescueDiagnosticEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("rescueDiagnostic") === "1" || isTossaDeveloperModeEnabled();
+}
+
+export function setTossaDeveloperModeEnabled(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(DEBUG_MODE_STORAGE_KEY, JSON.stringify(enabled));
+  syncTossaPerfGlobal();
+  window.dispatchEvent(new Event(TOSSA_DEBUG_MODE_CHANGE_EVENT));
+}
+
+export function subscribeTossaDebugMode(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === DEBUG_MODE_STORAGE_KEY) listener();
+  };
+  window.addEventListener(TOSSA_DEBUG_MODE_CHANGE_EVENT, listener);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(TOSSA_DEBUG_MODE_CHANGE_EVENT, listener);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export function tossaPerf(area: TossaPerfArea, event: string, details: Record<string, unknown> = {}): void {
@@ -54,4 +91,10 @@ export function subscribeTossaPerf(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-if (isTossaPerfDebugEnabled()) window.__tossaPerf = tossaPerf;
+function syncTossaPerfGlobal(): void {
+  if (typeof window === "undefined") return;
+  if (isTossaPerfDebugEnabled()) window.__tossaPerf = tossaPerf;
+  else delete window.__tossaPerf;
+}
+
+syncTossaPerfGlobal();
