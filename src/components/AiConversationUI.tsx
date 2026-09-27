@@ -271,6 +271,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     cancelSpeechRecognition = true,
     stopSpeechOutput = true,
   ) => {
+    if (miyabiIgnoreReleaseTimerRef.current !== null) {
+      window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
+      miyabiIgnoreReleaseTimerRef.current = null;
+    }
+    setIgnoreRecognitionDuringMiyabi(false);
+    miyabiTtsInputIgnoredRef.current = false;
     if (recognitionRestartTimerRef.current !== null) {
       window.clearTimeout(recognitionRestartTimerRef.current);
       recognitionRestartTimerRef.current = null;
@@ -304,7 +310,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setAwaitingUserInput(false);
     setHasRecognizedSpeech(false);
     setPhase("idle");
-  }, [cancelRecognition, stopListening, stopAssistantSpeech, stopReviewSpeech, stopMiyabiSpeech]);
+  }, [cancelRecognition, setIgnoreRecognitionDuringMiyabi, stopListening, stopAssistantSpeech, stopReviewSpeech, stopMiyabiSpeech]);
 
   const scheduleMicrophoneStart = useCallback((
     token: number,
@@ -801,7 +807,19 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const deviceGroup = detectDeviceGroup();
     const softTimeoutMs = userTurnSoftTimeoutMs(deviceGroup);
     const finalizeUserTurn = (reason: "soft" | "hard") => {
-      if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || review || utteranceSentRef.current || miyabiTtsInputIgnoredRef.current) return;
+      const guardState = {
+        mounted: mountedRef.current,
+        tokenMatched: startTokenRef.current === token,
+        requestBusy: requestBusyRef.current,
+        review: Boolean(review),
+        utteranceSent: utteranceSentRef.current,
+        miyabiInputIgnored: miyabiTtsInputIgnoredRef.current,
+        bufferLength: utteranceBufferRef.current.length,
+      };
+      if (!guardState.mounted || !guardState.tokenMatched || guardState.requestBusy || guardState.review || guardState.utteranceSent || guardState.miyabiInputIgnored) {
+        tossaPerf("SPEECH", "finalizeUserTurn blocked", { generation: token, userTurnId, reason, ...guardState });
+        return;
+      }
       const snapshot = createUserTurnSnapshot({
         id: userTurnId,
         generation: token,
@@ -809,7 +827,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         language: conversationLanguage,
         characterId: partnerId,
       });
-      if (!snapshot) return;
+      if (!snapshot) {
+        tossaPerf("SPEECH", "finalizeUserTurn blocked", { generation: token, userTurnId, reason, ...guardState, emptyBuffer: true });
+        return;
+      }
       utteranceSentRef.current = true;
       speechDebug("UserTurn finalized / Snapshot created", { generation: token, userTurnId, reason, snapshotId: snapshot.id, text: snapshot.text });
       tossaPerf("SPEECH", "snapshot", { generation: token, userTurnId, reason, snapshotId: snapshot.id });
@@ -985,9 +1006,14 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
             miyabiIgnoreReleaseTimerRef.current = window.setTimeout(() => {
               miyabiIgnoreReleaseTimerRef.current = null;
-              if (!mountedRef.current || startTokenRef.current !== token) return;
               setIgnoreRecognitionDuringMiyabi(false);
               miyabiTtsInputIgnoredRef.current = false;
+              tossaPerf("SPEECH", "Miyabi input ignore end", {
+                generation: token,
+                userTurnId: userTurnIdRef.current,
+                tokenMatched: startTokenRef.current === token,
+              });
+              if (!mountedRef.current || startTokenRef.current !== token) return;
               setPhase("recognizing");
               setRescueBusy(false);
               setBusy(false);
