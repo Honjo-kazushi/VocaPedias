@@ -172,6 +172,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     active: recognitionActive,
     start: startRecognition,
     cancel: cancelRecognition,
+    getSessionId: getRecognitionSessionId,
   } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
@@ -928,6 +929,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
     if (!lastAssistantMessage) return;
     const iosTextOnlyRescue = detectDeviceGroup() === "ios";
+    const recognitionSessionBefore = getRecognitionSessionId();
     const token = iosTextOnlyRescue ? startTokenRef.current : ++startTokenRef.current;
     if (!iosTextOnlyRescue) {
       requestBusyRef.current = true;
@@ -951,6 +953,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           userTurnId: userTurnIdRef.current,
           reason: "ios-text-only-rescue",
           recognitionAction: "none",
+          recognitionSessionBefore,
+          recognitionSessionAfter: getRecognitionSessionId(),
         });
         return;
       }
@@ -1219,7 +1223,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
                 : recognitionActive ? "マイクを開始しています…" : ""}
             </p>
             {showRescueButton && (
-              <button className="ai-help-button" type="button" onClick={() => runButtonAction(() => void requestRescue())}>
+              <button className="ai-help-button" type="button" onClick={() => {
+                if (detectDeviceGroup() === "ios") {
+                  tossaPerf("SPEECH", "Miyabi Help click SE skipped on iOS", {
+                    recognitionSessionBefore: getRecognitionSessionId(),
+                  });
+                  void requestRescue();
+                  return;
+                }
+                runButtonAction(() => void requestRescue());
+              }}>
                 {uiLanguage === "en" ? "? Help" : "？ わからない"}
               </button>
             )}

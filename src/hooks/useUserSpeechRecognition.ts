@@ -60,6 +60,7 @@ export function useUserSpeechRecognition() {
     setActive(false);
     notify?.();
   }, [dispose]);
+  const getSessionId = useCallback(() => sessionRef.current, []);
   const finish = useCallback(() => {
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
@@ -263,5 +264,5 @@ export function useUserSpeechRecognition() {
     startAttempt(0);
   }, [dispose]);
   useEffect(() => dispose, [dispose]);
-  return { active, start, finish, cancel };
+  return { active, start, finish, cancel, getSessionId };
 }
