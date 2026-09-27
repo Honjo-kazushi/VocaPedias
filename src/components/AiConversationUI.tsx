@@ -168,7 +168,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const requestBusyRef = useRef(false);
   const lessonEndingRef = useRef(false);
   const { pose: listeningPose, start: startListening, stop: stopListening } = useCharacterListening();
-  const { active: recognitionActive, start: startRecognition, cancel: cancelRecognition } = useUserSpeechRecognition();
+  const {
+    active: recognitionActive,
+    start: startRecognition,
+    cancel: cancelRecognition,
+    cancelAndWaitForRescueEnd,
+  } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
   const stageCharacter = review ? REVIEW_CHARACTER : visibleCharacter;
@@ -258,7 +263,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }, CONVERSATION_INACTIVITY_TIMEOUT_MS);
   }, []);
 
-  const stopInteraction = useCallback((reason = "conversation:stop-interaction") => {
+  const stopInteraction = useCallback((reason = "conversation:stop-interaction", cancelSpeechRecognition = true) => {
     if (recognitionRestartTimerRef.current !== null) {
       window.clearTimeout(recognitionRestartTimerRef.current);
       recognitionRestartTimerRef.current = null;
@@ -281,7 +286,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
     utteranceBufferRef.current = "";
     utteranceSentRef.current = false;
-    cancelRecognition();
+    if (cancelSpeechRecognition) cancelRecognition();
     stopListening();
     stopAssistantSpeech(`${reason}:partner-speech`);
     stopReviewSpeech(`${reason}:review-speech`);
@@ -920,7 +925,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (!lastAssistantMessage) return;
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
-    stopInteraction("conversation:miyabi-rescue-requested");
+    const waitForRecognitionEnd = detectDeviceGroup() === "ios";
+    stopInteraction("conversation:miyabi-rescue-requested", !waitForRecognitionEnd);
+    const recognitionStopped = waitForRecognitionEnd
+      ? cancelAndWaitForRescueEnd()
+      : Promise.resolve();
     setAwaitingUserInput(false);
     setRescueBusy(true);
     setRescueMessage("");
@@ -929,11 +938,15 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setBusy(true);
     setPhase("thinking");
     try {
-      const explanation = await explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId], { generation: token });
+      const [explanation] = await Promise.all([
+        explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId], { generation: token }),
+        recognitionStopped,
+      ]);
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setRescueMessage(explanation);
       setBusy(false);
       setPhase("ttsPending");
+      tossaPerf("SPEECH", "Miyabi TTS request", { generation: token, userTurnId: userTurnIdRef.current });
       speakMiyabiItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
         onItemStart: () => {
           if (startTokenRef.current === token) setPhase("speaking");
@@ -948,6 +961,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         },
       }, "miyabi");
     } catch (cause) {
+      await recognitionStopped;
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setError(friendlyError(cause));
       setBusy(false);

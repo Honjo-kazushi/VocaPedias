@@ -27,6 +27,9 @@ export const SPEECH_SILENCE_TIMEOUT_MS = 3000;
 export const IOS_RESCUE_CAPTURE_WATCHDOG_MS = 5000;
 export const IOS_RESCUE_STUCK_RETRY_BACKOFF_MS = 1000;
 export const IOS_RESCUE_STUCK_MAX_RETRIES = 1;
+export const IOS_RESCUE_ABORT_TIMEOUT_MS = 1800;
+export const IOS_RESCUE_ABORT_ONEND_DELAY_MS = 100;
+export const IOS_RESCUE_ABORT_TIMEOUT_SAFE_DELAY_MS = 350;
 
 function deviceGroup(): "ios/fallback" | "android" | "desktop" {
   const ua = navigator.userAgent;
@@ -45,9 +48,11 @@ export function useUserSpeechRecognition() {
   const error7RetryTimerRef = useRef<number | null>(null);
   const captureWatchdogTimerRef = useRef<number | null>(null);
   const stuckRetryTimerRef = useRef<number | null>(null);
+  const rescueAbortFinalizeRef = useRef<(() => void) | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
   const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
   const dispose = useCallback(() => {
+    rescueAbortFinalizeRef.current?.();
     sessionRef.current += 1;
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
@@ -76,6 +81,92 @@ export function useUserSpeechRecognition() {
     setActive(false);
     notify?.();
   }, [dispose]);
+  const cancelAndWaitForRescueEnd = useCallback((): Promise<void> => {
+    if (deviceGroup() !== "ios/fallback") {
+      cancel();
+      return Promise.resolve();
+    }
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      setActive(false);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const startedAt = performance.now();
+      let finished = false;
+      let timeoutId: number | null = null;
+      let safeDelayId: number | null = null;
+      const elapsedMs = () => Math.round(performance.now() - startedAt);
+      const finish = (delayMs: number) => {
+        if (finished) return;
+        finished = true;
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        recognition.onend = null;
+        recognition.onerror = null;
+        if (recognitionRef.current === recognition) recognitionRef.current = null;
+        cancelCallbackRef.current = null;
+        finalTranscriptRef.current = "";
+        interimTranscriptRef.current = "";
+        lifecycleRef.current = "idle";
+        setActive(false);
+        rescueAbortFinalizeRef.current = null;
+        if (delayMs > 0) safeDelayId = window.setTimeout(resolve, delayMs);
+        else resolve();
+      };
+      rescueAbortFinalizeRef.current = () => {
+        if (safeDelayId !== null) window.clearTimeout(safeDelayId);
+        finish(0);
+      };
+      if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+      if (captureWatchdogTimerRef.current !== null) window.clearTimeout(captureWatchdogTimerRef.current);
+      captureWatchdogTimerRef.current = null;
+      recognition.onstart = recognition.onaudiostart = recognition.onaudioend = recognition.onspeechstart = recognition.onspeechend = recognition.onsoundstart = recognition.onsoundend = recognition.onresult = null;
+      recognition.onend = () => {
+        tossaPerf("SPEECH", "rescue recognition abort onend", {
+          deviceGroup: "ios/fallback",
+          abortElapsedMs: elapsedMs(),
+        });
+        finish(IOS_RESCUE_ABORT_ONEND_DELAY_MS);
+      };
+      recognition.onerror = (event) => {
+        const nativeError = event as Event & { error?: string; message?: string };
+        tossaPerf("SPEECH", "rescue recognition abort onerror", {
+          deviceGroup: "ios/fallback",
+          abortElapsedMs: elapsedMs(),
+          error: nativeError.error ?? "unknown",
+          message: nativeError.message ?? "",
+        });
+        // Web Speech defines onend as the disconnect completion signal, so keep
+        // waiting for it until the bounded timeout even when abort emits onerror.
+      };
+      lifecycleRef.current = "aborting";
+      tossaPerf("SPEECH", "rescue recognition abort requested", {
+        deviceGroup: "ios/fallback",
+        abortElapsedMs: 0,
+        timeoutMs: IOS_RESCUE_ABORT_TIMEOUT_MS,
+      });
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        tossaPerf("SPEECH", "rescue recognition abort timeout", {
+          deviceGroup: "ios/fallback",
+          abortElapsedMs: elapsedMs(),
+          safeDelayMs: IOS_RESCUE_ABORT_TIMEOUT_SAFE_DELAY_MS,
+        });
+        finish(IOS_RESCUE_ABORT_TIMEOUT_SAFE_DELAY_MS);
+      }, IOS_RESCUE_ABORT_TIMEOUT_MS);
+      try {
+        recognition.abort();
+      } catch (error) {
+        tossaPerf("SPEECH", "rescue recognition abort onerror", {
+          deviceGroup: "ios/fallback",
+          abortElapsedMs: elapsedMs(),
+          error: error instanceof Error ? error.name : "AbortError",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+  }, [cancel]);
   const finish = useCallback(() => {
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
@@ -323,5 +414,5 @@ export function useUserSpeechRecognition() {
     startAttempt(0, 0);
   }, [dispose]);
   useEffect(() => dispose, [dispose]);
-  return { active, start, finish, cancel };
+  return { active, start, finish, cancel, cancelAndWaitForRescueEnd };
 }
