@@ -10,13 +10,13 @@ const compiled = ts.transpileModule(timingSource, {
 }).outputText;
 const { ttsRecognitionRestartDelayMs, userTurnSoftTimeoutMs } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 
-test("user turn soft timeout is longer only on Android and Apple touch devices", () => {
-  assert.equal(userTurnSoftTimeoutMs("desktop"), 1500);
-  assert.equal(userTurnSoftTimeoutMs("android"), 2200);
-  assert.equal(userTurnSoftTimeoutMs("ios"), 2200);
-  assert.equal(userTurnSoftTimeoutMs("fallback"), 1500);
-  assert.match(uiSource, /const deviceGroup = detectDeviceGroup\(\);\s*const softTimeoutMs = userTurnSoftTimeoutMs\(deviceGroup\)/);
-  assert.match(uiSource, /soft timer fire", \{ generation: token, userTurnId, timeoutMs: softTimeoutMs, deviceGroup \}/);
+test("the baseline user turn soft timeout is common to every device", () => {
+  assert.equal(userTurnSoftTimeoutMs("desktop"), 1800);
+  assert.equal(userTurnSoftTimeoutMs("android"), 1800);
+  assert.equal(userTurnSoftTimeoutMs("ios"), 1800);
+  assert.equal(userTurnSoftTimeoutMs("fallback"), 1800);
+  assert.match(uiSource, /const softTimeoutMs = decision\.timeoutMs/);
+  assert.match(uiSource, /soft timer fire", \{ generation: token, userTurnId, timeoutMs: softTimeoutMs, softTimerKind: decision\.kind, deviceGroup \}/);
   assert.match(uiSource, /\}, softTimeoutMs\)/);
 });
 

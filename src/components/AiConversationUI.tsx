@@ -13,7 +13,7 @@ import { buildReviewDisplayModel } from "../ai/reviewDisplay";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
 import { applySpeechRateIntent, detectSpeechRateIntent, SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../ai/conversationControls";
 import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
-import { ttsRecognitionRestartDelayMs, userTurnSoftTimeoutMs } from "../ai/speechRecognitionTiming";
+import { classifyUserTurnSoftTimeout, ttsRecognitionRestartDelayMs, type UserTurnSoftTimeoutDecision } from "../ai/speechRecognitionTiming";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -238,6 +238,17 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const userTurnIdRef = useRef(0);
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
+  const recognitionProgressRef = useRef<{
+    previousTranscript: string;
+    lastResultAt: number | null;
+    recentGrowth: boolean[];
+  }>({ previousTranscript: "", lastResultAt: null, recentGrowth: [] });
+  const softTimeoutDecisionRef = useRef<UserTurnSoftTimeoutDecision>(classifyUserTurnSoftTimeout({
+    transcript: "",
+    language: "en",
+    lastResultIntervalMs: null,
+    recentGrowthCount: 0,
+  }));
   const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
   const speechRateMultiplierRef = useRef(SPEECH_SPEED_MULTIPLIERS[speechSpeed]);
   speechRateMultiplierRef.current = SPEECH_SPEED_MULTIPLIERS[speechSpeed];
@@ -816,12 +827,18 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       stopInteraction("conversation:microphone-manual-start");
       userTurnIdRef.current += 1;
       utteranceSentRef.current = false;
+      recognitionProgressRef.current = { previousTranscript: "", lastResultAt: null, recentGrowth: [] };
+      softTimeoutDecisionRef.current = classifyUserTurnSoftTimeout({
+        transcript: "",
+        language: conversationLanguage,
+        lastResultIntervalMs: null,
+        recentGrowthCount: 0,
+      });
       setError(null);
       setMicrophoneFallback(false);
     }
     const userTurnId = userTurnIdRef.current;
     const deviceGroup = detectDeviceGroup();
-    const softTimeoutMs = userTurnSoftTimeoutMs(deviceGroup);
     const finalizeUserTurn = (reason: "soft" | "hard") => {
       const guardState = {
         mounted: mountedRef.current,
@@ -851,6 +868,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       speechDebug("UserTurn finalized / Snapshot created", { generation: token, userTurnId, reason, snapshotId: snapshot.id, text: snapshot.text });
       tossaPerf("SPEECH", "snapshot", { generation: token, userTurnId, reason, snapshotId: snapshot.id });
       utteranceBufferRef.current = "";
+      recognitionProgressRef.current = { previousTranscript: "", lastResultAt: null, recentGrowth: [] };
       speechDebug("utterance buffer cleared", { generation: token, userTurnId, buffer: utteranceBufferRef.current });
       if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
       if (hardFinalizeTimerRef.current !== null) window.clearTimeout(hardFinalizeTimerRef.current);
@@ -860,17 +878,18 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setAwaitingUserInput(false);
       void processUserTurn(snapshot);
     };
-    const resetUserTurnTimers = (activity: string) => {
+    const resetUserTurnTimers = (activity: string, decision = softTimeoutDecisionRef.current) => {
       lastActivityAtRef.current = performance.now();
       speechDebug("user turn activity", { generation: token, userTurnId, activity, lastActivityAt: lastActivityAtRef.current });
       if (!utteranceBufferRef.current || utteranceSentRef.current) return;
       if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
       if (hardFinalizeTimerRef.current !== null) window.clearTimeout(hardFinalizeTimerRef.current);
-      speechDebug("utterance timers start/reset", { generation: token, userTurnId, activity, deviceGroup, softMs: softTimeoutMs, hardMs: HARD_UTTERANCE_TIMEOUT_MS });
+      const softTimeoutMs = decision.timeoutMs;
+      speechDebug("utterance timers start/reset", { generation: token, userTurnId, activity, deviceGroup, softTimerKind: decision.kind, softMs: softTimeoutMs, hardMs: HARD_UTTERANCE_TIMEOUT_MS });
       softFinalizeTimerRef.current = window.setTimeout(() => {
         softFinalizeTimerRef.current = null;
         speechDebug("soft timer fired", { generation: token, userTurnId });
-        tossaPerf("SPEECH", "soft timer fire", { generation: token, userTurnId, timeoutMs: softTimeoutMs, deviceGroup });
+        tossaPerf("SPEECH", "soft timer fire", { generation: token, userTurnId, timeoutMs: softTimeoutMs, softTimerKind: decision.kind, deviceGroup });
         finalizeUserTurn("soft");
       }, softTimeoutMs);
       // This remains as a safety ceiling. Because both timers reset together,
@@ -930,6 +949,37 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         }
         if (showConversationCaptions) {
           setInterimCaption(mergeSpeechTranscript(utteranceBufferRef.current, text, conversationLanguage));
+        }
+        if (text.trim()) {
+          const now = performance.now();
+          const progress = recognitionProgressRef.current;
+          const lastResultIntervalMs = progress.lastResultAt === null ? null : now - progress.lastResultAt;
+          const grew = text.trim().length > progress.previousTranscript.trim().length;
+          const recentGrowth = [...progress.recentGrowth, grew].slice(-3);
+          const recentGrowthCount = recentGrowth.filter(Boolean).length;
+          recognitionProgressRef.current = {
+            previousTranscript: text,
+            lastResultAt: now,
+            recentGrowth,
+          };
+          const decision = classifyUserTurnSoftTimeout({
+            transcript: text,
+            language: conversationLanguage,
+            lastResultIntervalMs,
+            recentGrowthCount,
+          });
+          softTimeoutDecisionRef.current = decision;
+          tossaPerf("SPEECH", "soft timer decision", {
+            softTimerKind: decision.kind,
+            softTimeoutMs: decision.timeoutMs,
+            transcriptLength: decision.transcriptLength,
+            wordCount: decision.wordCount,
+            lastWord: decision.lastWord,
+            lastResultIntervalMs: decision.lastResultIntervalMs,
+            recentGrowthCount: decision.recentGrowthCount,
+            reasons: decision.reasons,
+          });
+          resetUserTurnTimers("transcript", decision);
         }
       },
       onDebug: (recognitionSessionId, event, details) => {
