@@ -942,7 +942,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           setPhase("idle");
           setRescueBusy(false);
           requestBusyRef.current = false;
-          if (reason === "complete") scheduleMicrophoneStart(token, 250, true);
+          if (reason === "complete") scheduleMicrophoneStart(token, undefined, true);
           else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
         },
       }, "miyabi");
@@ -953,7 +953,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setPhase("idle");
       setRescueBusy(false);
       requestBusyRef.current = false;
-      scheduleMicrophoneStart(token, 250, true);
+      scheduleMicrophoneStart(token, undefined, true);
     }
   };
 
