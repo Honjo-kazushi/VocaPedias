@@ -943,7 +943,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
     stopInteraction("conversation:miyabi-rescue-requested", !waitForRecognitionEnd, !rescueDiagnosticMode);
     const recognitionStopped = waitForRecognitionEnd
-      ? cancelAndWaitForRescueEnd()
+      ? cancelAndWaitForRescueEnd(rescueDiagnosticMode ? "stop" : "abort")
       : Promise.resolve();
     setAwaitingUserInput(false);
     setRescueBusy(true);
