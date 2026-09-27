@@ -272,6 +272,13 @@ export function useUserSpeechRecognition() {
       recognition.onsoundstart = () => {
         if (!current()) return;
         clearCaptureWatchdog();
+        if (rescueWatchdogEnabled) {
+          tossaPerf("SPEECH", "onsoundstart", {
+            deviceGroup: group,
+            session,
+            retryCount: stuckRetryCount,
+          });
+        }
         debug("onsoundstart");
         callbacks.onActivity?.("sound");
         callbacks.onSpeechStart?.();
@@ -279,6 +286,13 @@ export function useUserSpeechRecognition() {
       recognition.onspeechstart = () => {
         if (!current()) return;
         clearCaptureWatchdog();
+        if (rescueWatchdogEnabled) {
+          tossaPerf("SPEECH", "onspeechstart", {
+            deviceGroup: group,
+            session,
+            retryCount: stuckRetryCount,
+          });
+        }
         debug("onspeechstart");
         armSilenceTimer();
         callbacks.onActivity?.("speech");
@@ -300,6 +314,15 @@ export function useUserSpeechRecognition() {
       recognition.onresult = (event) => {
         if (!current()) return;
         clearCaptureWatchdog();
+        if (rescueWatchdogEnabled) {
+          tossaPerf("SPEECH", "onresult", {
+            deviceGroup: group,
+            session,
+            retryCount: stuckRetryCount,
+            resultIndex: event.resultIndex,
+            resultCount: event.results.length,
+          });
+        }
         // Android Chrome can expose cumulative hypotheses as separate result
         // slots ("I", "I have", ...). Collapse those replacements instead of
         // joining every slot and multiplying the same words.
