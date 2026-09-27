@@ -46,7 +46,7 @@ import stationBackground from "../assets/backgrounds/station.webp";
 import hospitalBackground from "../assets/backgrounds/hospital.webp";
 import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { tossaPerf } from "../debug/tossaPerf";
+import { isTossaDeveloperModeEnabled, tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
@@ -173,6 +173,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     start: startRecognition,
     cancel: cancelRecognition,
     getSessionId: getRecognitionSessionId,
+    setIgnoreRecognitionDuringMiyabi,
   } = useUserSpeechRecognition();
   const character = partnerId ? getCharacter(partnerId) : REVIEW_CHARACTER;
   const visibleCharacter = rescueBusy ? getCharacter("miyabi") : character;
@@ -218,6 +219,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const reviewLectureStartedRef = useRef<LessonReview["sections"] | null>(null);
   const partnerOpeningStartedRef = useRef<string | null>(null);
   const recognitionRestartTimerRef = useRef<number | null>(null);
+  const miyabiIgnoreReleaseTimerRef = useRef<number | null>(null);
   const softFinalizeTimerRef = useRef<number | null>(null);
   const hardFinalizeTimerRef = useRef<number | null>(null);
   const conversationInactivityTimerRef = useRef<number | null>(null);
@@ -226,6 +228,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const pendingPartnerAnnouncementRef = useRef<string | null>(null);
   const utteranceBufferRef = useRef("");
   const utteranceSentRef = useRef(false);
+  const miyabiTtsInputIgnoredRef = useRef(false);
   const userTurnIdRef = useRef(0);
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
@@ -575,6 +578,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     return () => {
       mountedRef.current = false;
       startTokenRef.current += 1;
+      if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
     };
   }, []);
 
@@ -797,7 +801,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const deviceGroup = detectDeviceGroup();
     const softTimeoutMs = userTurnSoftTimeoutMs(deviceGroup);
     const finalizeUserTurn = (reason: "soft" | "hard") => {
-      if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || review || utteranceSentRef.current) return;
+      if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || review || utteranceSentRef.current || miyabiTtsInputIgnoredRef.current) return;
       const snapshot = createUserTurnSnapshot({
         id: userTurnId,
         generation: token,
@@ -929,6 +933,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
     if (!lastAssistantMessage) return;
     const iosTextOnlyRescue = detectDeviceGroup() === "ios";
+    const iosMiyabiTtsAbTest = iosTextOnlyRescue && isTossaDeveloperModeEnabled();
     const recognitionSessionBefore = getRecognitionSessionId();
     const token = iosTextOnlyRescue ? startTokenRef.current : ++startTokenRef.current;
     if (!iosTextOnlyRescue) {
@@ -945,7 +950,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setRescueMessage(explanation);
       setBusy(false);
-      if (iosTextOnlyRescue) {
+      if (iosTextOnlyRescue && !iosMiyabiTtsAbTest) {
         setPhase("recognizing");
         setRescueBusy(false);
         tossaPerf("SPEECH", "Miyabi TTS skipped", {
@@ -958,14 +963,51 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         });
         return;
       }
+      if (iosMiyabiTtsAbTest) {
+        if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
+        if (hardFinalizeTimerRef.current !== null) window.clearTimeout(hardFinalizeTimerRef.current);
+        softFinalizeTimerRef.current = hardFinalizeTimerRef.current = null;
+        miyabiTtsInputIgnoredRef.current = true;
+        setIgnoreRecognitionDuringMiyabi(true);
+      }
       setPhase("ttsPending");
       tossaPerf("SPEECH", "Miyabi TTS request", { generation: token, userTurnId: userTurnIdRef.current });
       speakMiyabiItems([{ lang: "ja-JP", text: explanation, characterId: "miyabi" }], {
         onItemStart: () => {
-          if (startTokenRef.current === token) setPhase("speaking");
+          if (startTokenRef.current === token) {
+            setPhase("speaking");
+            if (iosMiyabiTtsAbTest) {
+              tossaPerf("SPEECH", "Miyabi TTS start", {
+                generation: token,
+                userTurnId: userTurnIdRef.current,
+                recognitionSessionBefore,
+                recognitionSessionAfter: getRecognitionSessionId(),
+              });
+            }
+          }
         },
         onFinish: (reason) => {
           if (!mountedRef.current || startTokenRef.current !== token) return;
+          if (iosMiyabiTtsAbTest) {
+            tossaPerf("SPEECH", "Miyabi TTS end", {
+              generation: token,
+              userTurnId: userTurnIdRef.current,
+              reason,
+              recognitionSessionBefore,
+              recognitionSessionAfter: getRecognitionSessionId(),
+            });
+            if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
+            miyabiIgnoreReleaseTimerRef.current = window.setTimeout(() => {
+              miyabiIgnoreReleaseTimerRef.current = null;
+              if (!mountedRef.current || startTokenRef.current !== token) return;
+              setIgnoreRecognitionDuringMiyabi(false);
+              miyabiTtsInputIgnoredRef.current = false;
+              setPhase("recognizing");
+              setRescueBusy(false);
+              setBusy(false);
+            }, 250);
+            return;
+          }
           setPhase("idle");
           setRescueBusy(false);
           requestBusyRef.current = false;
@@ -975,6 +1017,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       }, "miyabi");
     } catch (cause) {
       if (!mountedRef.current || startTokenRef.current !== token) return;
+      if (iosMiyabiTtsAbTest) {
+        setIgnoreRecognitionDuringMiyabi(false);
+        miyabiTtsInputIgnoredRef.current = false;
+      }
       setError(friendlyError(cause));
       setBusy(false);
       setPhase("idle");

@@ -34,8 +34,10 @@ export function useUserSpeechRecognition() {
   const silenceTimerRef = useRef<number | null>(null);
   const error7RetryTimerRef = useRef<number | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
+  const ignoreRecognitionDuringMiyabiRef = useRef(false);
   const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
   const dispose = useCallback(() => {
+    ignoreRecognitionDuringMiyabiRef.current = false;
     sessionRef.current += 1;
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
@@ -61,6 +63,13 @@ export function useUserSpeechRecognition() {
     notify?.();
   }, [dispose]);
   const getSessionId = useCallback(() => sessionRef.current, []);
+  const setIgnoreRecognitionDuringMiyabi = useCallback((ignored: boolean) => {
+    ignoreRecognitionDuringMiyabiRef.current = ignored;
+    if (ignored && silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
   const finish = useCallback(() => {
     if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
     silenceTimerRef.current = null;
@@ -117,12 +126,17 @@ export function useUserSpeechRecognition() {
       };
       recognition.onaudiostart = () => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) return;
         tossaPerf("SPEECH", "recognition audio start", { deviceGroup: group, session });
         debug("onaudiostart");
         callbacks.onActivity?.("audio");
       };
       recognition.onsoundstart = () => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) {
+          tossaPerf("SPEECH", "ignored onsoundstart during Miyabi", { deviceGroup: group, session });
+          return;
+        }
         tossaPerf("SPEECH", "onsoundstart", { deviceGroup: group, session });
         debug("onsoundstart");
         callbacks.onActivity?.("sound");
@@ -130,6 +144,10 @@ export function useUserSpeechRecognition() {
       };
       recognition.onspeechstart = () => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) {
+          tossaPerf("SPEECH", "ignored onspeechstart during Miyabi", { deviceGroup: group, session });
+          return;
+        }
         tossaPerf("SPEECH", "onspeechstart", { deviceGroup: group, session });
         debug("onspeechstart");
         armSilenceTimer();
@@ -138,11 +156,13 @@ export function useUserSpeechRecognition() {
       };
       recognition.onspeechend = () => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) return;
         debug("onspeechend");
         callbacks.onSpeechEnd?.();
       };
       recognition.onsoundend = () => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) return;
         debug("onsoundend");
         callbacks.onSpeechEnd?.();
       };
@@ -151,6 +171,15 @@ export function useUserSpeechRecognition() {
       };
       recognition.onresult = (event) => {
         if (!current()) return;
+        if (ignoreRecognitionDuringMiyabiRef.current) {
+          tossaPerf("SPEECH", "ignored onresult during Miyabi", {
+            deviceGroup: group,
+            session,
+            resultIndex: event.resultIndex,
+            resultCount: event.results.length,
+          });
+          return;
+        }
         tossaPerf("SPEECH", "onresult", { deviceGroup: group, session, resultIndex: event.resultIndex, resultCount: event.results.length });
         // Android Chrome can expose cumulative hypotheses as separate result
         // slots ("I", "I have", ...). Collapse those replacements instead of
@@ -179,8 +208,14 @@ export function useUserSpeechRecognition() {
       };
       recognition.onend = () => {
         if (!current()) return;
+        const endedDuringMiyabi = ignoreRecognitionDuringMiyabiRef.current;
         lifecycleRef.current = "idle";
-        tossaPerf("SPEECH", "recognition onend", { deviceGroup: group, session, lifecycle: lifecycleRef.current, final: finalTranscriptRef.current });
+        tossaPerf("SPEECH", endedDuringMiyabi ? "recognition onend during Miyabi" : "recognition onend", {
+          deviceGroup: group,
+          session,
+          lifecycle: lifecycleRef.current,
+          ...(endedDuringMiyabi ? {} : { final: finalTranscriptRef.current }),
+        });
         debug("onend", { final: finalTranscriptRef.current });
         if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
@@ -192,13 +227,25 @@ export function useUserSpeechRecognition() {
         finalTranscriptRef.current = "";
         interimTranscriptRef.current = "";
         setActive(false);
-        callbacks.onEnd(text);
+        if (!endedDuringMiyabi) callbacks.onEnd(text);
       };
       recognition.onerror = (event) => {
         if (!current()) return;
         const nativeError = event as Event & { error?: string; message?: string };
         const error = nativeError.error ?? "unknown";
         const message = nativeError.message ?? "";
+        if (ignoreRecognitionDuringMiyabiRef.current) {
+          tossaPerf("SPEECH", "recognition onerror during Miyabi", { deviceGroup: group, session, error, message });
+          lifecycleRef.current = "idle";
+          sessionRef.current += 1;
+          recognition.onstart = recognition.onaudiostart = recognition.onaudioend = recognition.onspeechstart = recognition.onspeechend = recognition.onsoundstart = recognition.onsoundend = recognition.onresult = recognition.onend = recognition.onerror = null;
+          if (recognitionRef.current === recognition) recognitionRef.current = null;
+          cancelCallbackRef.current = null;
+          finalTranscriptRef.current = "";
+          interimTranscriptRef.current = "";
+          setActive(false);
+          return;
+        }
         const error7 = isAppleAssistantError7(group, error, message);
         tossaPerf("SPEECH", "recognition onerror", {
           deviceGroup: group,
@@ -264,5 +311,5 @@ export function useUserSpeechRecognition() {
     startAttempt(0);
   }, [dispose]);
   useEffect(() => dispose, [dispose]);
-  return { active, start, finish, cancel, getSessionId };
+  return { active, start, finish, cancel, getSessionId, setIgnoreRecognitionDuringMiyabi };
 }
