@@ -12,7 +12,7 @@ import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
 import { applySpeechRateIntent, detectSpeechRateIntent, SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../ai/conversationControls";
 import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
-import { ttsRecognitionRestartDelayMs } from "../ai/speechRecognitionTiming";
+import { ttsRecognitionRestartDelayMs, userTurnSoftTimeoutMs } from "../ai/speechRecognitionTiming";
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
@@ -51,7 +51,6 @@ import { tossaPerf } from "../debug/tossaPerf";
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
 
-export const SOFT_UTTERANCE_TIMEOUT_MS = 1500;
 export const HARD_UTTERANCE_TIMEOUT_MS = 7000;
 export const CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 export const SELECTION_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
@@ -783,6 +782,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setMicrophoneFallback(false);
     }
     const userTurnId = userTurnIdRef.current;
+    const deviceGroup = detectDeviceGroup();
+    const softTimeoutMs = userTurnSoftTimeoutMs(deviceGroup);
     const finalizeUserTurn = (reason: "soft" | "hard") => {
       if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || review || utteranceSentRef.current) return;
       const snapshot = createUserTurnSnapshot({
@@ -812,13 +813,13 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!utteranceBufferRef.current || utteranceSentRef.current) return;
       if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
       if (hardFinalizeTimerRef.current !== null) window.clearTimeout(hardFinalizeTimerRef.current);
-      speechDebug("utterance timers start/reset", { generation: token, userTurnId, activity, softMs: SOFT_UTTERANCE_TIMEOUT_MS, hardMs: HARD_UTTERANCE_TIMEOUT_MS });
+      speechDebug("utterance timers start/reset", { generation: token, userTurnId, activity, deviceGroup, softMs: softTimeoutMs, hardMs: HARD_UTTERANCE_TIMEOUT_MS });
       softFinalizeTimerRef.current = window.setTimeout(() => {
         softFinalizeTimerRef.current = null;
         speechDebug("soft timer fired", { generation: token, userTurnId });
-        tossaPerf("SPEECH", "soft timer fire", { generation: token, userTurnId, timeoutMs: SOFT_UTTERANCE_TIMEOUT_MS });
+        tossaPerf("SPEECH", "soft timer fire", { generation: token, userTurnId, timeoutMs: softTimeoutMs, deviceGroup });
         finalizeUserTurn("soft");
-      }, SOFT_UTTERANCE_TIMEOUT_MS);
+      }, softTimeoutMs);
       // This remains as a safety ceiling. Because both timers reset together,
       // the soft timer normally finalizes the turn before this one can fire.
       hardFinalizeTimerRef.current = window.setTimeout(() => {
