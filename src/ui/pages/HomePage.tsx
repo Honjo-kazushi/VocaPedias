@@ -94,6 +94,7 @@ export default function HomePage() {
   );
 
   const [showSettings, setShowSettings] = useState(false);
+  const [aiReviewActive, setAiReviewActive] = useState(false);
 
   const playClickSe = () => {
     if (soundOn) playSe();
@@ -1163,7 +1164,7 @@ export default function HomePage() {
   //===================================================== */
   return (
     <div className="app-viewport">
-      <div className="app-shell">
+      <div className={`app-shell${aiReviewActive ? " ai-review-active" : ""}`}>
         <div style={{ position: "relative" }}>
           {/* 設定ボタン：センター箱の外・固定 */}
           <button
@@ -1524,7 +1525,7 @@ export default function HomePage() {
             </>
           )}
 
-          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} onButtonPress={playClickSe} speechSpeed={speechSpeed} onSpeechSpeedChange={setSpeechSpeed} />}
+          {mainMode === "AI" && <AiConversationUI showConversationCaptions={showConversationCaptions} uiLanguage={jpLearnMode ? "en" : "ja"} onButtonPress={playClickSe} speechSpeed={speechSpeed} onSpeechSpeedChange={setSpeechSpeed} onReviewActiveChange={setAiReviewActive} />}
 
           {/* =====================================================
               関連フレーズ（Overlay）

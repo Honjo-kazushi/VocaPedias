@@ -22,10 +22,18 @@
 
 /* Review can exceed the fixed app viewport; keep one scroll container for the page. */
 .app-shell:has(.ai-review),
+.app-shell.ai-review-active,
 .app-shell:has(.partner-select),
 .app-shell:has(.scene-roleplay-select) {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.app-shell.ai-review-active {
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior-y: contain;
 }
 
 /* ===== スマホ実機では余計な装飾を消す ===== */

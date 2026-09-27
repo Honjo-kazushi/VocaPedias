@@ -100,6 +100,6 @@ test("all scene cards reuse the conversation background mapping without changing
 test("scene review reuses one generated result for Emma speech and the standard visible Review UI", () => {
   assert.match(uiSource, /scene \? \{ situation: scene, usefulPhrases: getSceneUsefulPhrases\(scene\) \} : undefined/);
   assert.match(uiSource, /setSpokenReview\(result\.spokenReview\);\s*setReview\(result\.sections\)/);
-  assert.match(uiSource, /<ReviewSections sections=\{review\} language=\{conversationLanguage\} \/>/);
+  assert.match(uiSource, /<ReviewSections sections=\{reviewDisplay\?\.sections \?\? review\} language=\{conversationLanguage\} \/>/);
   assert.match(uiSource, /reviewLectureStartedRef\.current === review/);
 });

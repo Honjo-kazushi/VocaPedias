@@ -46,7 +46,7 @@ Return one valid JSON object with exactly these fields:
   ]
 }
 
-Do not wrap the JSON in Markdown fences. The sections are shown on screen; spokenReview alone is spoken by Emma. For this English review, todayPoints must be an empty array. Each other section may contain at most one string. If there is no qualifying item, return an empty array for that section. Never put a sentence explaining that there is no item into an array.
+Do not wrap the JSON in Markdown fences. The sections are shown on screen; spokenReview alone is spoken by Emma. For this English review, todayPoints must be an empty array. Each other section may contain at most one string. Ensure that at least one of goodPoints, corrections, or alternatives contains one genuine, conversation-grounded item. Prefer goodPoints first, then corrections, then alternatives, but never invent an error, intended meaning, or unnatural suggestion merely to fill a section. If a particular section has no qualifying item, return an empty array for that section. Never put a sentence explaining that there is no item into an array, and never return all three English display sections empty when spokenReview contains usable feedback.
 
 Write the display section strings in Japanese. The UI supplies the headings.
 

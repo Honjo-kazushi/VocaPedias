@@ -9,6 +9,7 @@ import {
   startTutorConversation,
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
+import { buildReviewDisplayModel } from "../ai/reviewDisplay";
 import { createUserTurnSnapshot, type UserTurnSnapshot } from "../ai/userTurnSnapshot";
 import { applySpeechRateIntent, detectSpeechRateIntent, SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../ai/conversationControls";
 import { shouldCancelConversation, type ConversationCancelTrigger } from "../ai/conversationCancelPolicy";
@@ -138,9 +139,10 @@ type AiConversationUIProps = {
   onButtonPress: () => void;
   speechSpeed: SpeechSpeed;
   onSpeechSpeedChange: (speed: SpeechSpeed) => void;
+  onReviewActiveChange?: (active: boolean) => void;
 };
 
-export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja", onButtonPress, speechSpeed, onSpeechSpeedChange }: AiConversationUIProps) {
+export default function AiConversationUI({ showConversationCaptions, uiLanguage = "ja", onButtonPress, speechSpeed, onSpeechSpeedChange, onReviewActiveChange }: AiConversationUIProps) {
   const [topic, setTopic] = useState<TalkTopic | null>(null);
   const [freshTopics, setFreshTopics] = useState<FreshTalkTopic[]>([]);
   const [scene, setScene] = useState<SceneSituation | null>(null);
@@ -207,6 +209,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   useEffect(() => {
     setTtsConversationState(`AiConversationUI stage=${lessonStage} phase=${phase} intro=${showIntro} partner=${partnerId ?? "none"}`);
   }, [lessonStage, partnerId, phase, showIntro]);
+  useEffect(() => {
+    onReviewActiveChange?.(Boolean(review));
+    return () => onReviewActiveChange?.(false);
+  }, [onReviewActiveChange, review]);
   const idleActive = !review && !busy && phase === "idle" && !partnerIsSpeaking && (
     openingIdleActive || (!showIntro && (lessonStage !== "partnerSelect" || partnerSelectionReady))
   );
@@ -733,6 +739,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         { generation: token },
       );
       if (!mountedRef.current || startTokenRef.current !== token) return;
+      const displayModel = buildReviewDisplayModel(result.sections, result.spokenReview, conversationLanguage);
+      tossaPerf("FLOW", "Review response received", {
+        goodPointsCount: result.sections.goodPoints.length,
+        correctionsCount: result.sections.corrections.length,
+        alternativesCount: result.sections.alternatives.length,
+        todayPointsCount: result.sections.todayPoints.length,
+        spokenReviewCount: result.spokenReview.length,
+        visibleSectionCount: displayModel.visibleSectionCount,
+        usedFallback: displayModel.usedFallback,
+      });
       setSpokenReview(result.spokenReview);
       setReview(result.sections);
       setPhase("idle");
@@ -1082,6 +1098,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const fiveMinutesPassed = elapsedSeconds >= 300;
   const tenMinutesPassed = elapsedSeconds >= 600;
   const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
+  const reviewDisplay = review
+    ? buildReviewDisplayModel(review, spokenReview, conversationLanguage)
+    : null;
   // Base this on the user-visible turn, not recognitionActive: Chrome briefly
   // stops and restarts recognition while the same answer-waiting turn continues.
   const showRescueButton = lessonStage === "conversation" && conversationLanguage === "en" &&
@@ -1150,7 +1169,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       {review ? (
         <div className="ai-review" onPointerDown={armReviewInactivityTimer}>
           <h2>Lesson Review</h2>
-          <ReviewSections sections={review} language={conversationLanguage} />
+          <ReviewSections sections={reviewDisplay?.sections ?? review} language={conversationLanguage} />
           <div className="ai-review-actions">
             <button
               className="ai-primary-button"
