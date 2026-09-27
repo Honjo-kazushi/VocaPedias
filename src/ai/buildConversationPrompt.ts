@@ -4,7 +4,7 @@ import type { CharacterProfile } from "../characters/characterProfiles";
 import type { Phrase } from "../app/ports/PhraseRepository";
 import type { SceneSituation } from "../data/sceneRoleplays";
 
-export function buildConversationPrompt(topic: TalkTopic, partner: CharacterProfile, openingAngle?: string | null): string {
+export function buildConversationPrompt(topic: TalkTopic, partner: CharacterProfile, openingAngle?: string | null, continuation = false): string {
   const angleInstruction = openingAngle
     ? `\nConversation angle for this opening: ${openingAngle}\nUse this as a creative direction, not as a fixed question. After the learner replies, follow their answer naturally instead of forcing the conversation back to this angle.\n`
     : "";
@@ -48,6 +48,10 @@ ${referenceQuestions ? `参考質問（内容の参考にするだけで、英�
 Topic、Angle、参考質問は日本語の雑談を作るための内部情報です。固定質問として順番に読まず、自然で新鮮な日本語の会話を作ってください。`;
   }
 
+  const latestMessageRule = continuation
+    ? "- Respect the learner's latest message, but remember that it is a SpeechRecognition transcript. Interpret it first in the context of your immediately previous question and today's topic. Follow an unexpected detail only when it clearly represents the learner's intended meaning, not an isolated likely misrecognition."
+    : "- The learner's latest message is more important than covering the prepared angle. Follow unexpected details naturally instead of steering back to a checklist.";
+
   return `You are ${partner.displayName}, an English conversation partner for a Japanese learner.
 
 Your role: ${partner.role}
@@ -74,7 +78,7 @@ Rules:
 - Do not display scores.
 - Do not praise every response mechanically.
 - Do not routinely begin with "Great!", "That's great!", "That's interesting!", or "Wonderful!" Use praise only when it genuinely fits.
-- The learner's latest message is more important than covering the prepared angle. Follow unexpected details naturally instead of steering back to a checklist.
+${latestMessageRule}
 - If the learner seems stuck, simplify the question or offer a hint.
 - Keep the conversation natural and friendly.
 
@@ -92,6 +96,7 @@ export function buildSceneRoleplayPrompt(
   partner: CharacterProfile,
   usefulPhrases: readonly Phrase[],
   complication?: string | null,
+  continuation = false,
 ): string {
   const phraseReferences = usefulPhrases
     .map((phrase) => `- ${phrase.id}: ${phrase.en}`)
@@ -105,6 +110,9 @@ export function buildSceneRoleplayPrompt(
 - Keep the practice centered on the counter-order flow: order, one relevant type/size/quantity choice, optional drink or extra, for here or to go, anything else, payment, and pickup. Ask only one short question at a time.
 - Match choices and small complications to the selected shop. For example, do not offer fries in a donut shop. Use balanced items such as a burger, sandwich, pizza, chicken, coffee, donut, or drink only when they fit.`
     : "";
+  const sceneMessageRule = continuation
+    ? "- Respect the learner's latest message, but remember that it is a SpeechRecognition transcript. Interpret it first as an answer to your immediately previous question within the current scene and goal. Follow an unexpected detail only when it clearly represents the learner's intended meaning, not an isolated likely misrecognition."
+    : "- Prioritize the learner's latest message over mechanically completing the scene plan, while still moving naturally toward the goal.";
 
   return `You are ${partner.displayName}, acting as ${situation.partnerRole} in a practical English role-play for a Japanese A2-B1 learner.
 
@@ -126,7 +134,7 @@ Rules:
 - React to the learner's actual message and move the practical task forward.
 - Speak only in English. In ordinary turns, give one brief reaction and one short practical question, usually 1-2 sentences and about 25 words or fewer.
 - Do not routinely begin with generic praise such as "Great!" or "That's interesting!".
-- Prioritize the learner's latest message over mechanically completing the scene plan, while still moving naturally toward the goal.
+${sceneMessageRule}
 - Use natural, polite A2-B1 English. If the learner is stuck, simplify or offer a situational hint without giving a required script.
 - Keep each question concrete and immediately answerable from the visible situation. Do not ask broad, abstract, multi-part, or hypothetical questions that require planning a long answer.
 - Use the complication only if it fits naturally. It must remain easy to resolve and must not become the purpose of the conversation.

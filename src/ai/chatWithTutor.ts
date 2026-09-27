@@ -134,12 +134,39 @@ export async function startTutorConversation(topic: TalkTopic, partner: Characte
   return result.text;
 }
 
-export async function continueTutorConversation(topic: TalkTopic, messages: ChatMessage[], partner: CharacterProfile, context?: AiRequestContext): Promise<string> {
+function asrContinuationGuidance(anchors: readonly string[]): string {
+  return `Conversation anchors:
+${anchors.map((anchor) => `- ${anchor}`).join("\n")}
+- Immediately previous Partner question: use the last Partner message in the conversation history.
+
+The Learner messages are SpeechRecognition transcripts and may contain misrecognized words.
+Interpret the latest Learner transcript first as an answer to the immediately previous Partner question, using the anchors above.
+Respect what the learner says, but do not change topics merely because one isolated word appears unrelated to the current context.
+Follow a genuinely new topic only when the learner clearly and intentionally introduces it, rather than when a stray recognized word suggests it.
+If the transcript strongly conflicts with the previous question and the anchors, infer the intended meaning only when the context makes it reasonably clear. Otherwise, ask one short clarification question, such as "Do you mean your dog?" Do not explain the recognition problem or invent a new topic from the suspicious word.`;
+}
+
+export async function continueTutorConversation(
+  topic: TalkTopic,
+  messages: ChatMessage[],
+  partner: CharacterProfile,
+  topicAngle?: string | null,
+  context?: AiRequestContext,
+): Promise<string> {
+  const continuationAnchors = [
+    `Today's Topic: ${topic.title}`,
+    `Current Angle: ${topicAngle ?? "the current thread established by the conversation history"}`,
+    ...(topic.source === "fresh" && topic.context ? [`Timely context: ${topic.context}`] : []),
+  ];
   const result = await generate(
-    buildConversationPrompt(topic, partner),
+    buildConversationPrompt(topic, partner, null, true),
     partner.conversationLanguage === "ja"
       ? `自然な日本語だけで、ユーザーの最新の発言を優先して会話を続けてください。短い自然な反応と質問1つを基本にし、通常1〜2文にしてください。定型的な褒め言葉を毎回使わないでください。\n\n${formatConversation(messages)}`
-      : `Continue naturally from the learner's latest message. Use one brief reaction plus one small, concrete question that is easy to answer immediately, usually 1-2 sentences and about 25 words or fewer. Pick one specific detail from the learner's answer; avoid broad or multi-part questions. Do not default to generic praise.\n\n${formatConversation(messages)}`,
+      : `${asrContinuationGuidance(continuationAnchors)}
+
+Continue naturally from the learner's latest message after interpreting it with the rules above. Use one brief reaction plus one small, concrete question that is easy to answer immediately, usually 1-2 sentences and about 25 words or fewer. Pick one contextually reliable detail from the learner's answer; avoid broad or multi-part questions. Do not default to generic praise.
+
+${formatConversation(messages)}`,
     "continuation",
     context,
   );
@@ -168,9 +195,17 @@ export async function continueSceneRoleplay(
   complication?: string | null,
   context?: AiRequestContext,
 ): Promise<string> {
+  const continuationAnchors = [
+    `Current Scene: ${situation.sceneTitle} — ${situation.title}`,
+    `Scene Goal: ${situation.goal}`,
+  ];
   const result = await generate(
-    buildSceneRoleplayPrompt(situation, partner, getSceneUsefulPhrases(situation), complication),
-    `Continue from the learner's latest message with one brief reaction and one short practical question, usually 1-2 sentences and about 25 words or fewer. Accept any wording that communicates the meaning and do not default to generic praise. Move naturally toward the goal; if it is complete, confirm it and close briefly.\n\n${formatConversation(messages)}`,
+    buildSceneRoleplayPrompt(situation, partner, getSceneUsefulPhrases(situation), complication, true),
+    `${asrContinuationGuidance(continuationAnchors)}
+
+Continue from the learner's latest message after interpreting it with the rules above. Use one brief reaction and one short practical question, usually 1-2 sentences and about 25 words or fewer. Accept any wording that communicates the meaning and do not default to generic praise. Do not leave the scene because of one isolated, unrelated word. Move naturally toward the goal; if it is complete, confirm it and close briefly.
+
+${formatConversation(messages)}`,
     "continuation",
     context,
   );

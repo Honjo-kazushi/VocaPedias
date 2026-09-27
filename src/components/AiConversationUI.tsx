@@ -766,7 +766,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     try {
       const response = scene
         ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication, { generation: snapshot.generation, snapshotId: snapshot.id })
-        : await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], { generation: snapshot.generation, snapshotId: snapshot.id });
+        : await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], topicAngle, { generation: snapshot.generation, snapshotId: snapshot.id });
       if (mountedRef.current && startTokenRef.current === token) {
         setMessages([...nextMessages, { role: "assistant", content: response }]);
         queueAssistantSpeech(response, token);
