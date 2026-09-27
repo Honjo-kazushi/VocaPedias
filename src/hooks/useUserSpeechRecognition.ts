@@ -16,7 +16,17 @@ type Callbacks = {
   onError: (error: string) => void;
 };
 
+type StartOptions = {
+  iosRescueWatchdog?: boolean;
+};
+
 export const SPEECH_SILENCE_TIMEOUT_MS = 3000;
+// iOS normally establishes audio capture immediately after onstart. Five seconds
+// avoids racing a slow audio-session handoff after Miyabi TTS; a one-second
+// backoff gives WebKit time to release the stuck native recognition session.
+export const IOS_RESCUE_CAPTURE_WATCHDOG_MS = 5000;
+export const IOS_RESCUE_STUCK_RETRY_BACKOFF_MS = 1000;
+export const IOS_RESCUE_STUCK_MAX_RETRIES = 1;
 
 function deviceGroup(): "ios/fallback" | "android" | "desktop" {
   const ua = navigator.userAgent;
@@ -33,6 +43,8 @@ export function useUserSpeechRecognition() {
   const interimTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
   const error7RetryTimerRef = useRef<number | null>(null);
+  const captureWatchdogTimerRef = useRef<number | null>(null);
+  const stuckRetryTimerRef = useRef<number | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
   const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
   const dispose = useCallback(() => {
@@ -41,6 +53,10 @@ export function useUserSpeechRecognition() {
     silenceTimerRef.current = null;
     if (error7RetryTimerRef.current !== null) window.clearTimeout(error7RetryTimerRef.current);
     error7RetryTimerRef.current = null;
+    if (captureWatchdogTimerRef.current !== null) window.clearTimeout(captureWatchdogTimerRef.current);
+    captureWatchdogTimerRef.current = null;
+    if (stuckRetryTimerRef.current !== null) window.clearTimeout(stuckRetryTimerRef.current);
+    stuckRetryTimerRef.current = null;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     finalTranscriptRef.current = "";
@@ -69,8 +85,9 @@ export function useUserSpeechRecognition() {
       try { recognitionRef.current.stop(); } catch { /* Already stopped. */ }
     }
   }, []);
-  const start = useCallback((callbacks: Callbacks, lang: "en-US" | "ja-JP" = "en-US") => {
+  const start = useCallback((callbacks: Callbacks, lang: "en-US" | "ja-JP" = "en-US", options: StartOptions = {}) => {
     const group = deviceGroup();
+    const rescueWatchdogEnabled = group === "ios/fallback" && options.iosRescueWatchdog === true;
     tossaPerf("SPEECH", "recognition start requested", { deviceGroup: group, lifecycle: lifecycleRef.current, lang });
     if (recognitionRef.current) {
       tossaPerf("SPEECH", "recognition start blocked", { deviceGroup: group, lifecycle: lifecycleRef.current, reason: "existing-instance" });
@@ -81,7 +98,7 @@ export function useUserSpeechRecognition() {
       callbacks.onError("unsupported");
       return;
     }
-    const startAttempt = (retryCount: number) => {
+    const startAttempt = (error7RetryCount: number, stuckRetryCount: number) => {
     const session = ++sessionRef.current;
     const current = () => sessionRef.current === session;
     finalTranscriptRef.current = "";
@@ -96,6 +113,10 @@ export function useUserSpeechRecognition() {
       const debug = (event: string, details: Record<string, unknown> = {}) => {
         if (import.meta.env.DEV) console.debug("[TossaSpeak recognition]", { timestamp: performance.now(), session, event, ...details });
         callbacks.onDebug?.(session, event, details);
+      };
+      const clearCaptureWatchdog = () => {
+        if (captureWatchdogTimerRef.current !== null) window.clearTimeout(captureWatchdogTimerRef.current);
+        captureWatchdogTimerRef.current = null;
       };
       const armSilenceTimer = () => {
         if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
@@ -113,20 +134,60 @@ export function useUserSpeechRecognition() {
         tossaPerf("SPEECH", "recognition onstart", { deviceGroup: group, session, lifecycle: lifecycleRef.current });
         debug("onstart");
         callbacks.onStart();
+        if (rescueWatchdogEnabled) {
+          clearCaptureWatchdog();
+          captureWatchdogTimerRef.current = window.setTimeout(() => {
+            captureWatchdogTimerRef.current = null;
+            if (!current()) return;
+            tossaPerf("SPEECH", "recognition watchdog timeout", {
+              deviceGroup: group,
+              session,
+              retryCount: stuckRetryCount,
+              timeoutMs: IOS_RESCUE_CAPTURE_WATCHDOG_MS,
+            });
+            dispose();
+            setActive(false);
+            if (stuckRetryCount < IOS_RESCUE_STUCK_MAX_RETRIES) {
+              const nextStuckRetryCount = stuckRetryCount + 1;
+              tossaPerf("SPEECH", "recognition stuck retry", {
+                deviceGroup: group,
+                session,
+                retryCount: nextStuckRetryCount,
+                backoffMs: IOS_RESCUE_STUCK_RETRY_BACKOFF_MS,
+              });
+              stuckRetryTimerRef.current = window.setTimeout(() => {
+                stuckRetryTimerRef.current = null;
+                startAttempt(error7RetryCount, nextStuckRetryCount);
+              }, IOS_RESCUE_STUCK_RETRY_BACKOFF_MS);
+              return;
+            }
+            callbacks.onError("audio-capture");
+          }, IOS_RESCUE_CAPTURE_WATCHDOG_MS);
+        }
       };
       recognition.onaudiostart = () => {
         if (!current()) return;
+        clearCaptureWatchdog();
+        if (rescueWatchdogEnabled) {
+          tossaPerf("SPEECH", "recognition audio start", {
+            deviceGroup: group,
+            session,
+            retryCount: stuckRetryCount,
+          });
+        }
         debug("onaudiostart");
         callbacks.onActivity?.("audio");
       };
       recognition.onsoundstart = () => {
         if (!current()) return;
+        clearCaptureWatchdog();
         debug("onsoundstart");
         callbacks.onActivity?.("sound");
         callbacks.onSpeechStart?.();
       };
       recognition.onspeechstart = () => {
         if (!current()) return;
+        clearCaptureWatchdog();
         debug("onspeechstart");
         armSilenceTimer();
         callbacks.onActivity?.("speech");
@@ -147,6 +208,7 @@ export function useUserSpeechRecognition() {
       };
       recognition.onresult = (event) => {
         if (!current()) return;
+        clearCaptureWatchdog();
         // Android Chrome can expose cumulative hypotheses as separate result
         // slots ("I", "I have", ...). Collapse those replacements instead of
         // joining every slot and multiplying the same words.
@@ -174,6 +236,7 @@ export function useUserSpeechRecognition() {
       };
       recognition.onend = () => {
         if (!current()) return;
+        clearCaptureWatchdog();
         lifecycleRef.current = "idle";
         tossaPerf("SPEECH", "recognition onend", { deviceGroup: group, session, lifecycle: lifecycleRef.current, final: finalTranscriptRef.current });
         debug("onend", { final: finalTranscriptRef.current });
@@ -191,6 +254,7 @@ export function useUserSpeechRecognition() {
       };
       recognition.onerror = (event) => {
         if (!current()) return;
+        clearCaptureWatchdog();
         const nativeError = event as Event & { error?: string; message?: string };
         const error = nativeError.error ?? "unknown";
         const message = nativeError.message ?? "";
@@ -198,7 +262,7 @@ export function useUserSpeechRecognition() {
         tossaPerf("SPEECH", "recognition onerror", {
           deviceGroup: group,
           session,
-          retryCount,
+          retryCount: error7RetryCount,
           lifecycle: lifecycleRef.current,
           error,
           message,
@@ -207,8 +271,8 @@ export function useUserSpeechRecognition() {
         debug("onerror", { error: event.error });
         dispose();
         setActive(false);
-        if (error7 && retryCount < APPLE_ERROR7_MAX_RETRIES) {
-          const nextRetryCount = retryCount + 1;
+        if (error7 && error7RetryCount < APPLE_ERROR7_MAX_RETRIES) {
+          const nextRetryCount = error7RetryCount + 1;
           tossaPerf("SPEECH", "recognition error7 retry scheduled", {
             deviceGroup: group,
             session,
@@ -223,7 +287,7 @@ export function useUserSpeechRecognition() {
               session: retrySession,
               retryCount: nextRetryCount,
             });
-            startAttempt(nextRetryCount);
+            startAttempt(nextRetryCount, stuckRetryCount);
           }, APPLE_ERROR7_RETRY_DELAY_MS);
           return;
         }
@@ -231,7 +295,7 @@ export function useUserSpeechRecognition() {
           tossaPerf("SPEECH", "recognition error7 retry exhausted", {
             deviceGroup: group,
             session,
-            retryCount,
+            retryCount: error7RetryCount,
           });
         }
         callbacks.onError(event.error);
@@ -256,7 +320,7 @@ export function useUserSpeechRecognition() {
       callbacks.onError("start-failed");
     }
     };
-    startAttempt(0);
+    startAttempt(0, 0);
   }, [dispose]);
   useEffect(() => dispose, [dispose]);
   return { active, start, finish, cancel };

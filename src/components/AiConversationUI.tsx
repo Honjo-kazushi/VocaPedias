@@ -224,7 +224,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const userTurnIdRef = useRef(0);
   const processedSnapshotIdsRef = useRef(new Set<number>());
   const lastActivityAtRef = useRef(0);
-  const startMicrophoneRef = useRef<(continuationToken?: number) => void>(() => {});
+  const startMicrophoneRef = useRef<(continuationToken?: number, iosRescueWatchdog?: boolean) => void>(() => {});
   const speechRateMultiplierRef = useRef(SPEECH_SPEED_MULTIPLIERS[speechSpeed]);
   speechRateMultiplierRef.current = SPEECH_SPEED_MULTIPLIERS[speechSpeed];
   const partnerCancelRef = useRef<HTMLButtonElement | null>(null);
@@ -296,6 +296,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     token: number,
     delay = ttsRecognitionRestartDelayMs(detectDeviceGroup()),
     continuation = false,
+    iosRescueWatchdog = false,
   ) => {
     if (lessonEndingRef.current) return;
     if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
@@ -306,7 +307,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!mountedRef.current || startTokenRef.current !== token || requestBusyRef.current || lessonEndingRef.current) return;
       tossaPerf("SPEECH", "recognition restart timer fired", { generation: token, userTurnId: userTurnIdRef.current, delayMs: delay, continuation });
       speechDebug("recognition restart executed", { generation: token, userTurnId: userTurnIdRef.current, continuation });
-      startMicrophoneRef.current(continuation ? token : undefined);
+      startMicrophoneRef.current(continuation ? token : undefined, iosRescueWatchdog);
     }, delay);
   }, []);
 
@@ -769,7 +770,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
   };
 
-  const startMicrophone = (continuationToken?: number) => {
+  const startMicrophone = (continuationToken?: number, iosRescueWatchdog = false) => {
     const continuing = continuationToken !== undefined;
     if ((!topic && !scene) || !partnerId || lessonStage !== "conversation" || review || lessonEndingRef.current || requestBusyRef.current || (!continuing && recognitionActive)) return;
     const token = continuationToken ?? ++startTokenRef.current;
@@ -909,7 +910,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           : reason === "unsupported" ? "このブラウザは音声認識に対応していません。テキストで入力できます。"
           : "音声認識を開始・継続できませんでした。もう一度お試しください。");
       },
-    }, speechLocale);
+    }, speechLocale, { iosRescueWatchdog });
   };
   startMicrophoneRef.current = startMicrophone;
 
@@ -942,7 +943,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           setPhase("idle");
           setRescueBusy(false);
           requestBusyRef.current = false;
-          if (reason === "complete") scheduleMicrophoneStart(token, undefined, true);
+          if (reason === "complete") scheduleMicrophoneStart(token, undefined, true, true);
           else if (reason === "error") setError("日本語の説明を再生できませんでした。音声入力を再開してください。");
         },
       }, "miyabi");
@@ -953,7 +954,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setPhase("idle");
       setRescueBusy(false);
       requestBusyRef.current = false;
-      scheduleMicrophoneStart(token, undefined, true);
+      scheduleMicrophoneStart(token, undefined, true, true);
     }
   };
 
