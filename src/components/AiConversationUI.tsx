@@ -644,8 +644,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       });
     }
     const openingRequest = scene
-      ? startSceneRoleplay(scene, CHARACTER_PROFILES[partnerId], sceneComplication)
-      : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle);
+      ? startSceneRoleplay(scene, CHARACTER_PROFILES[partnerId], sceneComplication, { generation: token })
+      : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle, { generation: token });
     void openingRequest
       .then((opening) => {
         if (!mountedRef.current || startTokenRef.current !== token) return;
@@ -709,6 +709,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         conversationLanguage,
         topic ?? undefined,
         scene ? { situation: scene, usefulPhrases: getSceneUsefulPhrases(scene) } : undefined,
+        { generation: token },
       );
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setSpokenReview(result.spokenReview);
@@ -749,8 +750,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
     try {
       const response = scene
-        ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication)
-        : await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId]);
+        ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication, { generation: snapshot.generation, snapshotId: snapshot.id })
+        : await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], { generation: snapshot.generation, snapshotId: snapshot.id });
       if (mountedRef.current && startTokenRef.current === token) {
         setMessages([...nextMessages, { role: "assistant", content: response }]);
         queueAssistantSpeech(response, token);
@@ -927,7 +928,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setBusy(true);
     setPhase("thinking");
     try {
-      const explanation = await explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId]);
+      const explanation = await explainEnglishMessageInJapanese(lastAssistantMessage, CHARACTER_PROFILES[partnerId], { generation: token });
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setRescueMessage(explanation);
       setBusy(false);
