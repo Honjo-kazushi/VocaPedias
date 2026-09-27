@@ -46,7 +46,7 @@ import stationBackground from "../assets/backgrounds/station.webp";
 import hospitalBackground from "../assets/backgrounds/hospital.webp";
 import fastFoodBackground from "../assets/backgrounds/fastfood.webp";
 import { CharacterAvatar } from "./CharacterAvatar";
-import { isTossaDeveloperModeEnabled, tossaPerf } from "../debug/tossaPerf";
+import { tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
@@ -932,11 +932,10 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     if (conversationLanguage !== "en" || !awaitingUserInput || hasRecognizedSpeech || rescueBusy || requestBusyRef.current || !partnerId) return;
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant")?.content;
     if (!lastAssistantMessage) return;
-    const iosTextOnlyRescue = detectDeviceGroup() === "ios";
-    const iosMiyabiTtsAbTest = iosTextOnlyRescue && isTossaDeveloperModeEnabled();
+    const iosMiyabiTtsMode = detectDeviceGroup() === "ios";
     const recognitionSessionBefore = getRecognitionSessionId();
-    const token = iosTextOnlyRescue ? startTokenRef.current : ++startTokenRef.current;
-    if (!iosTextOnlyRescue) {
+    const token = iosMiyabiTtsMode ? startTokenRef.current : ++startTokenRef.current;
+    if (!iosMiyabiTtsMode) {
       requestBusyRef.current = true;
       stopInteraction("conversation:miyabi-rescue-requested");
     }
@@ -950,20 +949,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (!mountedRef.current || startTokenRef.current !== token) return;
       setRescueMessage(explanation);
       setBusy(false);
-      if (iosTextOnlyRescue && !iosMiyabiTtsAbTest) {
-        setPhase("recognizing");
-        setRescueBusy(false);
-        tossaPerf("SPEECH", "Miyabi TTS skipped", {
-          generation: token,
-          userTurnId: userTurnIdRef.current,
-          reason: "ios-text-only-rescue",
-          recognitionAction: "none",
-          recognitionSessionBefore,
-          recognitionSessionAfter: getRecognitionSessionId(),
-        });
-        return;
-      }
-      if (iosMiyabiTtsAbTest) {
+      if (iosMiyabiTtsMode) {
         if (softFinalizeTimerRef.current !== null) window.clearTimeout(softFinalizeTimerRef.current);
         if (hardFinalizeTimerRef.current !== null) window.clearTimeout(hardFinalizeTimerRef.current);
         softFinalizeTimerRef.current = hardFinalizeTimerRef.current = null;
@@ -976,7 +962,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         onItemStart: () => {
           if (startTokenRef.current === token) {
             setPhase("speaking");
-            if (iosMiyabiTtsAbTest) {
+            if (iosMiyabiTtsMode) {
               tossaPerf("SPEECH", "Miyabi TTS start", {
                 generation: token,
                 userTurnId: userTurnIdRef.current,
@@ -988,7 +974,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         },
         onFinish: (reason) => {
           if (!mountedRef.current || startTokenRef.current !== token) return;
-          if (iosMiyabiTtsAbTest) {
+          if (iosMiyabiTtsMode) {
             tossaPerf("SPEECH", "Miyabi TTS end", {
               generation: token,
               userTurnId: userTurnIdRef.current,
@@ -1017,7 +1003,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       }, "miyabi");
     } catch (cause) {
       if (!mountedRef.current || startTokenRef.current !== token) return;
-      if (iosMiyabiTtsAbTest) {
+      if (iosMiyabiTtsMode) {
         setIgnoreRecognitionDuringMiyabi(false);
         miyabiTtsInputIgnoredRef.current = false;
       }
@@ -1025,7 +1011,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setBusy(false);
       setPhase("idle");
       setRescueBusy(false);
-      if (iosTextOnlyRescue) {
+      if (iosMiyabiTtsMode) {
         setPhase("recognizing");
       } else {
         requestBusyRef.current = false;
