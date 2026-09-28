@@ -104,7 +104,7 @@ export const UI_TEXT = {
   jp: {
     next: "▷ 次へ",
     pause: "Ⅱ 停止",
-    speak: "🎤発声",
+    speak: "🎤 発声",
     showAnswer: "English",
     keyword: "キーワード（例: see / なるほど）",
     ready: "考えた？",

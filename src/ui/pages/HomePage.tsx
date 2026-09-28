@@ -341,9 +341,10 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
     randomPhrase !== null &&
     (ttsOn
       ? // TTS ON：IDLE かつ QUESTION、または復習(ANSWER_SHOWN)は autoNext OFF のときだけ
-        speechState === "IDLE" &&
-        (trainPhase === "QUESTION" ||
-          (trainPhase === "ANSWER_SHOWN" && !autoNext))
+        (speechState === "IDLE" &&
+          (trainPhase === "QUESTION" ||
+            (trainPhase === "ANSWER_SHOWN" && !autoNext))) ||
+        (speechState === "RECORDING" && trainPhase === "RECORDING")
       : // TTS OFF：QUESTION のときだけ（待機中に青で押せる問題を潰す）
         trainPhase === "QUESTION");
   const [spokenText, setSpokenText] = useState<string | null>(null);
@@ -405,19 +406,24 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
     );
   }
 
+  function stopTrainingRecognition() {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    recognition.onend = null;
+    recognition.onresult = null;
+    recognition.onerror = null;
+    try {
+      recognition.stop();
+    } catch { /* Ignore errors from starting or stopping recognition. */ }
+    recognitionRef.current = null;
+    setSpeechState("IDLE");
+  }
+
   function hardStopToIdle() {
     // =========================
     // ★ 録音中なら即中断（最優先）
     // =========================
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.stop();
-      } catch { /* Ignore errors from starting or stopping recognition. */ }
-      recognitionRef.current = null;
-    }
+    stopTrainingRecognition();
 
     // =========================
     // タイマー全停止
@@ -792,12 +798,13 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
 
     try {
       pushSpeechLog("recognition.start()");
-      recognitionRef.current.start();
+      const activeRecognition = recognitionRef.current;
+      activeRecognition.start();
 
       // ★ 最大6秒で強制終了
       window.setTimeout(() => {
         try {
-          recognitionRef.current?.stop();
+          activeRecognition.stop();
         } catch { /* Ignore errors from starting or stopping recognition. */ }
       }, MAX_RECORD_MS);
     } catch {
@@ -1090,6 +1097,17 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
   }, [goNext]);
 
   useEffect(() => {
+    if (mode !== "TRAIN" || !ttsOn || isPaused || isBusy || !randomPhrase || showEn) return;
+    if (trainPhase !== "QUESTION" || speechState !== "IDLE" || recognitionRef.current) return;
+
+    initSpeechRecognition();
+    setTrainPhase("RECORDING");
+    startSpeechFlow();
+    // The two functions intentionally reuse the current phrase-learning handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, ttsOn, isPaused, isBusy, randomPhrase, showEn, trainPhase, speechState]);
+
+  useEffect(() => {
     if (mode !== "TRAIN") return; // ★最重要
     if (isPaused) return;
     if (!randomPhrase) return;
@@ -1106,6 +1124,7 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
         const next = e + 1;
 
         if (next >= 5 && !showEn && !isPaused) {
+          stopTrainingRecognition();
           // ===== timeout ログ =====
           setPickLogs((logs) => {
             if (logs.length === 0) return logs;
@@ -1646,7 +1665,7 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
 
               {/* 認識実行／英語を見る（必要なときだけ） */}
               <button
-                className="btn btn-en"
+                className={`btn btn-en ${speechState === "RECORDING" ? "is-listening" : ""}`}
                 disabled={!canUseSpeak}
                 style={{
                   color: canUseSpeak ? "#eb6425" : "#9ca3af",
@@ -1655,6 +1674,7 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
                   if (!canUseSpeak) return;
                   if (isBusy) return;
                   if (!randomPhrase) return;
+                  if (speechState === "RECORDING" || recognitionRef.current) return;
 
                   if (debugMode && ttsOn) {
                     const isReviewAfterAnswer = showEn;
