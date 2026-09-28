@@ -39,7 +39,7 @@ import { useCharacterListening } from "../hooks/useCharacterListening";
 import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
 import { setTtsConversationState } from "../sound/cancelSpeechSynthesis";
-import { prewarmEmmaVoice, unlockAppleTtsOnUserGesture } from "../sound/speakEn.ts";
+import { prewarmEmmaVoice, unlockAppleTtsOnUserGesture, type SpeechFinishReason } from "../sound/speakEn.ts";
 import { detectDeviceGroup } from "../sound/selectCharacterVoice";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
@@ -72,6 +72,7 @@ const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharact
 const MIYABI = getCharacter("miyabi");
 const PARTNER_SELECTION_PROMPT = "Who would you like to talk with today?";
 const SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice.";
+const IPAD_EMMA_SECOND_UTTERANCE_WATCHDOG_MS = 750;
 const SCENE_BACKGROUNDS = {
   hotel: hotelBackground,
   airport: airportBackground,
@@ -408,22 +409,49 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setPhase("ttsPending");
     window.requestAnimationFrame(() => {
       if (!mountedRef.current || startTokenRef.current !== token) return;
-      speakCharacterItems([
-        { lang: "en-US", text: lessonAnnouncement, rateMultiplier: speechRateMultiplierRef.current },
-        { lang: "en-US", text: PARTNER_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef.current },
-      ], {
-        onItemStart: () => {
-          if (startTokenRef.current === token) {
-            setPartnerExpression("neutral");
-            setPhase("speaking");
-          }
-        },
-        onFinish: (reason) => {
-          if (startTokenRef.current !== token) return;
+      const firstItem = { lang: "en-US" as const, text: lessonAnnouncement, rateMultiplier: speechRateMultiplierRef.current };
+      const secondItem = { lang: "en-US" as const, text: PARTNER_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef.current };
+      const onItemStart = () => {
+        if (startTokenRef.current === token) {
           setPartnerExpression("neutral");
-          setPhase("idle");
-          if (reason !== "cancel") setPartnerSelectionReady(true);
-          if (reason === "error") setError("音声を再生できませんでした。会話相手を選んで続けられます。");
+          setPhase("speaking");
+        }
+      };
+      const onGuideFinish = (reason: SpeechFinishReason) => {
+        if (startTokenRef.current !== token) return;
+        setPartnerExpression("neutral");
+        setPhase("idle");
+        if (reason !== "cancel") setPartnerSelectionReady(true);
+        if (reason === "error") setError("音声を再生できませんでした。会話相手を選んで続けられます。");
+      };
+      const isIPad = /iPad/i.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      if (!isIPad) {
+        speakCharacterItems([firstItem, secondItem], { onItemStart, onFinish: onGuideFinish }, REVIEW_CHARACTER.id);
+        return;
+      }
+
+      speakCharacterItems([firstItem], {
+        onItemStart,
+        onFinish: (firstReason) => {
+          if (firstReason !== "complete" || startTokenRef.current !== token) {
+            onGuideFinish(firstReason);
+            return;
+          }
+          let secondStarted = false;
+          let watchdog = 0;
+          const speakSecond = () => speakCharacterItems([secondItem], {
+            onItemStart: () => {
+              secondStarted = true;
+              window.clearTimeout(watchdog);
+              onItemStart();
+            },
+            onFinish: onGuideFinish,
+          }, REVIEW_CHARACTER.id);
+          speakSecond();
+          watchdog = window.setTimeout(() => {
+            if (!secondStarted && startTokenRef.current === token) speakSecond();
+          }, IPAD_EMMA_SECOND_UTTERANCE_WATCHDOG_MS);
         },
       }, REVIEW_CHARACTER.id);
     });
