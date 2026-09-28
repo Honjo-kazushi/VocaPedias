@@ -72,6 +72,7 @@ const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharact
 const MIYABI = getCharacter("miyabi");
 const PARTNER_SELECTION_PROMPT = "Who would you like to talk with today?";
 const SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice.";
+const IPAD_EMMA_FIRST_UTTERANCE_WATCHDOG_MS = 4500;
 const IPAD_EMMA_SECOND_UTTERANCE_WATCHDOG_MS = 750;
 const SCENE_BACKGROUNDS = {
   hotel: hotelBackground,
@@ -431,27 +432,37 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         return;
       }
 
+      let advancedToSecond = false;
+      let firstEndWatchdog = 0;
+      let secondStartWatchdog = 0;
+      let secondStarted = false;
+      const speakSecond = () => speakCharacterItems([secondItem], {
+        onItemStart: () => {
+          secondStarted = true;
+          window.clearTimeout(secondStartWatchdog);
+          onItemStart();
+        },
+        onFinish: onGuideFinish,
+      }, REVIEW_CHARACTER.id);
+      const advanceToSecond = () => {
+        if (advancedToSecond || startTokenRef.current !== token) return;
+        advancedToSecond = true;
+        window.clearTimeout(firstEndWatchdog);
+        speakSecond();
+        secondStartWatchdog = window.setTimeout(() => {
+          if (!secondStarted && startTokenRef.current === token) speakSecond();
+        }, IPAD_EMMA_SECOND_UTTERANCE_WATCHDOG_MS);
+      };
       speakCharacterItems([firstItem], {
-        onItemStart,
+        onItemStart: () => {
+          onItemStart();
+          firstEndWatchdog = window.setTimeout(advanceToSecond, IPAD_EMMA_FIRST_UTTERANCE_WATCHDOG_MS);
+        },
         onFinish: (firstReason) => {
-          if (firstReason !== "complete" || startTokenRef.current !== token) {
-            onGuideFinish(firstReason);
-            return;
-          }
-          let secondStarted = false;
-          let watchdog = 0;
-          const speakSecond = () => speakCharacterItems([secondItem], {
-            onItemStart: () => {
-              secondStarted = true;
-              window.clearTimeout(watchdog);
-              onItemStart();
-            },
-            onFinish: onGuideFinish,
-          }, REVIEW_CHARACTER.id);
-          speakSecond();
-          watchdog = window.setTimeout(() => {
-            if (!secondStarted && startTokenRef.current === token) speakSecond();
-          }, IPAD_EMMA_SECOND_UTTERANCE_WATCHDOG_MS);
+          if (advancedToSecond) return;
+          window.clearTimeout(firstEndWatchdog);
+          if (firstReason === "complete") advanceToSecond();
+          else onGuideFinish(firstReason);
         },
       }, REVIEW_CHARACTER.id);
     });
