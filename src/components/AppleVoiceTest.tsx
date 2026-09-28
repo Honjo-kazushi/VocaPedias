@@ -1,51 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { CHARACTER_PROFILES, type CharacterId, type VoicePreference } from "../characters/characterProfiles";
-import { normalizeLang } from "../sound/selectCharacterVoice";
 import { cancelSpeechSynthesis } from "../sound/cancelSpeechSynthesis";
+import { normalizeLang } from "../sound/selectCharacterVoice";
 
-type TrialDefinition = {
-  label: "A Calm" | "B Current" | "C Bright";
-  rate: number;
-  pitch: number;
-};
+const SAMPLE = "This is a voice test. Can you hear me clearly?";
+const CANDIDATES = [
+  { name: "Samantha", lang: "en-US" },
+  { name: "Daniel", lang: "en-GB" },
+  { name: "Karen", lang: "en-AU" },
+  { name: "Moira", lang: "en-IE" },
+  { name: "Rishi", lang: "en-IN" },
+] as const;
 
-const CHARACTER_IDS: readonly CharacterId[] = [
-  "emma", "mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi",
-];
-
-const ENGLISH_SAMPLE = "Hey! It's nice to talk with you today. What have you been up to?";
-const JAPANESE_SAMPLE = "そうなんですね。私もそれ、ちょっと気になってました。ところで、今日はこのあと何をする予定ですか？";
-
-function isAppleTouchDevice(): boolean {
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+function isAppleTouchPerfDebug(): boolean {
+  const appleTouch = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.round(Math.min(max, Math.max(min, value)) * 100) / 100;
-}
-
-function buildTrials(preference: VoicePreference): readonly TrialDefinition[] {
-  return [
-    { label: "A Calm", rate: clamp(preference.rate - 0.05, 0.7, 1.2), pitch: clamp(preference.pitch - 0.04, 0.7, 1.3) },
-    { label: "B Current", rate: preference.rate, pitch: preference.pitch },
-    { label: "C Bright", rate: clamp(preference.rate + 0.05, 0.7, 1.2), pitch: clamp(preference.pitch + 0.04, 0.7, 1.3) },
-  ];
-}
-
-function findConfiguredVoice(voices: readonly SpeechSynthesisVoice[], preference: VoicePreference): SpeechSynthesisVoice | undefined {
-  const configured = preference.preferredVoices?.[0];
-  if (!configured) return undefined;
-  const configuredName = configured.name.toLowerCase();
-  return voices.find((voice) =>
-    (voice.name.toLowerCase() === configuredName || voice.name.toLowerCase().includes(configuredName)) &&
-    normalizeLang(voice.lang) === normalizeLang(configured.lang)
-  );
+  return appleTouch && new URLSearchParams(window.location.search).get("perfDebug") === "1";
 }
 
 export default function AppleVoiceTest() {
-  const [characterId, setCharacterId] = useState<CharacterId>("emma");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceUri, setSelectedVoiceUri] = useState("");
 
   useEffect(() => {
     if (!("speechSynthesis" in window)) return;
@@ -55,23 +29,26 @@ export default function AppleVoiceTest() {
     return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
   }, []);
 
-  const profile = CHARACTER_PROFILES[characterId];
-  const preference = profile.voicePreferences.ios!;
-  const configuredVoice = preference.preferredVoices![0];
-  const voice = useMemo(() => findConfiguredVoice(voices, preference), [voices, preference]);
-  const trials = useMemo(() => buildTrials(preference), [preference]);
-  const sample = profile.conversationLanguage === "ja" ? JAPANESE_SAMPLE : ENGLISH_SAMPLE;
+  const availableVoices = useMemo(() => CANDIDATES.flatMap((candidate) => {
+    const name = candidate.name.toLowerCase();
+    const voice = voices.find((item) =>
+      (item.name.toLowerCase() === name || item.name.toLowerCase().includes(name)) &&
+      normalizeLang(item.lang) === normalizeLang(candidate.lang)
+    );
+    return voice ? [voice] : [];
+  }), [voices]);
+  const selectedVoice = availableVoices.find((voice) => voice.voiceURI === selectedVoiceUri) ?? availableVoices[0];
 
-  const play = (selectedVoice: SpeechSynthesisVoice, rate: number, pitch: number) => {
-    const utterance = new SpeechSynthesisUtterance(sample);
+  if (!isAppleTouchPerfDebug()) return null;
+
+  const play = () => {
+    if (!selectedVoice) return;
+    const utterance = new SpeechSynthesisUtterance(SAMPLE);
     utterance.voice = selectedVoice;
     utterance.lang = selectedVoice.lang;
-    utterance.rate = rate;
-    utterance.pitch = pitch;
     cancelSpeechSynthesis(window.speechSynthesis, {
       reason: "apple-voice-test:replace-preview",
       source: "AppleVoiceTest.play",
-      characterId,
       conversationState: "perfDebug voice test",
     });
     window.speechSynthesis.speak(utterance);
@@ -79,30 +56,22 @@ export default function AppleVoiceTest() {
 
   return (
     <section className="apple-voice-test" aria-labelledby="apple-voice-test-heading">
-      <h2 id="apple-voice-test-heading">APPLE VOICE TEST</h2>
-      {!isAppleTouchDevice() && <p className="apple-voice-test-note">Apple Voice Test is intended for iPhone/iPad.</p>}
+      <h2 id="apple-voice-test-heading">iPad English Voice Test</h2>
       <label>
-        Character:{" "}
-        <select value={characterId} onChange={(event) => setCharacterId(event.target.value as CharacterId)}>
-          {CHARACTER_IDS.map((id) => <option key={id} value={id}>{CHARACTER_PROFILES[id].displayName}</option>)}
+        Voice:{" "}
+        <select
+          value={selectedVoice?.voiceURI ?? ""}
+          disabled={!availableVoices.length}
+          onChange={(event) => setSelectedVoiceUri(event.target.value)}
+        >
+          {!availableVoices.length && <option value="">No candidate voices available</option>}
+          {availableVoices.map((voice) => (
+            <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} ({voice.lang})</option>
+          ))}
         </select>
       </label>
-      <p className="apple-voice-current">
-        Voice: <strong>{configuredVoice.name}</strong><br />
-        Lang: <strong>{configuredVoice.lang}</strong>
-      </p>
-      <p className="apple-voice-sample">{sample}</p>
-      <div className="apple-voice-candidates">
-        {trials.map((trial) => (
-          <article key={trial.label}>
-            <strong>{trial.label}</strong>
-            <span>{configuredVoice.name} / {configuredVoice.lang} / rate {trial.rate.toFixed(2)} / pitch {trial.pitch.toFixed(2)}</span>
-            <button type="button" disabled={!voice} onClick={() => voice && play(voice, trial.rate, trial.pitch)}>
-              {voice ? "Test" : "Unavailable"}
-            </button>
-          </article>
-        ))}
-      </div>
+      <p className="apple-voice-sample">{SAMPLE}</p>
+      <button type="button" disabled={!selectedVoice} onClick={play}>試聴</button>
     </section>
   );
 }
