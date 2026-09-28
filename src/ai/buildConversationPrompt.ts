@@ -13,7 +13,9 @@ export function buildConversationPrompt(
   variation?: OpeningVariationContext,
 ): string {
   const angleInstruction = openingAngle
-    ? `\nConversation angle for this opening: ${openingAngle}\nUse this as a creative direction, not as a fixed question. After the learner replies, follow their answer naturally instead of forcing the conversation back to this angle.\n`
+    ? partner.conversationLanguage === "ja"
+      ? `\nConversation angle for this opening: ${openingAngle}\nUse this as a creative direction, not as a fixed question. After the learner replies, follow their answer naturally instead of forcing the conversation back to this angle.\n`
+      : `\nCurrent Angle for this opening: ${openingAngle}\n- Use Current Angle as the required subject of the opening question. The first question must be directly about this angle, not merely about another part of the broader topic.\n- You may add a brief natural setup or use the timely context, but the final question must return directly to Current Angle. Do not let the setup, timely context, or general topic pull the question toward a different subject.\n- Create variety inside Current Angle through the character's perspective, a concrete example, a choice, a preference, or a small experience. Do not leave Current Angle in order to be different.\n- Do not mechanically convert the angle label into the same fixed question every time.\n- After the learner replies, follow their answer naturally instead of forcing the conversation back to this angle.\n`
     : "";
   const freshContext = topic.source === "fresh" && topic.context
     ? `\nTimely context: ${topic.context}\nBriefly introduce this context in no more than 1-2 short sentences, then connect it to the learner's own experience, preference, or opinion. Do not quiz the learner on news details and do not turn the conversation into a news explanation.\n`
@@ -61,11 +63,17 @@ Topic、Angle、参考質問は日本語の雑談を作るための内部情報�
     ? "- Respect the learner's latest message, but remember that it is a SpeechRecognition transcript. Interpret it first in the context of your immediately previous question and today's topic. Follow an unexpected detail only when it clearly represents the learner's intended meaning, not an isolated likely misrecognition."
     : "- The learner's latest message is more important than covering the prepared angle. Follow unexpected details naturally instead of steering back to a checklist.";
   const previousSameCharacter = variation?.recentSameCharacter.length
-    ? `Recent openings/questions for this topic and character:\n${variation.recentSameCharacter.map((item) => `- ${item}`).join("\n")}\n- Do not repeat or closely paraphrase these previous opening questions.\n- Choose a meaningfully different angle and first question; changing only a few words is not enough.`
+    ? `Recent openings/questions for this topic and character:\n${variation.recentSameCharacter.map((item) => `- ${item}`).join("\n")}\n- Do not repeat or closely paraphrase these previous opening questions.\n- ${openingAngle ? "Choose a meaningfully different approach and first question within Current Angle" : "Choose a meaningfully different first question"}; changing only a few words is not enough.`
     : "There are no recent openings for this topic and character.";
   const previousOtherCharacters = variation?.recentOtherCharacters.length
-    ? `Questions recently used by other characters for this topic:\n${variation.recentOtherCharacters.map((item) => `- ${item}`).join("\n")}\nWhen possible, choose a different aspect of the topic from these questions.`
+    ? `Questions recently used by other characters for this topic:\n${variation.recentOtherCharacters.map((item) => `- ${item}`).join("\n")}\nWhen possible, choose ${openingAngle ? "a different approach within Current Angle" : "a different approach"} from these questions.`
     : "";
+  const openingPriorities = continuation || !openingAngle ? "" : `Opening priorities, in order:
+1. Keep the first question semantically inside Current Angle.
+2. Within that angle, differ meaningfully from recent questions for this topic and character.
+3. Within that angle, differ from other characters' recent questions when possible.
+4. Express the character's personality and conversation style through what they ask.
+5. Keep the opening short, natural, concrete, and easy to answer.`;
 
   return `You are ${partner.displayName}, an English conversation partner for a Japanese learner.
 
@@ -101,6 +109,8 @@ ${latestMessageRule}
 Today's topic: ${topic.title}
 ${angleInstruction}
 ${freshContext}
+
+${openingPriorities}
 
 ${continuation && referenceQuestions ? `Reference questions for expanding the conversation later:\n${referenceQuestions}` : "For this opening, create the first question from the selected angle, character profile, timely context when present, and recent history. Do not use the fixed reference questions as an opening anchor."}
 

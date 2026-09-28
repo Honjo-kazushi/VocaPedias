@@ -81,6 +81,8 @@ for (const extension of ["ts"]) {
       addEventListener(type, listener) { assert.equal(type, "voiceschanged"); listeners.add(listener); },
       removeEventListener(type, listener) { assert.equal(type, "voiceschanged"); listeners.delete(listener); },
       getVoices() { reads++; if (failDiscovery) throw new Error("unavailable"); return available; },
+      get speaking() { return queued.length > 0; },
+      get pending() { return queued.length > 1; },
       cancel() { cancelCalls++; queued.length = 0; },
       speak(utter) { queued.push(utter); },
     };
@@ -130,6 +132,22 @@ for (const extension of ["ts"]) {
       assert.deepEqual(events, []);
       stopPending();
       events.length = 0;
+      // If a desktop warm-up times out while still owning the native queue,
+      // clear it before enqueueing main speech so onstart is not blocked by it.
+      const stalledVoice = voice("Stalled English", "en-US");
+      available = [stalledVoice];
+      stopPending = speech.speakEnSentences("Starts promptly.", callbacks, "emma");
+      const cancelCallsAfterStalledWarmupReset = cancelCalls;
+      assert.deepEqual(queued.map((utterance) => utterance.text), ["."]);
+      advance(1000);
+      assert.equal(cancelCalls, cancelCallsAfterStalledWarmupReset + 1);
+      assert.deepEqual(queued, []);
+      advance(250);
+      assert.deepEqual(queued.map((utterance) => utterance.text), ["Starts promptly."]);
+      assert.equal(queued[0].voice, stalledVoice);
+      stopPending();
+      events.length = 0;
+      available = [legacy, us, gb, japanese];
       // Stopping during the short delay must never resurrect speech.
       stopPending = speech.speakEnSentences("Cancelled.", callbacks, "mike");
       stopPending();

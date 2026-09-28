@@ -64,7 +64,8 @@ test("opening prompt uses prior Mike questions, character perspective, and no fi
   });
   assert.match(prompt, /Recent openings\/questions for this topic and character/);
   assert.match(prompt, /Do not repeat or closely paraphrase/);
-  assert.match(prompt, /meaningfully different angle and first question/);
+  assert.match(prompt, /meaningfully different approach and first question within Current Angle/);
+  assert.match(prompt, /Keep the first question semantically inside Current Angle/);
   assert.match(prompt, /perspective natural to their personality and conversation style/);
   assert.match(prompt, /Questions recently used by other characters/);
   assert.doesNotMatch(prompt, /When is shopping online better than visiting a store in person/);

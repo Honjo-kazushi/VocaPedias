@@ -317,7 +317,8 @@ function deferSpeechStart(
         tossaPerf(`warmup ${outcome}`, warmupDetails());
         window.clearTimeout(timer);
         clearWarmupHandlers();
-        if (outcome === "timeout" && appleWarmup) {
+        const warmupStillOwnsNativeQueue = synth.speaking || synth.pending;
+        if (outcome === "timeout" && (appleWarmup || warmupStillOwnsNativeQueue)) {
           cancelSpeechSynthesis(synth, {
             reason: "warmup-timeout-reset-native-queue",
             source: "deferSpeechStart.warmup-timeout",

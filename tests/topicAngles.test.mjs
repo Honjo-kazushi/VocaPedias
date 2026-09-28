@@ -101,10 +101,13 @@ test("opening prompt combines angle and character without fixing later turns to 
   const opening = promptModule.buildConversationPrompt(topic, partner, "old friendships");
   assert.match(opening, /You are Mike/);
   assert.match(opening, /friendly, casual/);
-  assert.match(opening, /Conversation angle for this opening: old friendships/);
+  assert.match(opening, /Current Angle for this opening: old friendships/);
+  assert.match(opening, /first question must be directly about this angle/);
+  assert.match(opening, /Create variety inside Current Angle/);
+  assert.match(opening, /Do not mechanically convert the angle label into the same fixed question every time/);
   assert.match(opening, /follow their answer naturally/);
   const continuation = promptModule.buildConversationPrompt(topic, partner);
-  assert.doesNotMatch(continuation, /Conversation angle for this opening/);
+  assert.doesNotMatch(continuation, /Current Angle for this opening/);
 });
 
 test("fresh topic prompt gives brief context without becoming a news quiz", () => {
@@ -125,6 +128,8 @@ test("fresh topic prompt gives brief context without becoming a news quiz", () =
   const prompt = promptModule.buildConversationPrompt(topic, partner, "a task to automate");
   assert.match(prompt, /Briefly introduce this context in no more than 1-2 short sentences/);
   assert.match(prompt, /Do not quiz the learner on news details/);
+  assert.match(prompt, /timely context[\s\S]*final question must return directly to Current Angle/i);
+  assert.match(prompt, /Keep the first question semantically inside Current Angle/);
   assert.match(prompt, /Do not use the fixed reference questions as an opening anchor/);
 });
 
