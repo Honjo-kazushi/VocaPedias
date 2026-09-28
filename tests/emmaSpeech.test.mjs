@@ -132,6 +132,20 @@ for (const extension of ["ts"]) {
       assert.deepEqual(events, []);
       stopPending();
       events.length = 0;
+      // AI intro can warm Emma's desktop voice before the topic is selected.
+      const prewarmedEmmaVoice = voice("Prewarmed Emma", "en-US");
+      available = [prewarmedEmmaVoice];
+      const stopEmmaPrewarm = speech.prewarmEmmaVoice();
+      assert.deepEqual(queued.map((utterance) => utterance.text), ["."]);
+      queued.shift().onend();
+      advance(250);
+      stopEmmaPrewarm();
+      stopPending = speech.speakEnSentences("Already warm.", callbacks, "emma");
+      assert.deepEqual(queued, []);
+      advance(250);
+      assert.deepEqual(queued.map((utterance) => utterance.text), ["Already warm."]);
+      stopPending();
+      events.length = 0;
       // If a desktop warm-up times out while still owning the native queue,
       // clear it before enqueueing main speech so onstart is not blocked by it.
       const stalledVoice = voice("Stalled English", "en-US");

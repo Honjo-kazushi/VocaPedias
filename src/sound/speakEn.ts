@@ -429,6 +429,21 @@ function deferSpeechStart(
   return dispose;
 }
 
+export function prewarmEmmaVoice(): () => void {
+  if (typeof window === "undefined" || !window.speechSynthesis || detectDeviceGroup() !== "desktop") return () => {};
+  const synth = window.speechSynthesis;
+  tossaPerf("Emma prewarm requested", {
+    synthesisSpeaking: synth.speaking,
+    synthesisPending: synth.pending,
+  });
+  return deferSpeechStart(
+    synth,
+    { locale: "en-US", characterId: "emma" },
+    () => {},
+    () => tossaPerf("Emma prewarm complete"),
+  );
+}
+
 function createUtterance(text: string, lang: "en" | "ja" | SpeechLocale, characterId?: CharacterId, brightJapanese = false, avoidVoiceCharacterId?: CharacterId, rateMultiplier = 1): SpeechSynthesisUtterance {
   const utter = new SpeechSynthesisUtterance(text);
   const isJapanese = lang === "ja" || lang === "ja-JP";

@@ -39,7 +39,7 @@ import { useCharacterListening } from "../hooks/useCharacterListening";
 import { useUserSpeechRecognition } from "../hooks/useUserSpeechRecognition";
 import { useCharacterSpeech } from "../hooks/useCharacterSpeech";
 import { setTtsConversationState } from "../sound/cancelSpeechSynthesis";
-import { unlockAppleTtsOnUserGesture } from "../sound/speakEn.ts";
+import { prewarmEmmaVoice, unlockAppleTtsOnUserGesture } from "../sound/speakEn.ts";
 import { detectDeviceGroup } from "../sound/selectCharacterVoice";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
@@ -618,10 +618,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   useEffect(() => {
     mountedRef.current = true;
+    const stopEmmaPrewarm = prewarmEmmaVoice();
     void loadFreshTopics().then((topics) => {
       if (mountedRef.current) setFreshTopics(topics);
     });
     return () => {
+      stopEmmaPrewarm();
       mountedRef.current = false;
       startTokenRef.current += 1;
       if (miyabiIgnoreReleaseTimerRef.current !== null) window.clearTimeout(miyabiIgnoreReleaseTimerRef.current);
