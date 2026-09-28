@@ -112,14 +112,17 @@ test("Topic and Scene fallbacks call Apple unlock after the existing cancel", ()
   assert.match(beginScene, /stopInteraction\("conversation:scene-selection-opened"\);\s*unlockAppleTtsOnUserGesture\("scene-fallback"\)/);
 });
 
-test("startup guide appears once per App mount and OK synchronously unlocks before closing", () => {
-  assert.match(appSource, /useState\(true\)/);
+test("startup mode selection synchronously unlocks before opening the selected mode", () => {
+  assert.match(appSource, /useState<MainMode \| null>\(null\)/);
   assert.match(appSource, /role="dialog"[^>]*aria-modal="true"/);
-  assert.match(appSource, /字幕のON\/OFF/);
-  assert.match(appSource, /ゆっくり \/ ややゆっくり \/ 通常/);
-  const handler = appSource.slice(appSource.indexOf("const closeStartupGuide"), appSource.indexOf("return ("));
-  assert.match(handler, /unlockAppleTtsOnUserGesture\("startup-dialog"\);\s*setShowStartupGuide\(false\)/);
+  for (const text of ["AI会話", "AIキャラクターと英会話", "日常フレーズ", "日常で使う英語を練習", "場面フレーズ", "場面別の英語を練習", "フレーズ学習", "覚えた英語をとっさに発話"]) {
+    assert.match(appSource, new RegExp(text));
+  }
+  assert.doesNotMatch(appSource, /字幕のON\/OFF|ゆっくり \/ ややゆっくり \/ 通常/);
+  const handler = appSource.slice(appSource.indexOf("const selectStartupMode"), appSource.indexOf("return ("));
+  assert.match(handler, /unlockAppleTtsOnUserGesture\("startup-dialog"\);\s*setStartupMode\(mode\)/);
   assert.doesNotMatch(handler, /await|Promise|setTimeout|requestAnimationFrame|useEffect/);
-  assert.ok(appSource.indexOf("<HomePage />") < appSource.indexOf("startup-guide-overlay"));
-  assert.match(appSource, /\{showStartupGuide && \(/);
+  assert.match(appSource, /\{startupMode && <HomePage initialMainMode=\{startupMode\} \/>\}/);
+  assert.match(appSource, /autoFocus=\{mode === "AI"\}/);
+  assert.match(appSource, /className=\{mode === "AI" \? "startup-mode-button primary"/);
 });

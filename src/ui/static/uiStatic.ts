@@ -74,12 +74,12 @@ export const MODE_DESCRIPTIONS = {
     jp: [
       "AIキャラクターと英語で自然な会話を楽しめます",
       "今日の話題に合わせて、好きな会話相手を選んでください",
-      "会話中は細かく訂正せず、最後にEmmaがまとめて振り返ります",
+      "字幕表示や会話の速さは、設定から変更できます",
     ],
     en: [
       "Enjoy natural English conversations with AI characters",
       "Choose your favorite conversation partner for today's topic",
-      "Emma will review your English after the conversation",
+      "Change captions and conversation speed in Settings",
     ],
   },
 

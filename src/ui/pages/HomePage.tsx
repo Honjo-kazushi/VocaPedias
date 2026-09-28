@@ -63,13 +63,19 @@ export type PickLog = {
 // =====================================================
 // HomePage
 // =====================================================
-export default function HomePage() {
+type HomePageProps = {
+  initialMainMode?: MainMode;
+};
+
+export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
   // =====================================================
   // 1. 共通（設定・モード・共用 state）
   // =====================================================
-  const [mainMode, setMainMode] = useState<MainMode>("AI");
-  const [mode, setMode] = useState<Mode>("AI");
-  const [sceneMode, setSceneMode] = useState<boolean>(false);
+  const [mainMode, setMainMode] = useState<MainMode>(initialMainMode);
+  const [mode, setMode] = useState<Mode>(
+    initialMainMode === "DAILY" || initialMainMode === "SCENE" ? "A" : initialMainMode,
+  );
+  const [sceneMode, setSceneMode] = useState<boolean>(initialMainMode === "SCENE");
 
   const [soundOn, setSoundOn] = useState<boolean>(() =>
     readBool("soundOn", true)

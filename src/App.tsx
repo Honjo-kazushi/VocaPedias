@@ -4,10 +4,18 @@ import TtsVoiceTester from "./components/TtsVoiceTester";
 import PerfDebugPanel from "./components/PerfDebugPanel";
 import { isTossaPerfDebugEnabled, subscribeTossaDebugMode } from "./debug/tossaPerf";
 import { unlockAppleTtsOnUserGesture } from "./sound/speakEn.ts";
+import type { MainMode } from "./ui/static/uiStatic";
 import "./App.css";
 
+const STARTUP_MODES: ReadonlyArray<{ mode: MainMode; label: string; description: string }> = [
+  { mode: "AI", label: "AI会話", description: "AIキャラクターと英会話" },
+  { mode: "DAILY", label: "日常フレーズ", description: "日常で使う英語を練習" },
+  { mode: "SCENE", label: "場面フレーズ", description: "場面別の英語を練習" },
+  { mode: "TRAIN", label: "フレーズ学習", description: "覚えた英語をとっさに発話" },
+];
+
 function App() {
-  const [showStartupGuide, setShowStartupGuide] = useState(true);
+  const [startupMode, setStartupMode] = useState<MainMode | null>(null);
   const perfDebugEnabled = useSyncExternalStore(
     subscribeTossaDebugMode,
     isTossaPerfDebugEnabled,
@@ -16,24 +24,33 @@ function App() {
   if (new URLSearchParams(window.location.search).get("ttsDebug") === "1") {
     return <TtsVoiceTester />;
   }
-  const closeStartupGuide = () => {
+  const selectStartupMode = (mode: MainMode) => {
     unlockAppleTtsOnUserGesture("startup-dialog");
-    setShowStartupGuide(false);
+    setStartupMode(mode);
   };
   return (
     <>
-      <HomePage />
+      {startupMode && <HomePage initialMainMode={startupMode} />}
       {perfDebugEnabled && <PerfDebugPanel />}
-      {showStartupGuide && (
+      {!startupMode && (
         <div className="startup-guide-overlay" role="presentation">
           <section className="startup-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-guide-title">
             <h1 id="startup-guide-title">TossaSpeak</h1>
-            <p>会話中は字幕のON/OFFを切り替えられます。</p>
-            <p>話す速さも</p>
-            <p>「ゆっくり / ややゆっくり / 通常」</p>
-            <p>から変更できます。</p>
-            <p>設定はいつでも変更できます。</p>
-            <button type="button" autoFocus onClick={closeStartupGuide}>OK</button>
+            <p className="startup-guide-prompt">起動するモードを選んでください</p>
+            <div className="startup-mode-list">
+              {STARTUP_MODES.map(({ mode, label, description }) => (
+                <button
+                  type="button"
+                  className={mode === "AI" ? "startup-mode-button primary" : "startup-mode-button"}
+                  autoFocus={mode === "AI"}
+                  key={mode}
+                  onClick={() => selectStartupMode(mode)}
+                >
+                  <strong>【{label}】</strong>
+                  <span>{description}</span>
+                </button>
+              ))}
+            </div>
           </section>
         </div>
       )}
