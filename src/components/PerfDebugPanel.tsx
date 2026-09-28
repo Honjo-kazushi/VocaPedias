@@ -36,6 +36,18 @@ function utteranceDuration(entries: readonly TossaPerfEntry[], label: string, fr
   return start ? `${label}: ${Math.round(end.at - start.at)} ms` : null;
 }
 
+function firstUtteranceStartDuration(entries: readonly TossaPerfEntry[]): string | null {
+  const end = [...entries].reverse().find((entry) =>
+    entry.area === "TTS" && entry.event === "TTS main onstart" && entry.data.index === 0
+  );
+  const utteranceId = end?.data.utteranceId;
+  if (!end || utteranceId === undefined) return null;
+  const start = [...entries].reverse().find((entry) =>
+    entry.at <= end.at && entry.area === "TTS" && entry.event === "TTS main speak" && entry.data.utteranceId === utteranceId
+  );
+  return start ? `TTS first speak → first onstart: ${Math.round(end.at - start.at)} ms` : null;
+}
+
 function deviceLabel(userAgent: string, platform: string, maxTouchPoints: number): "iPhone" | "iPad" | "Android" | "PC Chrome" {
   if (/iphone/i.test(userAgent)) return "iPhone";
   if (/ipad/i.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1)) return "iPad";
@@ -60,7 +72,7 @@ function buildReport(entries: readonly TossaPerfEntry[], voices: readonly Speech
     duration(entries, "Talk click → Emma TTS request", "FLOW", "Talk Topic click / topic selected", "FLOW", "Emma guide TTS requested"),
     duration(entries, "TTS request → speak", "FLOW", "Emma guide TTS requested", "TTS", "TTS main speak"),
     duration(entries, "TTS request → onstart", "FLOW", "Emma guide TTS requested", "TTS", "TTS main onstart"),
-    utteranceDuration(entries, "TTS speak → onstart", "TTS main speak", "TTS main onstart"),
+    firstUtteranceStartDuration(entries),
     utteranceDuration(entries, "TTS onstart → onend", "TTS main onstart", "TTS main onend"),
     duration(entries, "Partner selected → Opening request", "FLOW", "Partner selected", "FLOW", "Opening request start"),
     duration(entries, "Opening request → response", "FLOW", "Opening request start", "FLOW", "Opening response"),

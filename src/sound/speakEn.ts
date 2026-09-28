@@ -656,12 +656,19 @@ export function speakSpeechQueue(items: SpeechQueueItem[], callbacks: SpeechQueu
         const utterance = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
+        let queueWaitMs: number | null = null;
+        let interUtteranceGapMs: number | null = null;
         const details = () => ({
           ...mainSpeechDetails(utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, index),
-          previousOnEndToSpeakMs: previousOnEndAt === null || speakCalledAt === 0 ? null : Math.round(speakCalledAt - previousOnEndAt),
+          speakCalledAt,
+          queueWaitMs,
+          interUtteranceGapMs,
         });
         utterance.onstart = () => {
           if (stopped || ended.has(index)) return;
+          const startedAt = performance.now();
+          queueWaitMs = speakCalledAt === 0 ? null : Math.round(startedAt - speakCalledAt);
+          interUtteranceGapMs = previousOnEndAt === null ? null : Math.round(startedAt - previousOnEndAt);
           activeIndex = index;
           setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utterance, item.characterId ?? characterId, "speakSpeechQueue", utteranceId, speakCalledAt);
@@ -776,12 +783,19 @@ export function speakEnSentences(
         const utter = preparedUtterances[index];
         const utteranceId = ++utteranceSequence;
         let speakCalledAt = 0;
+        let queueWaitMs: number | null = null;
+        let interUtteranceGapMs: number | null = null;
         const details = () => ({
           ...mainSpeechDetails(utter, characterId, "speakEnSentences", utteranceId, index),
-          previousOnEndToSpeakMs: previousOnEndAt === null || speakCalledAt === 0 ? null : Math.round(speakCalledAt - previousOnEndAt),
+          speakCalledAt,
+          queueWaitMs,
+          interUtteranceGapMs,
         });
         utter.onstart = () => {
           if (stopped || ended.has(index)) return;
+          const startedAt = performance.now();
+          queueWaitMs = speakCalledAt === 0 ? null : Math.round(startedAt - speakCalledAt);
+          interUtteranceGapMs = previousOnEndAt === null ? null : Math.round(startedAt - previousOnEndAt);
           activeIndex = index;
           setActiveTtsState({ phase: "onstart" });
           writeTtsProbe("onstart", utter, characterId, "speakEnSentences", utteranceId, speakCalledAt);

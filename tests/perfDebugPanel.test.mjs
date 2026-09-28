@@ -11,7 +11,7 @@ test("PERF diagnostics are opt-in, bounded, and expose copy/clear/voice data", a
     read("../src/debug/tossaPerf.ts"),
     read("../src/sound/speakEn.ts"),
   ]);
-  assert.match(app, /isTossaPerfDebugEnabled\(\) && <PerfDebugPanel/);
+  assert.match(app, /perfDebugEnabled && <PerfDebugPanel/);
   assert.match(perf, /const MAX_ENTRIES = 300/);
   assert.match(perf, /if \(!isTossaPerfDebugEnabled\(\)\) return/);
   assert.match(panel, /navigator\.clipboard\.writeText\(report\)/);
@@ -25,7 +25,8 @@ test("PERF diagnostics are opt-in, bounded, and expose copy/clear/voice data", a
   assert.match(panel, /speechSynthesis\.getVoices\(\)/);
   assert.match(panel, /=== CURRENT VOICE ===/);
   assert.match(panel, /TTS main speak/);
-  assert.match(panel, /TTS speak → onstart/);
+  assert.match(panel, /TTS first speak → first onstart/);
+  assert.match(panel, /entry\.data\.index === 0/);
   assert.match(panel, /TTS onstart → onend/);
   assert.match(panel, /=== VOICES ===/);
   assert.match(panel, /<AppleVoiceTest \/>/);
