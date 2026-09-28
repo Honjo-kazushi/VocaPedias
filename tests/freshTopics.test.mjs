@@ -71,7 +71,7 @@ test("fresh topic failure falls back to an empty list and mixing prevents consec
   globalThis.window = { setTimeout, clearTimeout };
   globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
   assert.deepEqual(await freshModule.loadFreshTopics(3_000), []);
-  assert.match(uiSource, /freshTopics\.length > 0 && !previousTopicWasFresh/);
+  assert.match(uiSource, /freshTopics\.length > 0 && !latestWasFresh/);
   assert.match(uiSource, /FRESH_TOPIC_MIX_RATIO/);
   assert.equal(freshModule.FRESH_TOPIC_MIX_RATIO, 0.4);
   assert.match(uiSource, /source = useFresh \? freshTopics : TALK_TOPICS/);

@@ -3,15 +3,24 @@ import type { ChatMessage } from "./conversationTypes";
 import type { CharacterProfile } from "../characters/characterProfiles";
 import type { Phrase } from "../app/ports/PhraseRepository";
 import type { SceneSituation } from "../data/sceneRoleplays";
+import type { OpeningVariationContext } from "../data/conversationTopicHistory";
 
-export function buildConversationPrompt(topic: TalkTopic, partner: CharacterProfile, openingAngle?: string | null, continuation = false): string {
+export function buildConversationPrompt(
+  topic: TalkTopic,
+  partner: CharacterProfile,
+  openingAngle?: string | null,
+  continuation = false,
+  variation?: OpeningVariationContext,
+): string {
   const angleInstruction = openingAngle
     ? `\nConversation angle for this opening: ${openingAngle}\nUse this as a creative direction, not as a fixed question. After the learner replies, follow their answer naturally instead of forcing the conversation back to this angle.\n`
     : "";
   const freshContext = topic.source === "fresh" && topic.context
     ? `\nTimely context: ${topic.context}\nBriefly introduce this context in no more than 1-2 short sentences, then connect it to the learner's own experience, preference, or opinion. Do not quiz the learner on news details and do not turn the conversation into a news explanation.\n`
     : "";
-  const referenceQuestions = [topic.openingQuestion, topic.deepQuestion].filter(Boolean).join("\n");
+  const referenceQuestions = (continuation || partner.conversationLanguage === "ja")
+    ? [topic.openingQuestion, topic.deepQuestion].filter(Boolean).join("\n")
+    : "";
   if (partner.conversationLanguage === "ja") {
     return `あなたは${partner.displayName}です。日本人の大学生として、ユーザーの気軽な雑談相手になります。
 
@@ -51,6 +60,12 @@ Topic、Angle、参考質問は日本語の雑談を作るための内部情報�
   const latestMessageRule = continuation
     ? "- Respect the learner's latest message, but remember that it is a SpeechRecognition transcript. Interpret it first in the context of your immediately previous question and today's topic. Follow an unexpected detail only when it clearly represents the learner's intended meaning, not an isolated likely misrecognition."
     : "- The learner's latest message is more important than covering the prepared angle. Follow unexpected details naturally instead of steering back to a checklist.";
+  const previousSameCharacter = variation?.recentSameCharacter.length
+    ? `Recent openings/questions for this topic and character:\n${variation.recentSameCharacter.map((item) => `- ${item}`).join("\n")}\n- Do not repeat or closely paraphrase these previous opening questions.\n- Choose a meaningfully different angle and first question; changing only a few words is not enough.`
+    : "There are no recent openings for this topic and character.";
+  const previousOtherCharacters = variation?.recentOtherCharacters.length
+    ? `Questions recently used by other characters for this topic:\n${variation.recentOtherCharacters.map((item) => `- ${item}`).join("\n")}\nWhen possible, choose a different aspect of the topic from these questions.`
+    : "";
 
   return `You are ${partner.displayName}, an English conversation partner for a Japanese learner.
 
@@ -81,12 +96,16 @@ Rules:
 ${latestMessageRule}
 - If the learner seems stuck, simplify the question or offer a hint.
 - Keep the conversation natural and friendly.
+- The character should approach this topic from a perspective natural to their personality and conversation style. Character affects what they ask about, not only their wording or tone.
 
 Today's topic: ${topic.title}
 ${angleInstruction}
 ${freshContext}
 
-${referenceQuestions ? `Reference questions:\n${referenceQuestions}` : "There are no fixed reference questions. Create a natural opening from the angle."}
+${continuation && referenceQuestions ? `Reference questions for expanding the conversation later:\n${referenceQuestions}` : "For this opening, create the first question from the selected angle, character profile, timely context when present, and recent history. Do not use the fixed reference questions as an opening anchor."}
+
+${previousSameCharacter}
+${previousOtherCharacters}
 
 The reference questions are guidance only. Do not simply read them in order. Create a natural free conversation.`;
 }

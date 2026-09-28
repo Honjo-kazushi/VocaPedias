@@ -17,6 +17,14 @@ import { classifyUserTurnSoftTimeout, ttsRecognitionRestartDelayMs, type UserTur
 import { TALK_TOPICS, type TalkTopic } from "../data/talkTopics.seed";
 import { getTopicBackground } from "../data/topicBackgrounds";
 import { chooseTopicAngle } from "../data/topicAngles";
+import {
+  buildOpeningVariationContext,
+  filterTopicChoices,
+  getRecentTopicHistory,
+  normalizeTopicTitle,
+  readConversationTopicHistory,
+  recordConversationTopicHistory,
+} from "../data/conversationTopicHistory";
 import { FRESH_TOPIC_MIX_RATIO, isFreshTalkTopic, loadFreshTopics, type FreshTalkTopic } from "../data/freshTopics";
 import {
   chooseSceneComplication,
@@ -57,6 +65,7 @@ export const CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 export const SELECTION_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
 
 let previousTopicId: string | null = null;
+let previousNormalizedTopicTitle: string | null = null;
 let previousTopicWasFresh = false;
 const REVIEW_CHARACTER = getCharacter("emma");
 const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharacter(id));
@@ -81,17 +90,20 @@ function chooseTopic(freshTopics: readonly FreshTalkTopic[] = [], random: () => 
   );
   if (requestedTopic) {
     previousTopicId = requestedTopic.id;
+    previousNormalizedTopicTitle = normalizeTopicTitle(requestedTopic.title);
     previousTopicWasFresh = isFreshTalkTopic(requestedTopic);
     return requestedTopic;
   }
 
-  const useFresh = freshTopics.length > 0 && !previousTopicWasFresh && random() < FRESH_TOPIC_MIX_RATIO;
+  const persistedLatest = readConversationTopicHistory()[0];
+  const recentNormalizedTitle = previousNormalizedTopicTitle ?? persistedLatest?.normalizedTitle ?? null;
+  const latestWasFresh = previousTopicId === null && persistedLatest ? persistedLatest.source === "fresh" : previousTopicWasFresh;
+  const useFresh = freshTopics.length > 0 && !latestWasFresh && random() < FRESH_TOPIC_MIX_RATIO;
   const source = useFresh ? freshTopics : TALK_TOPICS;
-  const choices = source.filter(
-    (topic) => source.length === 1 || topic.id !== previousTopicId
-  );
+  const choices = filterTopicChoices(source, recentNormalizedTitle, previousTopicId);
   const topic = choices[Math.floor(random() * choices.length)];
   previousTopicId = topic.id;
+  previousNormalizedTopicTitle = normalizeTopicTitle(topic.title);
   previousTopicWasFresh = isFreshTalkTopic(topic);
   return topic;
 }
@@ -158,6 +170,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [lessonStage, setLessonStage] = useState<LessonStage>("partnerSelect");
   const [partnerId, setPartnerId] = useState<CharacterId | null>(null);
   const [topicAngle, setTopicAngle] = useState<string | null>(null);
+  const [avoidedTopicAngles, setAvoidedTopicAngles] = useState<string[]>([]);
   const [partnerSelectionReady, setPartnerSelectionReady] = useState(false);
   const [introOpeningComplete, setIntroOpeningComplete] = useState(false);
   const [partnerExpression, setPartnerExpression] = useState<CharacterExpression>("neutral");
@@ -431,7 +444,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(nextTopic);
     setScene(null);
     setSceneComplication(null);
-    setTopicAngle(chooseTopicAngle(nextTopic));
+    setTopicAngle(null);
+    setAvoidedTopicAngles([]);
     setShowIntro(false);
     setLessonStage("partnerSelect");
     setPartnerId(null);
@@ -540,6 +554,15 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     stopInteraction("conversation:partner-selected");
     setRescueBusy(false);
     setRescueMessage("");
+    if (topic && id !== "miyabi") {
+      const selection = chooseTopicAngle(topic, id);
+      setTopicAngle(selection.angle);
+      setAvoidedTopicAngles(selection.avoidedAngles);
+    } else if (topic) {
+      const selection = chooseTopicAngle(topic);
+      setTopicAngle(selection.angle);
+      setAvoidedTopicAngles([]);
+    }
     setPartnerId(id);
     setLessonStage("conversation");
     setPartnerSelectionReady(false);
@@ -673,7 +696,23 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     requestBusyRef.current = true;
     setPhase("thinking");
     setBusy(true);
-    tossaPerf("FLOW", "Opening request start", { characterId: partnerId, lessonType: scene ? "scene" : "topic" });
+    const topicHistory = topic ? getRecentTopicHistory(topic) : [];
+    const sameCharacterHistory = topicHistory.filter((entry) => entry.characterId === partnerId);
+    const variation = topic && partnerId !== "miyabi"
+      ? buildOpeningVariationContext(topic, partnerId)
+      : undefined;
+    const openingDiagnostics = topic ? {
+      topicId: topic.id,
+      topicTitle: topic.title,
+      normalizedTitle: normalizeTopicTitle(topic.title),
+      topicSource: isFreshTalkTopic(topic) ? "fresh" : "fixed",
+      characterId: partnerId,
+      selectedAngle: topicAngle,
+      recentSameTopicCount: topicHistory.length,
+      recentSameTopicCharacterCount: sameCharacterHistory.length,
+      avoidedAngles: avoidedTopicAngles,
+    } : { characterId: partnerId, lessonType: "scene" };
+    tossaPerf("FLOW", "Opening request start", openingDiagnostics);
     if (import.meta.env.DEV) {
       console.debug("[TossaSpeak]", {
         Lesson: topic?.title ?? `${scene?.sceneTitle}: ${scene?.title}`,
@@ -683,11 +722,12 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
     const openingRequest = scene
       ? startSceneRoleplay(scene, CHARACTER_PROFILES[partnerId], sceneComplication, { generation: token })
-      : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle, { generation: token });
+      : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle, { generation: token }, variation);
     void openingRequest
       .then((opening) => {
         if (!mountedRef.current || startTokenRef.current !== token) return;
-        tossaPerf("FLOW", "Opening response", { characterId: partnerId, length: opening.length });
+        if (topic) recordConversationTopicHistory(topic, partnerId, topicAngle, opening);
+        tossaPerf("FLOW", "Opening response", { ...openingDiagnostics, length: opening.length, opening });
         setMessages([{ role: "assistant", content: opening }]);
         queueAssistantSpeech(opening, token);
       })
@@ -701,7 +741,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         requestBusyRef.current = false;
         setBusy(false);
       });
-  }, [lessonStage, partnerId, queueAssistantSpeech, review, scene, sceneComplication, topic, topicAngle]);
+  }, [avoidedTopicAngles, lessonStage, partnerId, queueAssistantSpeech, review, scene, sceneComplication, topic, topicAngle]);
 
   useEffect(() => {
     if (!review || !spokenReview.length) {

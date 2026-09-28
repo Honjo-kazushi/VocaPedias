@@ -7,6 +7,7 @@ import type { SceneSituation } from "../data/sceneRoleplays";
 import { getSceneUsefulPhrases } from "../data/sceneRoleplays";
 import { tossaPerf } from "../debug/tossaPerf";
 import { detectDeviceGroup } from "../sound/selectCharacterVoice";
+import type { OpeningVariationContext } from "../data/conversationTopicHistory";
 
 type AiRequestType = "opening" | "continuation" | "review" | "rescue";
 
@@ -122,9 +123,15 @@ export async function explainEnglishMessageInJapanese(message: string, partner: 
   return result.text;
 }
 
-export async function startTutorConversation(topic: TalkTopic, partner: CharacterProfile, openingAngle?: string | null, context?: AiRequestContext): Promise<string> {
+export async function startTutorConversation(
+  topic: TalkTopic,
+  partner: CharacterProfile,
+  openingAngle?: string | null,
+  context?: AiRequestContext,
+  variation?: OpeningVariationContext,
+): Promise<string> {
   const result = await generate(
-    buildConversationPrompt(topic, partner, openingAngle),
+    buildConversationPrompt(topic, partner, openingAngle, false, variation),
     partner.conversationLanguage === "ja"
       ? "自然な日本語だけで、キャラクターらしい短い反応から会話を始め、質問をちょうど1つしてください。参考質問を直訳せず、新しい自然な表現にしてください。Topic名を見出しとして繰り返さないでください。"
       : "Start with a short, natural opening in this character's style and ask exactly one small, concrete question that is easy to answer immediately. Create fresh wording rather than copying a reference question or relying on a routine compliment. Do not repeat the topic title as a heading.",

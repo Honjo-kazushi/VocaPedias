@@ -9,7 +9,12 @@ const toModule = (source) => `data:text/javascript;base64,${Buffer.from(ts.trans
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
 const topicsModule = await import(toModule(await read("../src/data/talkTopics.seed.ts")));
-const angleModule = await import(toModule(await read("../src/data/topicAngles.ts")));
+const historySource = (await read("../src/data/conversationTopicHistory.ts"))
+  .replace(/import type[^;]+;\s*/gs, "");
+const angleSource = (await read("../src/data/topicAngles.ts"))
+  .replace(/import type[^;]+;\s*/gs, "")
+  .replace(/import \{[\s\S]*?\} from "\.\/conversationTopicHistory";\s*/, "");
+const angleModule = await import(toModule(`${historySource}\n${angleSource}`));
 const promptModule = await import(toModule(await read("../src/ai/buildConversationPrompt.ts")));
 
 test("three pilot topics contain conceptual angles", () => {
@@ -59,12 +64,32 @@ test("each added PDF contributes one 15-topic block", () => {
 
 test("a repeated topic avoids its immediately previous angle", () => {
   const topic = topicsModule.TALK_TOPICS.find(({ id }) => id === "topic003");
-  const first = angleModule.chooseTopicAngle(topic, () => 0);
-  const second = angleModule.chooseTopicAngle(topic, () => 0);
-  const third = angleModule.chooseTopicAngle(topic, () => 0.999);
-  assert.equal(first, "team experience");
-  assert.notEqual(second, first);
-  assert.notEqual(third, second);
+  const history = [{
+    topicId: topic.id, normalizedTitle: "sports", source: "fixed", characterId: "mike",
+    angle: "team experience", opening: "Do you play sports?", usedAt: 1,
+  }];
+  const second = angleModule.chooseTopicAngle(topic, "mike", history, () => 0);
+  assert.equal(second.angle, "favorite sport");
+  assert.deepEqual(second.avoidedAngles, ["team experience"]);
+});
+
+test("same-character angles are prioritized and exhausted histories safely fall back", () => {
+  const topic = topicsModule.TALK_TOPICS.find(({ id }) => id === "topic047");
+  const history = topic.angles.map((angle, index) => ({
+    topicId: index % 2 ? "fresh-shopping" : topic.id,
+    normalizedTitle: "shopping",
+    source: index % 2 ? "fresh" : "fixed",
+    characterId: index < 2 ? "mike" : "sophie",
+    angle,
+    opening: `${angle}?`,
+    usedAt: 10 - index,
+  }));
+  const mike = angleModule.chooseTopicAngle(topic, "mike", history, () => 0);
+  assert.ok(!["shopping habits", "online convenience"].includes(mike.angle));
+
+  const allMike = history.map((entry) => ({ ...entry, characterId: "mike" }));
+  const fallback = angleModule.chooseTopicAngle(topic, "mike", allMike, () => 0);
+  assert.ok(topic.angles.includes(fallback.angle));
 });
 
 test("opening prompt combines angle and character without fixing later turns to it", () => {
@@ -100,7 +125,7 @@ test("fresh topic prompt gives brief context without becoming a news quiz", () =
   const prompt = promptModule.buildConversationPrompt(topic, partner, "a task to automate");
   assert.match(prompt, /Briefly introduce this context in no more than 1-2 short sentences/);
   assert.match(prompt, /Do not quiz the learner on news details/);
-  assert.match(prompt, /There are no fixed reference questions/);
+  assert.match(prompt, /Do not use the fixed reference questions as an opening anchor/);
 });
 
 test("Miyabi uses the existing topic angle as internal Japanese conversation material", () => {
