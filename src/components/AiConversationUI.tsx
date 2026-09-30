@@ -1462,16 +1462,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         </div>
         <div className="ai-intro-content">
           <h2>Hi, I’m Emma!</h2>
-          <p>トピック会話・場面英会話・Free Talkから<br />選んで始めましょう。</p>
+          <p>トピック会話・場面英会話・フリートークから<br />選んで始めましょう。</p>
           <div className="ai-lesson-choices">
             <button className="ai-primary-button" onClick={() => runButtonAction(() => void beginLesson(chooseTopic(freshTopics)))}>
-              Talk Topic
+              トピック会話
             </button>
             <button className="ai-primary-button secondary" onClick={() => runButtonAction(beginSceneSelection)}>
-              Scene Role-play
+              場面英会話
             </button>
             <button className="ai-primary-button secondary" onClick={() => runButtonAction(beginFreeTalk)}>
-              Free Talk
+              フリートーク
             </button>
           </div>
         </div>

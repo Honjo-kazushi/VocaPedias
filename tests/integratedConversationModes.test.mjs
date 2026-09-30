@@ -7,9 +7,9 @@ const chat = await readFile(new URL("../src/ai/chatWithTutor.ts", import.meta.ur
 
 test("the entry UI exposes Topic, Scene, and direct random-character Free Talk", () => {
   assert.match(ui, /type ConversationMode = "TOPIC" \| "SCENE" \| "FREE_TALK"/);
-  assert.match(ui, />\s*Talk Topic\s*</);
-  assert.match(ui, />\s*Scene Role-play\s*</);
-  assert.match(ui, />\s*Free Talk\s*</);
+  assert.match(ui, />\s*トピック会話\s*</);
+  assert.match(ui, />\s*場面英会話\s*</);
+  assert.match(ui, />\s*フリートーク\s*</);
   assert.match(ui, /FREE_TALK_CHARACTER_IDS: readonly CharacterId\[\] = \["emma", \.\.\.CONVERSATION_PARTNER_IDS\]/);
   const freeTalkBlock = ui.slice(ui.indexOf("const beginFreeTalk"), ui.indexOf("const selectPartner"));
   assert.match(freeTalkBlock, /setLessonStage\("conversation"\)/);
