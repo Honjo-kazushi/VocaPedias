@@ -1761,6 +1761,7 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
           {showSettings &&
             createPortal(
               <div
+                className={`settings-panel ${jpLearnMode ? "settings-panel-en" : "settings-panel-ja"}`}
                 style={{
                   position: "fixed",
                   top: 44,
@@ -1770,7 +1771,6 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
                   padding: 12,
                   border: "1px solid #ddd",
                   background: "#fafafa",
-                  width: 260,
                   maxHeight: "calc(100vh - 60px)",
                   overflowY: "auto",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
@@ -1786,7 +1786,12 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
                     <input type="checkbox" checked={ttsOn} onChange={(e) => setTtsOn(e.target.checked)} />
                     <span>{UI.ttsLabel}<small>（{UI.ttsDescription}）</small></span>
                   </label>
-                  <fieldset className="settings-item"><legend>{jpLearnMode ? "Speech Speed" : "発話速度"}</legend>{(["slow", "slightlySlow", "normal"] as const).map((speed) => <label key={speed}><input type="radio" name="speechSpeed" checked={speechSpeed === speed} onChange={() => setSpeechSpeed(speed)} />{jpLearnMode ? (speed === "slow" ? "Slow" : speed === "slightlySlow" ? "Slightly Slow" : "Normal") : (speed === "slow" ? "ゆっくり" : speed === "slightlySlow" ? "ややゆっくり" : "通常")}</label>)}</fieldset>
+                  <fieldset className="settings-item speech-speed-settings">
+                    <legend>{jpLearnMode ? "Speech Speed" : "発話速度"}</legend>
+                    <div className="speech-speed-options">
+                      {(["slow", "slightlySlow", "normal"] as const).map((speed) => <label key={speed}><input type="radio" name="speechSpeed" checked={speechSpeed === speed} onChange={() => setSpeechSpeed(speed)} /><span>{jpLearnMode ? (speed === "slow" ? "Slow" : speed === "slightlySlow" ? "Slightly Slow" : "Normal") : (speed === "slow" ? "ゆっくり" : speed === "slightlySlow" ? "ややゆっくり" : "通常")}</span></label>)}
+                    </div>
+                  </fieldset>
                 </section>
 
                 <section className="settings-group" aria-labelledby="learning-settings-heading">

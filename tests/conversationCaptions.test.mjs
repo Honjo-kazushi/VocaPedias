@@ -17,11 +17,11 @@ test("the settings group has the requested Japanese and English copy", () => {
   for (const text of [
     "AIアバターとの会話",
     "会話字幕を表示",
-    "相手と自分の会話を文字で表示します。",
     "AI Avatar Conversation",
     "Show conversation captions",
     "Display your conversation with the AI as text.",
   ]) assert.match(textSource, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(textSource, /相手と自分の会話を文字で\\u200B表示します/);
 });
 
 test("caption visibility only gates rendered conversation text", () => {

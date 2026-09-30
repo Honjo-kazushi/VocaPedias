@@ -946,6 +946,15 @@ label {
   border-top: 1px solid #ddd;
 }
 
+.settings-panel {
+  box-sizing: border-box;
+  width: min(260px, calc(100vw - 16px));
+}
+
+.settings-panel-ja {
+  width: min(320px, calc(100vw - 16px));
+}
+
 .settings-group.first {
   margin-top: 0;
   padding-top: 0;
@@ -977,6 +986,44 @@ label {
   font-size: 0.8rem;
   font-weight: 400;
   line-height: 1.4;
+}
+
+.settings-panel-ja .settings-item small {
+  word-break: keep-all;
+}
+
+.speech-speed-settings {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.speech-speed-settings legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.speech-speed-options {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+}
+
+.speech-speed-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.speech-speed-options input {
+  margin: 0;
 }
 
 .developer-setting {

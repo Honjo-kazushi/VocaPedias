@@ -127,14 +127,14 @@ export const UI_TEXT = {
     uiSoundsLabel: "操作音",
     uiSoundsDescription: "ボタン操作時に効果音が鳴ります",
     ttsLabel: "英文録音＆読み上げ（TTS）",
-    ttsDescription: "録音した英語を正解音声と聞き比べます",
-    japaneseLearningMode: "Japanese Learning Mode",
-    japaneseLearningModeDescription: "English → Japanese practice",
+    ttsDescription: "録音した英語を正解音声と\u200B聞き比べます",
+    japaneseLearningMode: "日本語学習モード",
+    japaneseLearningModeDescription: "英語 → 日本語の練習",
     developerMode: "開発者モード",
     autoNextLabel: "自動で次へ",
     autoNextDescription: "自動で次のフレーズへ進みます",
     showConversationCaptions: "会話字幕を表示",
-    showConversationCaptionsDescription: "相手と自分の会話を文字で表示します。",
+    showConversationCaptionsDescription: "相手と自分の会話を文字で\u200B表示します",
     related: "関連フレーズ",
 
     practiceGuide:
