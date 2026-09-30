@@ -8,7 +8,28 @@ const output = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(output).toString("base64")}`;
-const { hasUserResponse, mergeRecognitionResults, mergeSpeechTranscript } = await import(moduleUrl);
+const { hasUserResponse, mergeRecognitionResults, mergeSpeechTranscript, parseConversationTurn, parseSceneConversationTurn } = await import(moduleUrl);
+
+test("structured topic turns accept every supported action and reject invalid output", () => {
+  assert.deepEqual(parseConversationTurn('{"reply":"That sounds relaxing.","action":"WAIT"}'), {
+    reply: "That sounds relaxing.",
+    action: "WAIT",
+  });
+  assert.deepEqual(parseConversationTurn('```json\n{"reply":"See you next time!","action":"CLOSE"}\n```'), {
+    reply: "See you next time!",
+    action: "CLOSE",
+  });
+  assert.throws(() => parseConversationTurn('{"reply":"Hello","action":"UNKNOWN"}'));
+  assert.throws(() => parseConversationTurn('{"reply":"","action":"REACTION"}'));
+});
+
+test("scene turns require an explicit goal status", () => {
+  assert.deepEqual(parseSceneConversationTurn('{"reply":"Your room is ready.","action":"CLOSE","goalStatus":"COMPLETED"}'), {
+    reply: "Your room is ready.", action: "CLOSE", goalStatus: "COMPLETED",
+  });
+  assert.throws(() => parseSceneConversationTurn('{"reply":"May I see your passport?","action":"QUESTION"}'));
+  assert.throws(() => parseSceneConversationTurn('{"reply":"Anything else?","action":"QUESTION","goalStatus":"COMPLETED"}'));
+});
 
 test("only a non-empty user message counts as a response", () => {
   assert.equal(hasUserResponse([]), false);

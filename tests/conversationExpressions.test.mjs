@@ -33,7 +33,7 @@ test("conversation expression follows meaning and character bias rather than ran
 });
 
 test("speech uses one avatar image and keeps the selected expression mouth pair", () => {
-  assert.match(uiSource, /queueAssistantSpeech = useCallback\(\(text: string, token: number\)/);
+  assert.match(uiSource, /queueAssistantSpeech = useCallback\(\(text: string, token: number, onComplete\?: \(\) => void\)/);
   assert.doesNotMatch(uiSource, /setPartnerExpression\(expression\)/);
   assert.doesNotMatch(uiSource, /selectConversationExpression/);
   assert.match(uiSource, /phase === "recognizing"/);
@@ -46,7 +46,7 @@ test("speech uses one avatar image and keeps the selected expression mouth pair"
   assert.doesNotMatch(avatarSource, /character-mouth-open|character-mouth-closed/);
 });
 
-test("Emma opening changes calmly and ordinary prompts request short non-generic turns", () => {
+test("Emma opening changes calmly and topic continuations allow short non-question turns", () => {
   assert.match(uiSource, /expression="neutral"/);
   assert.match(uiSource, /onIntroImageLoad=\{finishIntroOpening\}/);
   assert.doesNotMatch(uiSource, /setIntroExpression/);
@@ -55,7 +55,8 @@ test("Emma opening changes calmly and ordinary prompts request short non-generic
   assert.match(avatarSource, /intro-\$\{character\.id\}-\$\{expression\}/);
   assert.match(styleSource, /\.character-avatar\.intro-emma-smile\s*\{[\s\S]*translateY\(-10px\) scale\(0\.95\)/);
   assert.doesNotMatch(uiSource, /index === 0 \? "neutral" : "smile"/);
-  assert.match(promptSource, /one brief, natural reaction followed by one short question/);
+  assert.match(promptSource, /A question is one option, not a requirement/);
+  assert.match(promptSource, /Keep ordinary turns very short/);
   assert.match(promptSource, /Do not routinely begin with/);
   assert.match(promptSource, /latest message is more important than covering the prepared angle/);
 });

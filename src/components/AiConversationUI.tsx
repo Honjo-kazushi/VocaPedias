@@ -3,10 +3,15 @@ import { hasUserResponse, mergeSpeechTranscript, type ChatMessage, type LessonRe
 import {
   continueTutorConversation,
   continueSceneRoleplay,
+  continueFreeTalk,
+  extractAndSaveConversationMemory,
+  generateConversationFarewell,
   reviewTutorConversation,
   explainEnglishMessageInJapanese,
   startSceneRoleplay,
+  startFreeTalk,
   startTutorConversation,
+  type FreeTalkSetup,
 } from "../ai/chatWithTutor";
 import { buildSpokenReviewLecture } from "../ai/buildReviewLecture";
 import { buildReviewDisplayModel } from "../ai/reviewDisplay";
@@ -44,7 +49,7 @@ import { detectDeviceGroup } from "../sound/selectCharacterVoice";
 import { useIdleExpression } from "../hooks/useIdleExpression";
 import { getCharacter, type CharacterExpression } from "../data/characters";
 import { ANYONE_THUMBNAIL, PARTNER_THUMBNAILS, SCENE_THUMBNAILS } from "../data/imageThumbnails";
-import { CHARACTER_PROFILES, ENGLISH_CONVERSATION_PARTNER_IDS, type CharacterId, type ConversationLanguage } from "../characters/characterProfiles";
+import { CHARACTER_PROFILES, CONVERSATION_PARTNER_IDS, ENGLISH_CONVERSATION_PARTNER_IDS, type CharacterId, type ConversationLanguage } from "../characters/characterProfiles";
 import emmaRoom from "../assets/backgrounds/emma_room.webp";
 import hotelBackground from "../assets/backgrounds/hotel.webp";
 import airportBackground from "../assets/backgrounds/airport.webp";
@@ -59,10 +64,15 @@ import { tossaPerf } from "../debug/tossaPerf";
 
 type ConversationPhase = "idle" | "recognizing" | "thinking" | "ttsPending" | "speaking";
 type LessonStage = "sceneSelect" | "partnerSelect" | "conversation";
+type ConversationMode = "TOPIC" | "SCENE" | "FREE_TALK";
+type SilenceStage = "NORMAL" | "CHECK" | "CONFIRM_END" | "AUTO_CLOSE";
 
 export const HARD_UTTERANCE_TIMEOUT_MS = 7000;
 export const CONVERSATION_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 export const SELECTION_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
+export const SILENCE_CHECK_TIMEOUT_MS = 45 * 1000;
+export const SILENCE_CONFIRM_TIMEOUT_MS = 35 * 1000;
+export const SILENCE_AUTO_CLOSE_TIMEOUT_MS = 35 * 1000;
 
 let previousTopicId: string | null = null;
 let previousNormalizedTopicTitle: string | null = null;
@@ -70,6 +80,7 @@ let previousTopicWasFresh = false;
 const REVIEW_CHARACTER = getCharacter("emma");
 const ENGLISH_PARTNERS = ENGLISH_CONVERSATION_PARTNER_IDS.map((id) => getCharacter(id));
 const MIYABI = getCharacter("miyabi");
+const FREE_TALK_CHARACTER_IDS: readonly CharacterId[] = ["emma", ...CONVERSATION_PARTNER_IDS];
 const PARTNER_SELECTION_PROMPT = "Who would you like to talk with today?";
 const SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice.";
 const IPAD_EMMA_FIRST_UTTERANCE_WATCHDOG_MS = 4500;
@@ -84,6 +95,15 @@ const SCENE_BACKGROUNDS = {
   hospital: hospitalBackground,
   fastfood: fastFoodBackground,
 } as const;
+
+const FREE_TALK_RELATIONSHIPS = ["old acquaintance", "former classmate", "coworker", "neighbor", "new acquaintance"] as const;
+const FREE_TALK_SITUATIONS = ["met by chance at a cafe", "ran into each other in town", "sat next to each other while traveling", "are taking a short break together"] as const;
+const FREE_TALK_MOODS = ["relaxed", "cheerful", "calm", "curious"] as const;
+
+function chooseFreeTalkSetup(random: () => number = Math.random): FreeTalkSetup {
+  const pick = <T,>(items: readonly T[]) => items[Math.floor(random() * items.length)];
+  return { relationship: pick(FREE_TALK_RELATIONSHIPS), situation: pick(FREE_TALK_SITUATIONS), mood: pick(FREE_TALK_MOODS) };
+}
 
 function chooseTopic(freshTopics: readonly FreshTalkTopic[] = [], random: () => number = Math.random): TalkTopic {
   const requestedTitle = new URLSearchParams(window.location.search).get("topic");
@@ -161,6 +181,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const [freshTopics, setFreshTopics] = useState<FreshTalkTopic[]>([]);
   const [scene, setScene] = useState<SceneSituation | null>(null);
   const [sceneComplication, setSceneComplication] = useState<string | null>(null);
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("TOPIC");
+  const [freeTalkSetup, setFreeTalkSetup] = useState<FreeTalkSetup | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [interimCaption, setInterimCaption] = useState("");
@@ -244,6 +266,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   const softFinalizeTimerRef = useRef<number | null>(null);
   const hardFinalizeTimerRef = useRef<number | null>(null);
   const conversationInactivityTimerRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
+  const silenceStageRef = useRef<SilenceStage>("NORMAL");
+  const handleSilenceStageRef = useRef<() => void>(() => {});
   const reviewInactivityTimerRef = useRef<number | null>(null);
   const returnToTopRef = useRef<(trigger: ConversationCancelTrigger) => void>(() => {});
   const pendingPartnerAnnouncementRef = useRef<string | null>(null);
@@ -290,6 +315,20 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }, CONVERSATION_INACTIVITY_TIMEOUT_MS);
   }, []);
 
+  const armSilenceTimer = useCallback((reset = false) => {
+    if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
+    if (reset) silenceStageRef.current = "NORMAL";
+    const timeoutMs = silenceStageRef.current === "NORMAL"
+      ? SILENCE_CHECK_TIMEOUT_MS
+      : silenceStageRef.current === "CHECK"
+        ? SILENCE_CONFIRM_TIMEOUT_MS
+        : SILENCE_AUTO_CLOSE_TIMEOUT_MS;
+    silenceTimerRef.current = window.setTimeout(() => {
+      silenceTimerRef.current = null;
+      handleSilenceStageRef.current();
+    }, timeoutMs);
+  }, []);
+
   const armReviewInactivityTimer = useCallback(() => {
     if (reviewInactivityTimerRef.current !== null) window.clearTimeout(reviewInactivityTimerRef.current);
     reviewInactivityTimerRef.current = window.setTimeout(() => {
@@ -325,6 +364,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       window.clearTimeout(conversationInactivityTimerRef.current);
       conversationInactivityTimerRef.current = null;
     }
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    silenceStageRef.current = "NORMAL";
     if (reviewInactivityTimerRef.current !== null) {
       window.clearTimeout(reviewInactivityTimerRef.current);
       reviewInactivityTimerRef.current = null;
@@ -362,7 +406,11 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }, delay);
   }, []);
 
-  const queueAssistantSpeech = useCallback((text: string, token: number) => {
+  const queueAssistantSpeech = useCallback((text: string, token: number, onComplete?: () => void) => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     cancelRecognition();
     stopListening();
     setPartnerExpression("neutral");
@@ -384,7 +432,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           tossaPerf("SPEECH", "TTS onend", { generation: token, userTurnId: userTurnIdRef.current, reason });
           setPartnerExpression("neutral");
           setPhase("idle");
-          if (reason === "complete" && !lessonEndingRef.current) scheduleMicrophoneStart(token);
+          if (reason === "complete" && onComplete) onComplete();
+          else if (reason === "complete" && !lessonEndingRef.current) scheduleMicrophoneStart(token);
           else if (reason === "error") setError("音声を再生できませんでした。返答は会話履歴で確認できます。");
         },
       });
@@ -483,6 +532,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(nextTopic);
     setScene(null);
     setSceneComplication(null);
+    setConversationMode("TOPIC");
+    setFreeTalkSetup(null);
     setTopicAngle(null);
     setAvoidedTopicAngles([]);
     setShowIntro(false);
@@ -513,6 +564,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(null);
     setScene(null);
     setSceneComplication(null);
+    setConversationMode("SCENE");
+    setFreeTalkSetup(null);
     setShowIntro(false);
     setLessonStage("sceneSelect");
     setPartnerId(null);
@@ -553,6 +606,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(null);
     setScene(null);
     setSceneComplication(null);
+    setFreeTalkSetup(null);
     setPartnerId(null);
     setMessages([]);
     setError(null);
@@ -571,6 +625,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(null);
     setScene(nextScene);
     setSceneComplication(chooseSceneComplication(nextScene));
+    setConversationMode("SCENE");
+    setFreeTalkSetup(null);
     setLessonStage("conversation");
     setPartnerId(nextPartnerId);
     setPartnerSelectionReady(false);
@@ -584,6 +640,36 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setStartedAt(Date.now());
     setBusy(false);
   }, [partnerId, stopInteraction]);
+
+  const beginFreeTalk = useCallback(() => {
+    const randomIndex = Math.floor(Math.random() * FREE_TALK_CHARACTER_IDS.length);
+    const nextPartnerId = FREE_TALK_CHARACTER_IDS[randomIndex];
+    ++startTokenRef.current;
+    requestBusyRef.current = false;
+    lessonEndingRef.current = false;
+    stopInteraction("conversation:free-talk-selected");
+    unlockAppleTtsOnUserGesture("topic-fallback");
+    setConversationMode("FREE_TALK");
+    setFreeTalkSetup(chooseFreeTalkSetup());
+    setTopic(null);
+    setScene(null);
+    setSceneComplication(null);
+    setTopicAngle(null);
+    setAvoidedTopicAngles([]);
+    setShowIntro(false);
+    setLessonStage("conversation");
+    setPartnerId(nextPartnerId);
+    setPartnerSelectionReady(false);
+    partnerOpeningStartedRef.current = null;
+    setMessages([]);
+    setReview(null);
+    setSpokenReview([]);
+    setError(null);
+    setInterimCaption("");
+    setElapsedSeconds(0);
+    setStartedAt(Date.now());
+    setBusy(false);
+  }, [stopInteraction]);
 
   const selectPartner = (id: CharacterId) => {
     if (!partnerSelectionReady || requestBusyRef.current) return;
@@ -638,6 +724,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     setTopic(null);
     setScene(null);
     setSceneComplication(null);
+    setFreeTalkSetup(null);
     setPartnerId(null);
     setPartnerSelectionReady(false);
     setMessages([]);
@@ -729,8 +816,9 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   }, [lessonStage, partnerSelectionReady, showIntro]);
 
   useEffect(() => {
-    if (lessonStage !== "conversation" || (!topic && !scene) || !partnerId || review) return;
-    const openingKey = `${topic?.id ?? scene?.id}:${partnerId}`;
+    if (lessonStage !== "conversation" || (conversationMode !== "FREE_TALK" && !topic && !scene) || !partnerId || review) return;
+    if (conversationMode === "FREE_TALK" && !freeTalkSetup) return;
+    const openingKey = `${topic?.id ?? scene?.id ?? "free-talk"}:${partnerId}`;
     if (partnerOpeningStartedRef.current === openingKey) return;
     partnerOpeningStartedRef.current = openingKey;
     const token = ++startTokenRef.current;
@@ -752,18 +840,20 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       recentSameTopicCount: topicHistory.length,
       recentSameTopicCharacterCount: sameCharacterHistory.length,
       avoidedAngles: avoidedTopicAngles,
-    } : { characterId: partnerId, lessonType: "scene" };
+    } : { characterId: partnerId, lessonType: conversationMode === "FREE_TALK" ? "free-talk" : "scene" };
     tossaPerf("FLOW", "Opening request start", openingDiagnostics);
     if (import.meta.env.DEV) {
       console.debug("[TossaSpeak]", {
-        Lesson: topic?.title ?? `${scene?.sceneTitle}: ${scene?.title}`,
-        Angle: topic ? topicAngle ?? "default topic guidance" : "scene role-play",
+        Lesson: topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Free Talk"),
+        Angle: topic ? topicAngle ?? "default topic guidance" : scene ? "scene role-play" : "none",
         Character: CHARACTER_PROFILES[partnerId].displayName,
       });
     }
-    const openingRequest = scene
-      ? startSceneRoleplay(scene, CHARACTER_PROFILES[partnerId], sceneComplication, { generation: token })
-      : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle, { generation: token }, variation);
+    const openingRequest = conversationMode === "FREE_TALK"
+      ? startFreeTalk(CHARACTER_PROFILES[partnerId], freeTalkSetup!, { generation: token })
+      : scene
+        ? startSceneRoleplay(scene, CHARACTER_PROFILES[partnerId], sceneComplication, { generation: token })
+        : startTutorConversation(topic!, CHARACTER_PROFILES[partnerId], topicAngle, { generation: token }, variation);
     void openingRequest
       .then((opening) => {
         if (!mountedRef.current || startTokenRef.current !== token) return;
@@ -782,7 +872,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         requestBusyRef.current = false;
         setBusy(false);
       });
-  }, [avoidedTopicAngles, lessonStage, partnerId, queueAssistantSpeech, review, scene, sceneComplication, topic, topicAngle]);
+  }, [avoidedTopicAngles, conversationMode, freeTalkSetup, lessonStage, partnerId, queueAssistantSpeech, review, scene, sceneComplication, topic, topicAngle]);
 
   useEffect(() => {
     if (!review || !spokenReview.length) {
@@ -856,8 +946,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
     }
   };
 
+  const saveEligibleMemory = (completedMessages: ChatMessage[], token: number) => {
+    if (conversationMode === "SCENE" || scene) {
+      tossaPerf("MEMORY", "memory ignored", { reason: "scene role-play" });
+      return;
+    }
+    void extractAndSaveConversationMemory(completedMessages, { generation: token });
+  };
+
   const processUserTurn = async (snapshot: UserTurnSnapshot) => {
-    if (!mountedRef.current || (!topic && !scene) || !partnerId || lessonStage !== "conversation" || requestBusyRef.current || review) return;
+    if (!mountedRef.current || (conversationMode !== "FREE_TALK" && !topic && !scene) || !partnerId || lessonStage !== "conversation" || requestBusyRef.current || review) return;
     if (processedSnapshotIdsRef.current.has(snapshot.id)) return;
     processedSnapshotIdsRef.current.add(snapshot.id);
     requestBusyRef.current = true;
@@ -878,12 +976,50 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       if (rateIntent) onSpeechSpeedChange(applySpeechRateIntent(speechSpeed, rateIntent));
     }
     try {
-      const response = scene
-        ? await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication, { generation: snapshot.generation, snapshotId: snapshot.id })
-        : await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], topicAngle, { generation: snapshot.generation, snapshotId: snapshot.id });
-      if (mountedRef.current && startTokenRef.current === token) {
-        setMessages([...nextMessages, { role: "assistant", content: response }]);
-        queueAssistantSpeech(response, token);
+      if (conversationMode === "FREE_TALK") {
+        const response = await continueFreeTalk(nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], freeTalkSetup!, elapsedSeconds, { generation: snapshot.generation, snapshotId: snapshot.id });
+        if (!mountedRef.current || startTokenRef.current !== token) return;
+        const completedMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: response.reply }];
+        setMessages(completedMessages);
+        if (response.action === "CLOSE") {
+          lessonEndingRef.current = true;
+          saveEligibleMemory(completedMessages, token);
+          queueAssistantSpeech(response.reply, token, () => returnToTopRef.current("user"));
+        } else {
+          queueAssistantSpeech(response.reply, token);
+        }
+      } else if (scene) {
+        const response = await continueSceneRoleplay(scene, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], sceneComplication, { generation: snapshot.generation, snapshotId: snapshot.id });
+        if (!mountedRef.current || startTokenRef.current !== token) return;
+        const completedMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: response.reply }];
+        setMessages(completedMessages);
+        if (response.goalStatus === "COMPLETED" || response.action === "CLOSE") {
+          lessonEndingRef.current = true;
+          queueAssistantSpeech(response.reply, token, () => {
+            if (!mountedRef.current || startTokenRef.current !== token) return;
+            requestBusyRef.current = true;
+            void requestLessonReview(completedMessages, token);
+          });
+        } else {
+          queueAssistantSpeech(response.reply, token);
+        }
+      } else {
+        const response = await continueTutorConversation(topic!, nextMessages, CHARACTER_PROFILES[snapshot.characterId as CharacterId], topicAngle, { generation: snapshot.generation, snapshotId: snapshot.id });
+        if (!mountedRef.current || startTokenRef.current !== token) return;
+        const reply = response.reply;
+        const completedMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: reply }];
+        setMessages(completedMessages);
+        if (response.action === "CLOSE") {
+          lessonEndingRef.current = true;
+          saveEligibleMemory(completedMessages, token);
+          queueAssistantSpeech(reply, token, () => {
+            if (!mountedRef.current || startTokenRef.current !== token) return;
+            requestBusyRef.current = true;
+            void requestLessonReview(completedMessages, token);
+          });
+        } else {
+          queueAssistantSpeech(reply, token);
+        }
       }
     } catch (cause) {
       if (mountedRef.current && startTokenRef.current === token) {
@@ -900,7 +1036,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
 
   const startMicrophone = (continuationToken?: number) => {
     const continuing = continuationToken !== undefined;
-    if ((!topic && !scene) || !partnerId || lessonStage !== "conversation" || review || lessonEndingRef.current || requestBusyRef.current || (!continuing && recognitionActive)) return;
+    if ((conversationMode !== "FREE_TALK" && !topic && !scene) || !partnerId || lessonStage !== "conversation" || review || lessonEndingRef.current || requestBusyRef.current || (!continuing && recognitionActive)) return;
     const token = continuationToken ?? ++startTokenRef.current;
     if (continuing) {
       if (startTokenRef.current !== token) return;
@@ -990,8 +1126,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         setAwaitingUserInput(true);
         if (!continuing) {
           setHasRecognizedSpeech(false);
-          armConversationInactivityTimer();
         }
+        armSilenceTimer(false);
         startListening();
       },
       onActivity: (activity) => {
@@ -1005,6 +1141,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         if (text.trim()) {
           setHasRecognizedSpeech(true);
           armConversationInactivityTimer();
+          armSilenceTimer(true);
         }
         speechDebug("utterance buffer changed", { generation: token, userTurnId, before, after: utteranceBufferRef.current, final: text });
         tossaPerf("SPEECH", "final result", { generation: token, userTurnId, text });
@@ -1027,6 +1164,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         if (text.trim()) {
           setHasRecognizedSpeech(true);
           armConversationInactivityTimer();
+          armSilenceTimer(true);
         }
         if (showConversationCaptions) {
           setInterimCaption(mergeSpeechTranscript(utteranceBufferRef.current, text, conversationLanguage));
@@ -1194,7 +1332,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   };
 
   const endLesson = async () => {
-    if ((!topic && !scene) || lessonEndingRef.current || review) return;
+    if ((conversationMode !== "FREE_TALK" && !topic && !scene) || !partnerId || lessonEndingRef.current || review) return;
     lessonEndingRef.current = true;
     const token = ++startTokenRef.current;
     requestBusyRef.current = true;
@@ -1215,20 +1353,87 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
       setPartnerId(null);
       setPartnerSelectionReady(false);
       setMessages([]);
+      setTopic(null);
+      setScene(null);
+      setSceneComplication(null);
+      setFreeTalkSetup(null);
       setInterimCaption("");
       setElapsedSeconds(0);
       setBusy(false);
       return;
     }
 
-    await requestLessonReview(messages, token);
+    setBusy(true);
+    setPhase("thinking");
+    try {
+      const farewell = await generateConversationFarewell(CHARACTER_PROFILES[partnerId], { generation: token });
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      const completedMessages: ChatMessage[] = [...messages, { role: "assistant", content: farewell }];
+      setMessages(completedMessages);
+      saveEligibleMemory(completedMessages, token);
+      setBusy(false);
+      requestBusyRef.current = false;
+      queueAssistantSpeech(farewell, token, () => {
+        if (!mountedRef.current || startTokenRef.current !== token) return;
+        if (conversationMode === "FREE_TALK") {
+          returnToTopRef.current("user");
+          return;
+        }
+        requestBusyRef.current = true;
+        void requestLessonReview(completedMessages, token);
+      });
+    } catch (cause) {
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      requestBusyRef.current = false;
+      setBusy(false);
+      setPhase("idle");
+      setError(friendlyError(cause));
+      lessonEndingRef.current = false;
+    }
+  };
+
+  handleSilenceStageRef.current = () => {
+    if (!mountedRef.current || lessonStage !== "conversation" || !partnerId || review || lessonEndingRef.current || requestBusyRef.current) return;
+    const token = startTokenRef.current;
+    const isJapanese = conversationLanguage === "ja";
+    if (silenceStageRef.current === "NORMAL") {
+      silenceStageRef.current = "CHECK";
+      const text = isJapanese ? "ちょっと考え中？ ゆっくりで大丈夫だよ。" : "Still thinking? Take your time.";
+      setMessages((current) => [...current, { role: "assistant", content: text }]);
+      queueAssistantSpeech(text, token);
+      return;
+    }
+    if (silenceStageRef.current === "CHECK") {
+      silenceStageRef.current = "CONFIRM_END";
+      const text = isJapanese ? "まだ続ける？ 今日はこのくらいにする？" : "Want to keep going, or stop here for today?";
+      setMessages((current) => [...current, { role: "assistant", content: text }]);
+      queueAssistantSpeech(text, token);
+      return;
+    }
+    silenceStageRef.current = "AUTO_CLOSE";
+    lessonEndingRef.current = true;
+    const text = isJapanese ? "じゃあ今日はこのくらいにしよう。またね。" : "Okay, let's stop here for today. See you next time.";
+    const completedMessages: ChatMessage[] = [...messages, { role: "assistant", content: text }];
+    setMessages(completedMessages);
+    saveEligibleMemory(completedMessages, token);
+    queueAssistantSpeech(text, token, () => {
+      if (!mountedRef.current || startTokenRef.current !== token) return;
+      if (conversationMode === "FREE_TALK" || !hasUserResponse(completedMessages)) {
+        returnToTopRef.current("user");
+        return;
+      }
+      requestBusyRef.current = true;
+      void requestLessonReview(completedMessages, token);
+    });
   };
 
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = String(elapsedSeconds % 60).padStart(2, "0");
   const fiveMinutesPassed = elapsedSeconds >= 300;
   const tenMinutesPassed = elapsedSeconds >= 600;
-  const lessonTitle = topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
+  const lessonTitle = conversationMode === "FREE_TALK"
+    ? CHARACTER_PROFILES[partnerId ?? "emma"].displayName
+    : topic?.title ?? (scene ? `${scene.sceneTitle}: ${scene.title}` : "Scene Role-play");
   const reviewDisplay = review
     ? buildReviewDisplayModel(review, spokenReview, conversationLanguage)
     : null;
@@ -1257,13 +1462,16 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
         </div>
         <div className="ai-intro-content">
           <h2>Hi, I’m Emma!</h2>
-          <p>自由なトピック会話か、場面英会話を<br />選んで始めましょう。</p>
+          <p>トピック会話・場面英会話・Free Talkから<br />選んで始めましょう。</p>
           <div className="ai-lesson-choices">
             <button className="ai-primary-button" onClick={() => runButtonAction(() => void beginLesson(chooseTopic(freshTopics)))}>
               Talk Topic
             </button>
             <button className="ai-primary-button secondary" onClick={() => runButtonAction(beginSceneSelection)}>
               Scene Role-play
+            </button>
+            <button className="ai-primary-button secondary" onClick={() => runButtonAction(beginFreeTalk)}>
+              Free Talk
             </button>
           </div>
         </div>
@@ -1274,7 +1482,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
   return (
     <section className="ai-conversation" aria-label="AI英会話">
       <header className="ai-topic-header">
-        <span>{scene ? "Scene Role-play" : "Today's Topic"}</span>
+        <span>{conversationMode === "FREE_TALK" ? "Free Talk" : scene ? "Scene Role-play" : "Today's Topic"}</span>
         <strong>
           {lessonTitle}
           {topic && isFreshTalkTopic(topic) && <span className="fresh-topic-mark" aria-hidden="true">*</span>}
@@ -1415,8 +1623,8 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
           {busy && <div className="ai-thinking ai-conversation-status">AI is thinking...</div>}
           {rescueMessage && <div className="ai-rescue-message" aria-live="polite">{rescueMessage}</div>}
 
-          {tenMinutesPassed && <p className="ai-time-note">10分経過しました。会話をまとめてReviewへ進めます。</p>}
-          {!tenMinutesPassed && fiveMinutesPassed && <p className="ai-time-note">5分経過しました。好きなタイミングでレッスンを終了できます。</p>}
+          {tenMinutesPassed && <p className="ai-time-note">10分経過しました。自然な区切りで会話を終了できます。</p>}
+          {!tenMinutesPassed && fiveMinutesPassed && <p className="ai-time-note">5分経過しました。好きなタイミングで会話を終了できます。</p>}
           {error && <p className="ai-error" role="alert">{error}</p>}
 
           {microphoneFallback && (
@@ -1449,7 +1657,7 @@ export default function AiConversationUI({ showConversationCaptions, uiLanguage 
             className={`ai-end-button ${fiveMinutesPassed ? "ready" : ""}`}
             onClick={() => runButtonAction(() => void endLesson())}
           >
-            End Lesson
+            End
           </button>
         </>
       )}

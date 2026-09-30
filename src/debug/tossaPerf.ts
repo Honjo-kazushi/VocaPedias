@@ -1,4 +1,4 @@
-export type TossaPerfArea = "FLOW" | "TTS" | "SPEECH" | "FRESH" | "IMAGE";
+export type TossaPerfArea = "FLOW" | "TTS" | "SPEECH" | "FRESH" | "IMAGE" | "MEMORY";
 
 export type TossaPerfEntry = {
   at: number;
