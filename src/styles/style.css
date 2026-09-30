@@ -209,6 +209,12 @@
   line-height: 1.5;
 }
 
+.ai-intro-guide-line {
+  display: inline-block;
+  font-size: clamp(12.5px, 3.9vw, 14px);
+  white-space: nowrap;
+}
+
 /* Keep the AI top actions within easy reach on short notebook displays. */
 @media (max-height: 800px) {
   .app-shell:has(.ai-intro) .app-logo {

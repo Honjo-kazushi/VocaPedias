@@ -19,3 +19,8 @@ test("AI conversation top mode buttons use one equal-width column on every viewp
   assert.match(styleSource, /\.ai-lesson-choices\s*\{[^}]*display: grid;[^}]*grid-template-columns: 1fr;[^}]*gap: 8px;/s);
   assert.doesNotMatch(styleSource, /@media[^}]*\.ai-lesson-choices/s);
 });
+
+test("Emma guide keeps the first meaningful line together on narrow screens", () => {
+  assert.match(uiSource, /<span className="ai-intro-guide-line">トピック会話・場面英会話・フリートークから<\/span><br \/>選んで始めましょう。/);
+  assert.match(styleSource, /\.ai-intro-guide-line\s*\{[^}]*display: inline-block;[^}]*font-size: clamp\(12\.5px, 3\.9vw, 14px\);[^}]*white-space: nowrap;/s);
+});
