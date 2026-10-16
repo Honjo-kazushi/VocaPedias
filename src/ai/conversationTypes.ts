@@ -1,9 +1,11 @@
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  semanticConfidence?: "high" | "medium" | "low";
+  likelyIntent?: string | null;
 };
 
-export type ConversationAction = "QUESTION" | "REACTION" | "SELF_DISCLOSURE" | "WAIT" | "CLOSE";
+export type ConversationAction = "QUESTION" | "REACTION" | "SELF_DISCLOSURE" | "WAIT" | "CHANGE_TOPIC" | "CLOSE";
 
 export type ConversationTurn = {
   reply: string;
@@ -11,9 +13,25 @@ export type ConversationTurn = {
 };
 
 export type SceneGoalStatus = "IN_PROGRESS" | "COMPLETED";
+export type SceneStatus = "IN_PROGRESS" | "GOAL_REACHED" | "CLOSING" | "COMPLETED";
+export type SceneResponseType = "progress" | "closing" | "closed";
+
+export type SceneProgressProposal = {
+  currentPhase: string;
+  newlyConfirmedInformation: string[];
+  uncertainInformation: string[];
+  requiredInformationRemaining: string[];
+  completionReady: boolean;
+};
 
 export type SceneConversationTurn = ConversationTurn & {
   goalStatus: SceneGoalStatus;
+  completionReason: string;
+  progress?: SceneProgressProposal;
+  sceneStatus: SceneStatus;
+  goalReached: boolean;
+  shouldCloseInteraction: boolean;
+  responseType: SceneResponseType;
 };
 
 const CONVERSATION_ACTIONS = new Set<ConversationAction>([
@@ -21,30 +39,62 @@ const CONVERSATION_ACTIONS = new Set<ConversationAction>([
   "REACTION",
   "SELF_DISCLOSURE",
   "WAIT",
+  "CHANGE_TOPIC",
   "CLOSE",
 ]);
 
-export function parseConversationTurn(text: string): ConversationTurn {
+export function parseConversationTurn(text: string, allowChangeTopic = true): ConversationTurn {
   const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   const parsed = JSON.parse(unfenced) as { reply?: unknown; action?: unknown };
   const reply = typeof parsed.reply === "string" ? parsed.reply.trim() : "";
   if (!reply || typeof parsed.action !== "string" || !CONVERSATION_ACTIONS.has(parsed.action as ConversationAction)) {
     throw new Error("The AI returned an invalid conversation turn.");
   }
+  if (!allowChangeTopic && parsed.action === "CHANGE_TOPIC") {
+    throw new Error("CHANGE_TOPIC is only valid in Topic Conversation.");
+  }
   return { reply, action: parsed.action as ConversationAction };
 }
 
 export function parseSceneConversationTurn(text: string): SceneConversationTurn {
   const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  const parsed = JSON.parse(unfenced) as { reply?: unknown; action?: unknown; goalStatus?: unknown };
-  const turn = parseConversationTurn(JSON.stringify({ reply: parsed.reply, action: parsed.action }));
-  if (parsed.goalStatus !== "IN_PROGRESS" && parsed.goalStatus !== "COMPLETED") {
-    throw new Error("The AI returned an invalid scene goal status.");
+  const parsed = JSON.parse(unfenced) as { reply?: unknown; action?: unknown; goalStatus?: unknown; completionReason?: unknown; progress?: unknown; sceneStatus?: unknown; goalReached?: unknown; shouldCloseInteraction?: unknown; responseType?: unknown };
+  const turn = parseConversationTurn(JSON.stringify({ reply: parsed.reply, action: parsed.action }), false);
+  const legacyGoalStatus: SceneGoalStatus = parsed.goalStatus === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS";
+  const sceneStatus: SceneStatus = parsed.sceneStatus === "IN_PROGRESS" || parsed.sceneStatus === "GOAL_REACHED" || parsed.sceneStatus === "CLOSING" || parsed.sceneStatus === "COMPLETED"
+    ? parsed.sceneStatus : legacyGoalStatus === "COMPLETED" ? "GOAL_REACHED" : "IN_PROGRESS";
+  const goalReached = typeof parsed.goalReached === "boolean" ? parsed.goalReached : sceneStatus !== "IN_PROGRESS";
+  const shouldCloseInteraction = typeof parsed.shouldCloseInteraction === "boolean" ? parsed.shouldCloseInteraction : sceneStatus === "COMPLETED";
+  const responseType: SceneResponseType = parsed.responseType === "closing" || parsed.responseType === "closed" || parsed.responseType === "progress"
+    ? parsed.responseType : goalReached ? "closing" : "progress";
+  const completionReason = typeof parsed.completionReason === "string" ? parsed.completionReason.trim() : "";
+  if (!completionReason) throw new Error("The AI returned no scene completion reason.");
+  let progress: SceneProgressProposal | undefined;
+  if (parsed.progress && typeof parsed.progress === "object") {
+    const value = parsed.progress as Partial<SceneProgressProposal>;
+    if (typeof value.currentPhase !== "string" || !Array.isArray(value.newlyConfirmedInformation) || !Array.isArray(value.uncertainInformation)
+      || !Array.isArray(value.requiredInformationRemaining) || typeof value.completionReady !== "boolean"
+      || ![...value.newlyConfirmedInformation, ...value.uncertainInformation, ...value.requiredInformationRemaining].every((item) => typeof item === "string")) {
+      throw new Error("The AI returned invalid scene progress metadata.");
+    }
+    progress = {
+      currentPhase: value.currentPhase.trim(),
+      newlyConfirmedInformation: value.newlyConfirmedInformation,
+      uncertainInformation: value.uncertainInformation,
+      requiredInformationRemaining: value.requiredInformationRemaining,
+      completionReady: value.completionReady,
+    };
   }
-  if (parsed.goalStatus === "COMPLETED" && turn.action !== "CLOSE") {
-    throw new Error("A completed scene must close the interaction.");
-  }
-  return { ...turn, goalStatus: parsed.goalStatus };
+  return { ...turn, goalStatus: legacyGoalStatus, completionReason, sceneStatus, goalReached, shouldCloseInteraction, responseType, ...(progress ? { progress } : {}) };
+}
+
+export function detectsTopicChangeIntent(transcript: string): boolean {
+  const normalized = transcript.normalize("NFKC").toLocaleLowerCase().replace(/[’]/g, "'");
+  return /\b(?:change|switch)\s+(?:the\s+)?(?:topic|topics|subject)\b/.test(normalized)
+    || /\bnext\s+(?:topic|subject)\b/.test(normalized)
+    || /\b(?:talk|speak|chat)\s+about\s+something\s+(?:else|different)\b/.test(normalized)
+    || /\bsomething\s+(?:else|different)\b/.test(normalized)
+    || /\b(?:don't|do not)\s+want\s+to\s+talk\s+about\s+(?:this|that)(?:\s+(?:topic|subject))?\b/.test(normalized);
 }
 
 export function hasUserResponse(messages: readonly ChatMessage[]): boolean {
@@ -72,7 +122,11 @@ export function mergeSpeechTranscript(current: string, next: string, language: "
   const separator = language === "ja" ? "" : " ";
   const maxOverlap = Math.min(left.length, right.length);
   for (let length = maxOverlap; length > 0; length -= 1) {
-    if (left.slice(-length).toLocaleLowerCase() === right.slice(0, length).toLocaleLowerCase()) {
+    const overlapMatches = left.slice(-length).toLocaleLowerCase() === right.slice(0, length).toLocaleLowerCase();
+    const englishWordBoundary = language !== "en"
+      || ((length === left.length || /[\s.,!?;:'"()-]/.test(left[left.length - length - 1]))
+        && (length === right.length || /[\s.,!?;:'"()-]/.test(right[length])));
+    if (overlapMatches && englishWordBoundary) {
       return `${left}${right.slice(length)}`.replace(/\s+/g, " ").trim();
     }
   }

@@ -67,7 +67,7 @@ test("Fast Food uses its supplied background, ordering-focused situations, and f
   assert.match(sceneSource, /fastfood-add-item/);
   assert.match(sceneSource, /fastfood-payment/);
   assert.match(sceneSource, /fastfood-pickup/);
-  assert.match(uiSource, /import fastFoodBackground from "\.\.\/assets\/backgrounds\/fastfood\.png"/);
+  assert.match(uiSource, /import fastFoodBackground from "\.\.\/assets\/backgrounds\/fastfood\.webp"/);
   assert.match(uiSource, /fastfood: fastFoodBackground/);
   assert.match(promptSource, /quick-service food or drink counter, not always a burger shop/);
   assert.match(promptSource, /burger, sandwich, pizza, fried chicken, donut, coffee\/cafe, or takeout counter/);
@@ -83,10 +83,10 @@ test("scene menu is compact, two-column, and vertically scrollable", () => {
   assert.match(styleSource, /\.scene-roleplay-groups[\s\S]*?grid-template-columns: 1fr 1fr/);
 });
 
-test("all scene cards reuse the conversation background mapping without changing card dimensions", () => {
+test("all scene cards use dedicated scene thumbnails without changing card dimensions", () => {
   const cardBlock = styleSource.match(/\.scene-roleplay-card \{([^}]*)\}/)?.[1] ?? "";
-  assert.match(uiSource, /SCENE_BACKGROUNDS\[family\.id\]/);
-  assert.match(uiSource, /--scene-card-background/);
+  assert.match(uiSource, /SCENE_THUMBNAILS\[family\.id\]/);
+  assert.match(uiSource, /--scene-card-background.*SCENE_THUMBNAILS\[family\.id\]/);
   assert.match(styleSource, /\.scene-roleplay-card::before[\s\S]*background-size: cover;[\s\S]*pointer-events: none/);
   assert.match(uiSource, /data-scene-id=\{family\.id\}/);
   assert.match(styleSource, /\.scene-roleplay-card\[data-scene-id="fastfood"\]::before \{[\s\S]*brightness\(0\.86\)[\s\S]*saturate\(1\.08\)/);
@@ -102,4 +102,13 @@ test("scene review reuses one generated result for Emma speech and the standard 
   assert.match(uiSource, /setSpokenReview\(result\.spokenReview\);\s*setReview\(result\.sections\)/);
   assert.match(uiSource, /<ReviewSections sections=\{reviewDisplay\?\.sections \?\? review\} language=\{conversationLanguage\} \/>/);
   assert.match(uiSource, /reviewLectureStartedRef\.current === review/);
+});
+
+test("all Scene families carry completion guidance and ambiguous completion stays in progress", () => {
+  assert.match(sceneSource, /const COMPLETION_GUIDANCE: Record<SceneFamilyId, string>/);
+  assert.match(sceneSource, /restaurant: "Choosing, accepting, or discussing one item does not necessarily finish/);
+  assert.match(sceneSource, /hotel: "Do not complete after one detail such as a name or reservation number/);
+  assert.match(sceneSource, /shopping: "Liking or discussing one product does not necessarily complete/);
+  assert.match(promptSource, /Do not end the Scene just because one immediate subtask/);
+  assert.match(promptSource, /If completion is ambiguous, prefer IN_PROGRESS/);
 });

@@ -36,7 +36,7 @@ export function buildConversationPrompt(
 - 応答は必ず自然な現代の日本語だけで行う。英語のTopic名やAngleをそのまま発話しない。
 - 若い日本人女性らしく、明るく親しみやすく話す。ただし子供っぽい口調、ギャル語、アニメ調、京都弁、過度な敬語は使わない。
 - 1回の返答は通常1〜2文の短い自然な会話にする。毎回質問する必要はない。
-- 会話に応じてQUESTION、REACTION、SELF_DISCLOSURE、WAIT、CLOSEを自然に選ぶ。
+- 会話に応じてQUESTION、REACTION、SELF_DISCLOSURE、WAIT、CHANGE_TOPIC、CLOSEを自然に選ぶ。
 - ユーザーの発言に自然に反応し、主な質問は一度に1つまでにする。
 - 聞いた瞬間に答えを思いつきやすい、小さく具体的な質問を優先する。Yes/No、二択、好きなもの、直近の簡単な経験、またはユーザーの直前発言にある具体的な1点を尋ねる。
 - 広すぎる質問、抽象的な質問、複数内容を同時に求める質問は避ける。最初は簡単な質問から入り、ユーザーが具体的な内容を話してから少しずつ話題を広げる。
@@ -44,7 +44,8 @@ export function buildConversationPrompt(
 - 「いいですね」「すごいですね」などの定型的な褒め言葉から毎回答え始めない。自然に合う場合だけ使う。
 - 用意されたAngleを消化することより、ユーザーの最新の発言や予想外の内容を拾うことを優先する。
 - ときどき自分の短い感想も伝える。
-- ユーザーが明確に終了したい場合は、質問をせず短い別れの挨拶でCLOSEにする。
+- ユーザーが今の話題を変えたい場合はCHANGE_TOPICにする。話題を終えたいことと、今日の会話そのものを終えたいことを混同しない。
+- ユーザーが今日の会話そのものを明確に終了したい場合だけ、質問をせず短い別れの挨拶でCLOSEにする。
 - 教師として振る舞わず、文法訂正、発音指導、英語への言い換え、採点をしない。
 - ユーザー名が明示的に与えられていないため、名前で呼びかけず、名前を推測しない。
 - 「〇〇さん」「○○さん」「XXさん」、仮名、ダミー名など、名前用のプレースホルダーを絶対に使わない。
@@ -88,7 +89,7 @@ This lesson should feel like a small English conversation class, not a grammar t
 Rules:
 - Speak only in English during the conversation.
 - Have a natural two-way conversation. A question is one option, not a requirement.
-- For each continuation, choose the most natural action: QUESTION, REACTION, SELF_DISCLOSURE, WAIT, or CLOSE.
+- For each continuation, choose the most natural action: QUESTION, REACTION, SELF_DISCLOSURE, WAIT, CHANGE_TOPIC, or CLOSE.
 - REACTION, SELF_DISCLOSURE, and WAIT may end without a question. Leave room for the learner to ask you something, add an idea, or change the subject.
 - Keep ordinary turns very short, usually 1-2 sentences and about 25 words or fewer. Keep self-disclosure to 1-2 short sentences.
 - Ask at most one main question at a time.
@@ -109,8 +110,9 @@ Rules:
 - Do not routinely begin with "Great!", "That's great!", "That's interesting!", or "Wonderful!" Use praise only when it genuinely fits.
 ${latestMessageRule}
 - If the learner seems stuck, simplify the question or offer a hint.
-- If the learner clearly wants to end, choose CLOSE, give a short natural farewell, and do not ask a question.
-- When the topic has naturally run its course, you may choose CLOSE after roughly 2-4 meaningful exchanges. Give a short closing remark without a new question. This is guidance, not a fixed turn count.
+- If the learner asks to change the topic or talk about something else, choose CHANGE_TOPIC. This includes imperfect SpeechRecognition such as "change the topics next" when the topic-change intent is still clear. Reply with one short bridge such as "Sure, let's talk about something else." and do not say goodbye.
+- Wanting to end the current topic is not wanting to end today's conversation. Never choose CLOSE for "change the topic", "next topic", "something else", or equivalent intent.
+- Choose CLOSE only when the learner clearly wants to end today's conversation, for example "I have to go", "That's enough for today", "See you later", or "Let's finish". Give a short natural farewell and do not ask a question.
 - Do not treat a short, incomplete, or possibly misrecognized transcript as an ending unless it clearly expresses an intent to finish.
 - Keep the conversation natural and friendly.
 - The character should approach this topic from a perspective natural to their personality and conversation style. Character affects what they ask about, not only their wording or tone.
@@ -161,6 +163,7 @@ Scene: ${situation.sceneTitle} — ${situation.title}
 Learner's role: ${situation.learnerRole}
 Your scene role: ${situation.partnerRole}
 Goal: ${situation.goal}
+Completion guidance: ${situation.completionGuidance}
 ${complication ? `Optional small complication for this run: ${complication}` : "This run should stay straightforward without an added complication."}
 
 Rules:
@@ -176,7 +179,10 @@ ${sceneMessageRule}
 - Use natural, polite A2-B1 English. If the learner is stuck, simplify or offer a situational hint without giving a required script.
 - Keep each question concrete and immediately answerable from the visible situation. Do not ask broad, abstract, multi-part, or hypothetical questions that require planning a long answer.
 - Use the complication only if it fits naturally. It must remain easy to resolve and must not become the purpose of the conversation.
-- When the goal is achieved, confirm the outcome and close the interaction naturally within one or two short turns. Do not prolong the scene with unrelated questions.
+- When the goal is achieved, give one short natural closing response without a new substantive question. Report GOAL_REACHED; do not close the interaction yourself because the local client completes it only after closing speech finishes.
+- Do not end the Scene just because one immediate subtask or one learner action succeeded. Judge whether the learner's overall purpose in this Scene has actually been completed from the full conversation.
+- If a natural unresolved next step remains, keep the Scene IN_PROGRESS. If completion is ambiguous, prefer IN_PROGRESS and ask one natural short confirmation rather than ending too early.
+- Never mark the Scene COMPLETED. The local client owns CLOSING and COMPLETED after the final spoken response finishes.
 - If the learner clearly wants to end before the goal is complete, give a brief farewell and do not ask another question.
 ${sceneSafetyRule}
 ${fastFoodSettingRule}
@@ -187,6 +193,11 @@ ${phraseReferences || "- No matching catalog phrase is available."}`;
 
 export function formatConversation(messages: ChatMessage[]): string {
   return messages
-    .map((message) => `${message.role === "user" ? "Learner" : "Partner"}: ${message.content}`)
+    .map((message) => {
+      const line = `${message.role === "user" ? "Learner" : "Partner"}: ${message.content}`;
+      if (message.role !== "user" || message.semanticConfidence !== "medium") return line;
+      const intent = message.likelyIntent ? ` Context-bounded likely intent: ${message.likelyIntent}.` : "";
+      return `${line}\n[ASR semantic confidence: MEDIUM. Use only clearly supported meaning; do not invent names, facts, preferences, topic changes, ending intent, or completion.${intent}]`;
+    })
     .join("\n");
 }

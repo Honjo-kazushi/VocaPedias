@@ -14,17 +14,17 @@ type MouthStep = {
 };
 
 const MOUTH_TIMING = {
-  open: [80, 160],
-  close: [50, 120],
-  wordGap: [30, 70],
-  commaGap: [120, 220],
-  ellipsisGap: [450, 700],
+  open: [100, 200],
+  close: [63, 150],
+  wordGap: [38, 88],
+  commaGap: [150, 275],
+  ellipsisGap: [563, 875],
 } as const;
 
 const JAPANESE_MOUTH_TIMING = {
-  open: [180, 260],
-  close: [120, 220],
-  phrasePause: [280, 420],
+  open: [225, 325],
+  close: [150, 275],
+  phrasePause: [350, 525],
 } as const;
 
 // [minimum letters, maximum letters, minimum ms, maximum ms]
@@ -222,7 +222,7 @@ export function useCharacterSpeech(characterId?: CharacterId, speechLocale: Spee
         duration: randomBetween(
           locale === "ja-JP"
             ? japanesePause ? JAPANESE_MOUTH_TIMING.phrasePause : fallbackOpen ? JAPANESE_MOUTH_TIMING.open : JAPANESE_MOUTH_TIMING.close
-            : fallbackOpen ? [100, 150] : [70, 120]
+            : fallbackOpen ? [125, 188] : [88, 150]
         ),
       };
       setNeutralMouth(mouthImageRef.current, step.open);

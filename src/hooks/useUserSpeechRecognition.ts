@@ -10,13 +10,17 @@ type Callbacks = {
   onActivity?: (kind: "audio" | "sound" | "speech" | "result") => void;
   onFinalTranscript?: (text: string) => void;
   onDebug?: (sessionId: number, event: string, details: Record<string, unknown>) => void;
-  onTranscript: (text: string) => void;
-  onEnd: (text: string) => void;
+  onTranscript: (text: string, details: { hasFinal: boolean; hasInterim: boolean }) => void;
+  onEnd: (text: string, details: { final: string; interim: string }) => void;
   onCancel: () => void;
   onError: (error: string) => void;
 };
 
 export const SPEECH_SILENCE_TIMEOUT_MS = 3000;
+export const IOS_DEAD_START_TIMEOUT_MS = 11_000;
+export const IOS_DEAD_START_RETRY_TIMEOUT_MS = 16_000;
+export const IOS_DEAD_START_RESTART_DELAY_MS = 200;
+export const IOS_DEAD_START_MAX_RETRIES = 2;
 
 function deviceGroup(): "ios/fallback" | "android" | "desktop" {
   const ua = navigator.userAgent;
@@ -33,6 +37,8 @@ export function useUserSpeechRecognition() {
   const interimTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
   const error7RetryTimerRef = useRef<number | null>(null);
+  const deadStartWatchdogTimerRef = useRef<number | null>(null);
+  const deadStartRestartTimerRef = useRef<number | null>(null);
   const cancelCallbackRef = useRef<(() => void) | null>(null);
   const ignoreRecognitionDuringMiyabiRef = useRef(false);
   const lifecycleRef = useRef<"idle" | "starting" | "running" | "stopping" | "aborting">("idle");
@@ -43,6 +49,10 @@ export function useUserSpeechRecognition() {
     silenceTimerRef.current = null;
     if (error7RetryTimerRef.current !== null) window.clearTimeout(error7RetryTimerRef.current);
     error7RetryTimerRef.current = null;
+    if (deadStartWatchdogTimerRef.current !== null) window.clearTimeout(deadStartWatchdogTimerRef.current);
+    deadStartWatchdogTimerRef.current = null;
+    if (deadStartRestartTimerRef.current !== null) window.clearTimeout(deadStartRestartTimerRef.current);
+    deadStartRestartTimerRef.current = null;
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     finalTranscriptRef.current = "";
@@ -65,9 +75,13 @@ export function useUserSpeechRecognition() {
   const getSessionId = useCallback(() => sessionRef.current, []);
   const setIgnoreRecognitionDuringMiyabi = useCallback((ignored: boolean) => {
     ignoreRecognitionDuringMiyabiRef.current = ignored;
-    if (ignored && silenceTimerRef.current !== null) {
-      window.clearTimeout(silenceTimerRef.current);
+    if (ignored) {
+      if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+      if (deadStartWatchdogTimerRef.current !== null) window.clearTimeout(deadStartWatchdogTimerRef.current);
+      deadStartWatchdogTimerRef.current = null;
+      if (deadStartRestartTimerRef.current !== null) window.clearTimeout(deadStartRestartTimerRef.current);
+      deadStartRestartTimerRef.current = null;
     }
   }, []);
   const finish = useCallback(() => {
@@ -82,6 +96,10 @@ export function useUserSpeechRecognition() {
   const start = useCallback((callbacks: Callbacks, lang: "en-US" | "ja-JP" = "en-US") => {
     const group = deviceGroup();
     tossaPerf("SPEECH", "recognition start requested", { deviceGroup: group, lifecycle: lifecycleRef.current, lang });
+    if (ignoreRecognitionDuringMiyabiRef.current) {
+      tossaPerf("SPEECH", "recognition start blocked", { deviceGroup: group, lifecycle: lifecycleRef.current, reason: "miyabi-tts" });
+      return;
+    }
     if (recognitionRef.current) {
       tossaPerf("SPEECH", "recognition start blocked", { deviceGroup: group, lifecycle: lifecycleRef.current, reason: "existing-instance" });
       return;
@@ -91,11 +109,14 @@ export function useUserSpeechRecognition() {
       callbacks.onError("unsupported");
       return;
     }
-    const startAttempt = (error7RetryCount: number) => {
+    const startAttempt = (error7RetryCount: number, deadStartRetryCount = 0) => {
     const session = ++sessionRef.current;
     const current = () => sessionRef.current === session;
     finalTranscriptRef.current = "";
     interimTranscriptRef.current = "";
+    let speechEndedAt: number | null = null;
+    let recognitionStartedAt: number | null = null;
+    let lastSpeechEvent = "none";
     try {
       const recognition = new SR();
       recognitionRef.current = recognition;
@@ -106,6 +127,39 @@ export function useUserSpeechRecognition() {
       const debug = (event: string, details: Record<string, unknown> = {}) => {
         if (import.meta.env.DEV) console.debug("[TossaSpeak recognition]", { timestamp: performance.now(), session, event, ...details });
         callbacks.onDebug?.(session, event, details);
+      };
+      const clearDeadStartWatchdog = (event: string) => {
+        lastSpeechEvent = event;
+        if (deadStartWatchdogTimerRef.current !== null) window.clearTimeout(deadStartWatchdogTimerRef.current);
+        deadStartWatchdogTimerRef.current = null;
+      };
+      const armDeadStartWatchdog = (trigger: "onstart" | "audio-start") => {
+        if (ignoreRecognitionDuringMiyabiRef.current || group !== "ios/fallback" || deadStartRetryCount >= IOS_DEAD_START_MAX_RETRIES || lastSpeechEvent !== "none") return;
+        if (deadStartWatchdogTimerRef.current !== null) window.clearTimeout(deadStartWatchdogTimerRef.current);
+        const timeoutMs = deadStartRetryCount === 0 ? IOS_DEAD_START_TIMEOUT_MS : IOS_DEAD_START_RETRY_TIMEOUT_MS;
+        tossaPerf("SPEECH", "recognition watchdog armed", { deviceGroup: group, session, trigger, timeoutMs, retryCount: deadStartRetryCount, lastSpeechEvent });
+        debug("recognition watchdog armed", { deviceGroup: group, trigger, timeoutMs, retryCount: deadStartRetryCount, lastSpeechEvent });
+        deadStartWatchdogTimerRef.current = window.setTimeout(() => {
+          if (!current() || lastSpeechEvent !== "none") return;
+          deadStartWatchdogTimerRef.current = null;
+          const elapsedSinceOnstartMs = recognitionStartedAt === null ? null : Math.max(0, performance.now() - recognitionStartedAt);
+          tossaPerf("SPEECH", "watchdog timeout", { deviceGroup: group, session, retryCount: deadStartRetryCount, lastSpeechEvent, elapsedSinceOnstartMs });
+          debug("watchdog timeout", { deviceGroup: group, retryCount: deadStartRetryCount, lastSpeechEvent, elapsedSinceOnstartMs });
+          sessionRef.current += 1;
+          recognition.onstart = recognition.onaudiostart = recognition.onaudioend = recognition.onspeechstart = recognition.onspeechend = recognition.onsoundstart = recognition.onsoundend = recognition.onresult = recognition.onend = recognition.onerror = null;
+          if (recognitionRef.current === recognition) recognitionRef.current = null;
+          lifecycleRef.current = "aborting";
+          try { recognition.abort(); } catch { /* Already stopped. */ }
+          lifecycleRef.current = "idle";
+          const nextRetryCount = deadStartRetryCount + 1;
+          tossaPerf("SPEECH", "watchdog restart", { deviceGroup: group, session, retryCount: nextRetryCount, lastSpeechEvent, delayMs: IOS_DEAD_START_RESTART_DELAY_MS });
+          debug("watchdog restart", { deviceGroup: group, retryCount: nextRetryCount, lastSpeechEvent, delayMs: IOS_DEAD_START_RESTART_DELAY_MS });
+          deadStartRestartTimerRef.current = window.setTimeout(() => {
+            deadStartRestartTimerRef.current = null;
+            if (ignoreRecognitionDuringMiyabiRef.current) return;
+            startAttempt(error7RetryCount, nextRetryCount);
+          }, IOS_DEAD_START_RESTART_DELAY_MS);
+        }, timeoutMs);
       };
       const armSilenceTimer = () => {
         if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
@@ -122,6 +176,8 @@ export function useUserSpeechRecognition() {
         lifecycleRef.current = "running";
         tossaPerf("SPEECH", "recognition onstart", { deviceGroup: group, session, lifecycle: lifecycleRef.current });
         debug("onstart");
+        recognitionStartedAt = performance.now();
+        armDeadStartWatchdog("onstart");
         callbacks.onStart();
       };
       recognition.onaudiostart = () => {
@@ -129,6 +185,7 @@ export function useUserSpeechRecognition() {
         if (ignoreRecognitionDuringMiyabiRef.current) return;
         tossaPerf("SPEECH", "recognition audio start", { deviceGroup: group, session });
         debug("onaudiostart");
+        armDeadStartWatchdog("audio-start");
         callbacks.onActivity?.("audio");
       };
       recognition.onsoundstart = () => {
@@ -137,6 +194,7 @@ export function useUserSpeechRecognition() {
           tossaPerf("SPEECH", "ignored onsoundstart during Miyabi", { deviceGroup: group, session });
           return;
         }
+        clearDeadStartWatchdog("onsoundstart");
         tossaPerf("SPEECH", "onsoundstart", { deviceGroup: group, session });
         debug("onsoundstart");
         callbacks.onActivity?.("sound");
@@ -148,6 +206,7 @@ export function useUserSpeechRecognition() {
           tossaPerf("SPEECH", "ignored onspeechstart during Miyabi", { deviceGroup: group, session });
           return;
         }
+        clearDeadStartWatchdog("onspeechstart");
         tossaPerf("SPEECH", "onspeechstart", { deviceGroup: group, session });
         debug("onspeechstart");
         armSilenceTimer();
@@ -157,13 +216,25 @@ export function useUserSpeechRecognition() {
       recognition.onspeechend = () => {
         if (!current()) return;
         if (ignoreRecognitionDuringMiyabiRef.current) return;
-        debug("onspeechend");
+        speechEndedAt ??= performance.now();
+        debug("onspeechend", {
+          currentTranscript: mergeRecognitionResults(
+            [finalTranscriptRef.current, interimTranscriptRef.current],
+            lang === "ja-JP" ? "ja" : "en",
+          ),
+        });
         callbacks.onSpeechEnd?.();
       };
       recognition.onsoundend = () => {
         if (!current()) return;
         if (ignoreRecognitionDuringMiyabiRef.current) return;
-        debug("onsoundend");
+        speechEndedAt ??= performance.now();
+        debug("onsoundend", {
+          currentTranscript: mergeRecognitionResults(
+            [finalTranscriptRef.current, interimTranscriptRef.current],
+            lang === "ja-JP" ? "ja" : "en",
+          ),
+        });
         callbacks.onSpeechEnd?.();
       };
       recognition.onaudioend = () => {
@@ -180,6 +251,7 @@ export function useUserSpeechRecognition() {
           });
           return;
         }
+        clearDeadStartWatchdog("onresult");
         tossaPerf("SPEECH", "onresult", { deviceGroup: group, session, resultIndex: event.resultIndex, resultCount: event.results.length });
         // Android Chrome can expose cumulative hypotheses as separate result
         // slots ("I", "I have", ...). Collapse those replacements instead of
@@ -196,6 +268,9 @@ export function useUserSpeechRecognition() {
         interimTranscriptRef.current = mergeRecognitionResults(interimChunks, language);
         if (finalText) {
           finalTranscriptRef.current = finalText;
+          const finalWaitMs = speechEndedAt === null ? null : Math.max(0, performance.now() - speechEndedAt);
+          tossaPerf("SPEECH", "final result received", { deviceGroup: group, session, finalWaitMs, text: finalText });
+          debug("final result received", { finalWaitMs, text: finalText });
           callbacks.onFinalTranscript?.(finalText);
         }
         debug("onresult", { final: finalText, interim: interimTranscriptRef.current, resultIndex: event.resultIndex });
@@ -203,11 +278,12 @@ export function useUserSpeechRecognition() {
         callbacks.onTranscript(mergeRecognitionResults(
           [finalTranscriptRef.current, interimTranscriptRef.current],
           language,
-        ));
+        ), { hasFinal: Boolean(finalTranscriptRef.current), hasInterim: Boolean(interimTranscriptRef.current) });
         armSilenceTimer();
       };
       recognition.onend = () => {
         if (!current()) return;
+        clearDeadStartWatchdog("onend");
         const endedDuringMiyabi = ignoreRecognitionDuringMiyabiRef.current;
         lifecycleRef.current = "idle";
         tossaPerf("SPEECH", endedDuringMiyabi ? "recognition onend during Miyabi" : "recognition onend", {
@@ -216,10 +292,17 @@ export function useUserSpeechRecognition() {
           lifecycle: lifecycleRef.current,
           ...(endedDuringMiyabi ? {} : { final: finalTranscriptRef.current }),
         });
-        debug("onend", { final: finalTranscriptRef.current });
+        const final = finalTranscriptRef.current;
+        const interim = interimTranscriptRef.current;
+        const text = mergeRecognitionResults([final, interim], lang === "ja-JP" ? "ja" : "en");
+        debug("onend", {
+          final,
+          interim,
+          currentTranscript: text,
+          finalWaitMs: speechEndedAt === null ? null : Math.max(0, performance.now() - speechEndedAt),
+        });
         if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = null;
-        const text = finalTranscriptRef.current;
         sessionRef.current += 1;
         recognition.onstart = recognition.onaudiostart = recognition.onaudioend = recognition.onspeechstart = recognition.onspeechend = recognition.onsoundstart = recognition.onsoundend = recognition.onresult = recognition.onend = recognition.onerror = null;
         recognitionRef.current = null;
@@ -227,7 +310,7 @@ export function useUserSpeechRecognition() {
         finalTranscriptRef.current = "";
         interimTranscriptRef.current = "";
         setActive(false);
-        if (!endedDuringMiyabi) callbacks.onEnd(text);
+        if (!endedDuringMiyabi) callbacks.onEnd(text, { final, interim });
       };
       recognition.onerror = (event) => {
         if (!current()) return;

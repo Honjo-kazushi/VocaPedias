@@ -7,6 +7,7 @@ export type UserTurnSoftTimeoutContext = {
   language: "en" | "ja";
   lastResultIntervalMs: number | null;
   recentGrowthCount: number;
+  continuationHold?: boolean;
 };
 
 export type UserTurnSoftTimeoutDecision = {
@@ -18,9 +19,29 @@ export type UserTurnSoftTimeoutDecision = {
   lastWord: string;
   lastResultIntervalMs: number | null;
   recentGrowthCount: number;
+  continuationHold: boolean;
 };
 
-const CONTINUATION_WORDS = new Set(["and", "but", "because", "so", "if", "when"]);
+export type SoftTimerFireContext = {
+  recentGrowthCount: number;
+  lastGrowthAgeMs: number | null;
+  lastResultAgeMs: number | null;
+  continuationHold: boolean;
+  latestIsFinal: boolean;
+  alreadyExtended: boolean;
+};
+
+export type SoftTimerFireDecision = {
+  extend: boolean;
+  extensionMs: 0 | 800;
+  reason: "recent-growth-hold" | "continuation-hold" | "final-or-stable" | "already-extended";
+};
+
+export const CONTINUATION_HOLD_MIN_WORDS = 8;
+export const CONTINUATION_HOLD_MS = 3000;
+export const SOFT_TIMER_EXTENSION_MS = 800;
+
+const CONTINUATION_WORDS = new Set(["to", "and", "but", "because", "so", "if", "when", "while", "or"]);
 const COMPLETE_SHORT_EXPRESSIONS = new Set([
   "yes",
   "no",
@@ -49,6 +70,7 @@ export function classifyUserTurnSoftTimeout({
   language,
   lastResultIntervalMs,
   recentGrowthCount,
+  continuationHold = false,
 }: UserTurnSoftTimeoutContext): UserTurnSoftTimeoutDecision {
   const trimmedTranscript = transcript.trim();
   const normalized = language === "en" ? normalizeEnglishTranscript(trimmedTranscript) : trimmedTranscript;
@@ -60,6 +82,7 @@ export function classifyUserTurnSoftTimeout({
     lastWord,
     lastResultIntervalMs,
     recentGrowthCount,
+    continuationHold: false,
   };
 
   if (language === "en") {
@@ -69,8 +92,11 @@ export function classifyUserTurnSoftTimeout({
     if (recentGrowthCount >= 2 && lastResultIntervalMs !== null && lastResultIntervalMs < 900) {
       continuingReasons.push("recent-growth");
     }
+    if (continuationHold && words.length >= CONTINUATION_HOLD_MIN_WORDS && continuingReasons.length === 0) {
+      continuingReasons.push("continuation-hold");
+    }
     if (continuingReasons.length > 0) {
-      return { kind: "likelyContinuing", timeoutMs: 2400, reasons: continuingReasons, ...base };
+      return { kind: "likelyContinuing", timeoutMs: 2400, reasons: continuingReasons, ...base, continuationHold: continuingReasons.includes("continuation-hold") };
     }
 
     if (words.length <= 4 && COMPLETE_SHORT_EXPRESSIONS.has(normalized) && recentGrowthCount < 2) {
@@ -83,6 +109,31 @@ export function classifyUserTurnSoftTimeout({
 
 export function userTurnSoftTimeoutMs(): number {
   return 1800;
+}
+
+export function decideSoftTimerFire({
+  recentGrowthCount,
+  lastGrowthAgeMs,
+  lastResultAgeMs,
+  continuationHold,
+  latestIsFinal,
+  alreadyExtended,
+}: SoftTimerFireContext): SoftTimerFireDecision {
+  if (alreadyExtended) return { extend: false, extensionMs: 0, reason: "already-extended" };
+
+  const recentGrowthStillRelevant = recentGrowthCount >= 2
+    && lastGrowthAgeMs !== null
+    && lastGrowthAgeMs <= CONTINUATION_HOLD_MS;
+  const resultStreamWasRecentlyActive = lastResultAgeMs !== null
+    && lastResultAgeMs <= CONTINUATION_HOLD_MS;
+  if (recentGrowthStillRelevant && resultStreamWasRecentlyActive) {
+    return { extend: true, extensionMs: SOFT_TIMER_EXTENSION_MS, reason: "recent-growth-hold" };
+  }
+  if (continuationHold && resultStreamWasRecentlyActive) {
+    return { extend: true, extensionMs: SOFT_TIMER_EXTENSION_MS, reason: "continuation-hold" };
+  }
+  void latestIsFinal;
+  return { extend: false, extensionMs: 0, reason: "final-or-stable" };
 }
 
 export function ttsRecognitionRestartDelayMs(deviceGroup: DeviceGroup): number {

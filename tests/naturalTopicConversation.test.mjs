@@ -9,7 +9,7 @@ const scenePrompt = promptSource.slice(promptSource.indexOf("export function bui
 
 test("topic continuation allows natural non-question turns and explicit closing", () => {
   assert.match(promptSource, /A question is one option, not a requirement/);
-  assert.match(promptSource, /QUESTION, REACTION, SELF_DISCLOSURE, WAIT, or CLOSE/);
+  assert.match(promptSource, /QUESTION, REACTION, SELF_DISCLOSURE, WAIT, CHANGE_TOPIC, or CLOSE/);
   assert.match(promptSource, /do not invent a question merely to continue/);
   assert.match(chatSource, /Return valid JSON only in this exact shape/);
   assert.match(chatSource, /The action must describe the response you actually wrote/);

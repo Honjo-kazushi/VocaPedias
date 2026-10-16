@@ -3,6 +3,8 @@ import { tossaPerf } from "../debug/tossaPerf";
 export const CONVERSATION_MEMORY_STORAGE_KEY = "tossaspeak.conversation-memory.v1";
 export const MAX_CONVERSATION_MEMORIES = 15;
 export const MAX_PROMPT_MEMORIES = 5;
+export const FREE_TALK_MEMORY_USE_PROBABILITY = 0.25;
+export const LAST_USED_FREE_TALK_MEMORY_KEY = "tossa.memory.lastUsedFreeTalkId";
 
 export type ConversationMemory = {
   id: string;
@@ -30,6 +32,15 @@ export type MemoryApplyResult = {
 };
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
+
+export type ConversationMemoryUseSelection = {
+  selectedMemory: ConversationMemory | null;
+  availableCount: number;
+  candidateCount: number;
+  excludedId: string | null;
+  reason: "no-memory" | "not-selected" | "selected" | "excluded-last-used";
+  probability: number;
+};
 
 const SENSITIVE_PATTERNS = [
   /\b(?:password|passcode|pin)\b/i,
@@ -157,4 +168,42 @@ export function applyMemoryCandidates(
 
 export function getPromptMemories(memories = loadConversationMemories()): ConversationMemory[] {
   return [...memories].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_PROMPT_MEMORIES);
+}
+
+export function selectConversationMemoryForUse(
+  memories: readonly ConversationMemory[],
+  lastUsedId: string | null,
+  random: () => number = Math.random,
+): ConversationMemoryUseSelection {
+  if (!memories.length) {
+    return { selectedMemory: null, availableCount: 0, candidateCount: 0, excludedId: null, reason: "no-memory", probability: FREE_TALK_MEMORY_USE_PROBABILITY };
+  }
+  const excludedId = lastUsedId && memories.some((memory) => memory.id === lastUsedId) ? lastUsedId : null;
+  const candidates = excludedId ? memories.filter((memory) => memory.id !== excludedId) : [...memories];
+  if (random() >= FREE_TALK_MEMORY_USE_PROBABILITY) {
+    return { selectedMemory: null, availableCount: memories.length, candidateCount: candidates.length, excludedId, reason: "not-selected", probability: FREE_TALK_MEMORY_USE_PROBABILITY };
+  }
+  if (!candidates.length) {
+    return { selectedMemory: null, availableCount: memories.length, candidateCount: 0, excludedId, reason: "excluded-last-used", probability: FREE_TALK_MEMORY_USE_PROBABILITY };
+  }
+  const index = Math.min(candidates.length - 1, Math.floor(Math.max(0, random()) * candidates.length));
+  return { selectedMemory: candidates[index], availableCount: memories.length, candidateCount: candidates.length, excludedId, reason: "selected", probability: FREE_TALK_MEMORY_USE_PROBABILITY };
+}
+
+export function loadLastUsedFreeTalkMemoryId(storage: StorageLike | null = safeStorage()): string | null {
+  if (!storage) return null;
+  try {
+    return storage.getItem(LAST_USED_FREE_TALK_MEMORY_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastUsedFreeTalkMemoryId(id: string | null, storage: StorageLike | null = safeStorage()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(LAST_USED_FREE_TALK_MEMORY_KEY, id ?? "");
+  } catch {
+    // Memory-use rotation must not block a conversation.
+  }
 }

@@ -7,6 +7,7 @@ const chatSource = await readFile(new URL("../src/ai/chatWithTutor.ts", import.m
 const speechSource = await readFile(new URL("../src/sound/speakEn.ts", import.meta.url), "utf8");
 const styleSource = await readFile(new URL("../src/styles/style.css", import.meta.url), "utf8");
 const promptSource = await readFile(new URL("../src/ai/buildConversationPrompt.ts", import.meta.url), "utf8");
+const freeTalkCharacterSource = await readFile(new URL("../src/ai/freeTalkCharacterSelection.ts", import.meta.url), "utf8");
 
 test("Help is an English-listening-only rescue event outside UserTurnSnapshot history", () => {
   assert.match(uiSource, /conversationLanguage === "en"[\s\S]*awaitingUserInput[\s\S]*!rescueBusy/);
@@ -16,7 +17,7 @@ test("Help is an English-listening-only rescue event outside UserTurnSnapshot hi
   assert.doesNotMatch(rescueBlock, /createUserTurnSnapshot|setMessages/);
   assert.match(rescueBlock, /explainEnglishMessageInJapanese/);
   assert.match(rescueBlock, /lang: "ja-JP"/);
-  assert.match(rescueBlock, /scheduleMicrophoneStart\(token, 250, true\)/);
+  assert.match(rescueBlock, /scheduleMicrophoneStart\(token, 750, true\)/);
   assert.match(chatSource, /直前の英語発話を、日本語で短く分かりやすく説明してください/);
   assert.match(uiSource, /const visibleCharacter = rescueBusy \? getCharacter\("miyabi"\) : character/);
   assert.match(uiSource, /mouthOpenRef: miyabiMouthOpenRef/);
@@ -67,7 +68,7 @@ test("Help follows the user-visible answer wait without flickering across recogn
   assert.match(uiSource, /onStart: \(\) => \{[\s\S]*setAwaitingUserInput\(true\)/);
   const speechStartBlock = uiSource.slice(uiSource.indexOf("onSpeechStart: () =>"), uiSource.indexOf("onSpeechEnd: () =>"));
   assert.doesNotMatch(speechStartBlock, /setHasRecognizedSpeech\(true\)/);
-  const transcriptBlock = uiSource.slice(uiSource.indexOf("onTranscript: (text) =>"), uiSource.indexOf("onDebug:"));
+  const transcriptBlock = uiSource.slice(uiSource.indexOf("onTranscript: (text, resultDetails) =>"), uiSource.indexOf("onDebug:"));
   assert.match(transcriptBlock, /text\.trim\(\)[\s\S]*setHasRecognizedSpeech\(true\)/);
   assert.match(uiSource, /finalizeUserTurn[\s\S]*setAwaitingUserInput\(false\)/);
   assert.match(uiSource, /\{awaitingUserInput[\s\S]*Listening/);
@@ -116,19 +117,16 @@ test("conversation and selection inactivity return directly to top with bounded 
   assert.match(uiSource, /returnToTopRef\.current = cancelPartnerSelection/);
 });
 
-test("partner picker animates exactly one real character and excludes Anyone", () => {
-  assert.match(uiSource, /const APPEAL_PARTNER_IDS = \[[\s\S]*"mike"[\s\S]*"sophie"[\s\S]*"jamie"[\s\S]*"lily"[\s\S]*"grandma_rose"[\s\S]*"dr_dan"[\s\S]*"leo"[\s\S]*"miyabi"/);
-  assert.match(uiSource, /const candidates = \[\.\.\.APPEAL_PARTNERS\]/);
-  assert.match(uiSource, /let characterBag = shuffled\(candidates\)/);
-  assert.match(uiSource, /let expressionBag = shuffled\(expressionKeys\)/);
-  assert.match(uiSource, /const selected = characterBag\.shift\(\)!/);
-  assert.match(uiSource, /const expression = expressionBag\.shift\(\)!/);
-  assert.match(uiSource, /characterBag\[0\]\.id === previousCharacterId/);
-  assert.match(uiSource, /expressionBag\[0\] === previousExpression/);
-  assert.match(uiSource, /setSelectionPreview\(\{[\s\S]*characterId: selected\.id/);
-  assert.match(uiSource, /1000 \+ Math\.random\(\) \* 1000/);
-  assert.match(uiSource, /selectionPreview\?\.characterId === partner\.id/);
-  assert.doesNotMatch(uiSource, /selectionPreview\?\.characterId === ["']anyone["']/);
+test("Free Talk automatically selects exactly one real character, excludes Anyone, and avoids the previous choice", () => {
+  assert.match(freeTalkCharacterSource, /FREE_TALK_CHARACTER_IDS:[^=]+ = Object\.freeze\(\[[\s\S]*"emma"[\s\S]*"mike"[\s\S]*"sophie"[\s\S]*"jamie"[\s\S]*"lily"[\s\S]*"grandma_rose"[\s\S]*"dr_dan"[\s\S]*"leo"[\s\S]*"miyabi"/);
+  const characterListBlock = freeTalkCharacterSource.slice(freeTalkCharacterSource.indexOf("FREE_TALK_CHARACTER_IDS"), freeTalkCharacterSource.indexOf("]);"));
+  assert.doesNotMatch(characterListBlock, /"anyone"/);
+  assert.match(freeTalkCharacterSource, /const candidates = excludedCharacter[\s\S]*FREE_TALK_CHARACTER_IDS\.filter\(\(id\) => id !== excludedCharacter\)[\s\S]*\[\.\.\.FREE_TALK_CHARACTER_IDS\]/);
+  assert.match(freeTalkCharacterSource, /const randomValue = Math\.min\(Math\.max\(random\(\), 0\), 1 - Number\.EPSILON\)/);
+  assert.match(freeTalkCharacterSource, /selectedCharacter = candidates\[Math\.floor\(randomValue \* candidates\.length\)\]/);
+  assert.match(uiSource, /const selection = chooseFreeTalkCharacter\(loadLastFreeTalkCharacter\(\)\)/);
+  assert.match(uiSource, /const nextPartnerId = selection\.selectedCharacter/);
+  assert.match(uiSource, /saveLastFreeTalkCharacter\(nextPartnerId\)/);
 });
 
 test("topic prompts require one immediately answerable concrete question", () => {
@@ -146,7 +144,8 @@ test("End Lesson interrupts busy partner or rescue speech and invalidates stale 
   assert.match(endLessonBlock, /\+\+startTokenRef\.current/);
   assert.match(endLessonBlock, /stopInteraction\("conversation:lesson-ended"\)/);
   assert.match(endLessonBlock, /setRescueBusy\(false\)/);
-  assert.match(endLessonBlock, /requestLessonReview\(messages, token\)/);
+  assert.match(endLessonBlock, /const completedMessages: ChatMessage\[\] = \[\.\.\.messages, \{ role: "assistant", content: farewell \}\]/);
+  assert.match(endLessonBlock, /requestLessonReview\(completedMessages, token\)/);
   assert.doesNotMatch(uiSource, /onClick=\{\(\) => void endLesson\(\)\}[\s\S]{0,100}disabled=\{busy\}/);
 });
 
@@ -164,7 +163,10 @@ test("Review actions keep next-topic behavior and Cancel returns to the AI conve
 
 test("Help button is yellow and bold without changing its rescue handler", () => {
   assert.match(styleSource, /\.ai-help-button \{[\s\S]*background: #ffd84d;[\s\S]*font-weight: 700/);
-  assert.match(uiSource, /className="ai-help-button"[\s\S]*onClick=\{\(\) => runButtonAction\(\(\) => void requestRescue\(\)\)\}/);
+  const helpButtonBlock = uiSource.slice(uiSource.indexOf('className="ai-help-button"'), uiSource.indexOf('</button>', uiSource.indexOf('className="ai-help-button"')));
+  assert.match(helpButtonBlock, /detectDeviceGroup\(\) === "ios"/);
+  assert.match(helpButtonBlock, /void requestRescue\(\)/);
+  assert.match(helpButtonBlock, /runButtonAction\(\(\) => void requestRescue\(\)\)/);
 });
 
 test("conversation ending state blocks every path back to Listening", () => {
@@ -182,12 +184,12 @@ test("only Opening Emma moves up while Review and partner baselines stay unchang
 });
 
 test("AI conversation intro keeps its Japanese guidance on two intentional lines", () => {
-  assert.match(uiSource, /自由なトピック会話か、場面英会話を<br \/>選んで始めましょう。/);
+  assert.match(uiSource, /<span className="ai-intro-guide-line">トピック会話・場面英会話・フリートークから<\/span><br \/>選んで始めましょう。/);
 });
 
 test("AI conversation buttons use the existing sound callback without adding sounds to automatic processing", () => {
   assert.match(uiSource, /onButtonPress: \(\) => void/);
   assert.match(uiSource, /const runButtonAction[\s\S]*onButtonPress\(\)/);
-  assert.match(uiSource, /End Lesson[\s\S]*runButtonAction|runButtonAction[\s\S]*End Lesson/);
+  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(\(\) => void endLesson\(\)\)\}[\s\S]*>\s*End\s*</);
   assert.doesNotMatch(uiSource, /new Audio|start\.mp3/);
 });

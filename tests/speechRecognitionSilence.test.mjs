@@ -8,8 +8,9 @@ const testableSource = source
   .replace(/import[^;]+;\s*/g, "")
   .replaceAll("import.meta.env.DEV", "false")
   .replace("export const SPEECH_SILENCE_TIMEOUT_MS", "const SPEECH_SILENCE_TIMEOUT_MS")
+  .replaceAll("export const IOS_DEAD_START_", "const IOS_DEAD_START_")
   .replace("export function useUserSpeechRecognition", "function useUserSpeechRecognition")
-  + "\nexport { useUserSpeechRecognition, SPEECH_SILENCE_TIMEOUT_MS };";
+  + "\nexport { useUserSpeechRecognition, SPEECH_SILENCE_TIMEOUT_MS, IOS_DEAD_START_TIMEOUT_MS, IOS_DEAD_START_RETRY_TIMEOUT_MS, IOS_DEAD_START_RESTART_DELAY_MS, IOS_DEAD_START_MAX_RETRIES };";
 const compiled = ts.transpileModule(testableSource, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
@@ -41,9 +42,10 @@ function createHarness(device = "desktop") {
 
   class MockRecognition {
     stopCalls = 0;
+    abortCalls = 0;
     start() {}
     stop() { this.stopCalls += 1; }
-    abort() {}
+    abort() { this.abortCalls += 1; }
   }
 
   globalThis.window = {
@@ -127,6 +129,78 @@ test("a later result resets the armed timer", () => {
   assert.equal(recognition.stopCalls, 0);
   advance(2_000);
   assert.equal(recognition.stopCalls, 1);
+});
+
+test("onend preserves an interim transcript when no final result arrives", () => {
+  const harness = createHarness();
+  const ended = [];
+  const hook = recognitionModule.useUserSpeechRecognition();
+  hook.start({
+    onStart() {}, onTranscript() {}, onCancel() {}, onError() {},
+    onEnd(text, details) { ended.push({ text, details }); },
+  });
+  const recognition = harness.instances[0];
+  recognition.onstart();
+  recognition.onresult({
+    results: [{ isFinal: false, 0: { transcript: "I like pizza" } }],
+    resultIndex: 0,
+  });
+  recognition.onend();
+  assert.deepEqual(ended, [{
+    text: "I like pizza",
+    details: { final: "", interim: "I like pizza" },
+  }]);
+});
+
+test("iOS dead-start watchdog restarts twice and then leaves silence handling in control", () => {
+  const harness = createHarness("ios");
+  const hook = recognitionModule.useUserSpeechRecognition();
+  hook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError() {} });
+  harness.instances[0].onstart();
+  harness.instances[0].onaudiostart();
+  harness.advance(recognitionModule.IOS_DEAD_START_TIMEOUT_MS);
+  assert.equal(harness.instances[0].abortCalls, 1);
+  harness.advance(recognitionModule.IOS_DEAD_START_RESTART_DELAY_MS);
+  assert.equal(harness.instances.length, 2);
+  harness.instances[1].onstart();
+  harness.advance(recognitionModule.IOS_DEAD_START_RETRY_TIMEOUT_MS);
+  harness.advance(recognitionModule.IOS_DEAD_START_RESTART_DELAY_MS);
+  assert.equal(harness.instances.length, 3);
+  harness.instances[2].onstart();
+  harness.advance(recognitionModule.IOS_DEAD_START_RETRY_TIMEOUT_MS * 2);
+  assert.equal(harness.instances.length, 3);
+});
+
+test("iOS sound, speech, or result activity disarms the dead-start watchdog", () => {
+  for (const event of ["onsoundstart", "onspeechstart", "onresult"]) {
+    const harness = createHarness("ios");
+    const hook = recognitionModule.useUserSpeechRecognition();
+    hook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError() {} });
+    const recognition = harness.instances[0];
+    recognition.onstart();
+    if (event === "onresult") recognition.onresult({ results: [], resultIndex: 0 });
+    else recognition[event]();
+    harness.advance(recognitionModule.IOS_DEAD_START_TIMEOUT_MS + 1_000);
+    assert.equal(harness.instances.length, 1, event);
+    assert.equal(recognition.abortCalls, 0, event);
+  }
+});
+
+test("Miyabi TTS mode blocks recognition starts and disarms an active iOS watchdog", () => {
+  const blockedHarness = createHarness("ios");
+  const blockedHook = recognitionModule.useUserSpeechRecognition();
+  blockedHook.setIgnoreRecognitionDuringMiyabi(true);
+  blockedHook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError() {} });
+  assert.equal(blockedHarness.instances.length, 0);
+
+  const activeHarness = createHarness("ios");
+  const activeHook = recognitionModule.useUserSpeechRecognition();
+  activeHook.start({ onStart() {}, onTranscript() {}, onEnd() {}, onCancel() {}, onError() {} });
+  activeHarness.instances[0].onstart();
+  activeHook.setIgnoreRecognitionDuringMiyabi(true);
+  activeHarness.advance(recognitionModule.IOS_DEAD_START_TIMEOUT_MS + recognitionModule.IOS_DEAD_START_RESTART_DELAY_MS);
+  assert.equal(activeHarness.instances.length, 1);
+  assert.equal(activeHarness.instances[0].abortCalls, 0);
 });
 
 test("Apple assistant error 7 creates one fresh instance after 500ms", () => {

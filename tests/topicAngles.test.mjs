@@ -178,6 +178,7 @@ test("scene role-play prompt creates a goal-driven situation without requiring a
   assert.match(prompt, /scene role wins/);
   assert.match(prompt, /Never tell the learner what exact sentence to say/);
   assert.match(prompt, /Accept any natural wording/);
-  assert.match(prompt, /close the interaction naturally/);
+  assert.match(prompt, /Report GOAL_REACHED/);
+  assert.match(prompt, /Never mark the Scene COMPLETED/);
   assert.match(prompt, /h107: I have a reservation/);
 });

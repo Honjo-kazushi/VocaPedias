@@ -64,7 +64,7 @@ test("Emma opening changes calmly and topic continuations allow short non-questi
 test("every conversation partner maps its real listening blink asset", () => {
   for (const id of ["mike", "sophie", "jamie", "lily", "grandma_rose", "dr_dan", "leo", "miyabi"]) {
     assert.match(characterSource, new RegExp(`${id}: \\{[^\\n]+listening: \\{ blink:`));
-    assert.match(characterSource, new RegExp(`characters/${id}/${id}_listening_blink\\.png`));
+    assert.match(characterSource, new RegExp(`characters/${id}/${id}_listening_blink\\.webp`));
   }
 });
 
@@ -90,7 +90,7 @@ test("Emma blinks after the opening and guides Scene selection with cancellable 
   assert.match(uiSource, /setIntroOpeningComplete\(true\)/);
   assert.match(uiSource, /isListening=\{openingIdleActive && idleVisual\.listening\}/);
   assert.match(uiSource, /SCENE_SELECTION_PROMPT = "Choose a scene you would like to practice\."/);
-  assert.match(uiSource, /speakCharacterItems\(\[\{ lang: "en-US", text: SCENE_SELECTION_PROMPT \}\]/);
+  assert.match(uiSource, /speakCharacterItems\(\[\{ lang: "en-US", text: SCENE_SELECTION_PROMPT, rateMultiplier: speechRateMultiplierRef\.current \}\]/);
   assert.match(uiSource, /const cancelSceneSelection = useCallback/);
   assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(cancelSceneSelection\)\}>Cancel/);
   assert.doesNotMatch(uiSource, />戻る</);
@@ -103,7 +103,9 @@ test("Emma Review has a dedicated Emma speech path", () => {
   assert.match(uiSource, /mouthOpenRef: reviewMouthOpenRef/);
   assert.match(uiSource, /characterId: REVIEW_CHARACTER\.id/);
   assert.match(uiSource, /avoidVoiceCharacterId: conversationLanguage === "ja"/);
-  assert.match(speechHookSource, /const JAPANESE_MOUTH_TIMING = \{[\s\S]*open: \[180, 260\][\s\S]*close: \[120, 220\][\s\S]*phrasePause: \[280, 420\]/);
+  assert.match(speechHookSource, /const MOUTH_TIMING = \{[\s\S]*open: \[100, 200\][\s\S]*close: \[63, 150\][\s\S]*wordGap: \[38, 88\][\s\S]*commaGap: \[150, 275\][\s\S]*ellipsisGap: \[563, 875\]/);
+  assert.match(speechHookSource, /const JAPANESE_MOUTH_TIMING = \{[\s\S]*open: \[225, 325\][\s\S]*close: \[150, 275\][\s\S]*phrasePause: \[350, 525\]/);
+  assert.match(speechHookSource, /fallbackOpen \? \[125, 188\] : \[88, 150\]/);
   assert.match(speechHookSource, /startMouthTimeline\(item\.text, item\.lang\)/);
 });
 
@@ -131,13 +133,15 @@ test("conversation automatically alternates completed TTS and one final recognit
 });
 
 test("recognition sessions feed one guarded utterance buffer with soft and hard finalization", () => {
-  assert.match(uiSource, /userTurnSoftTimeoutMs\(deviceGroup\)/);
+  assert.match(uiSource, /softTimeoutDecisionRef = useRef<UserTurnSoftTimeoutDecision>\(classifyUserTurnSoftTimeout\(/);
+  assert.match(uiSource, /decideUtteranceTurn\(utteranceEngineRef\.current/);
   assert.match(uiSource, /HARD_UTTERANCE_TIMEOUT_MS = 7000/);
   assert.match(uiSource, /utteranceBufferRef\.current = mergeSpeechTranscript\(before, text, conversationLanguage\)/);
   assert.match(uiSource, /userTurnIdRef\.current \+= 1/);
   assert.match(uiSource, /onEnd:[\s\S]*scheduleMicrophoneStart\(token, 100, true\)/);
   assert.match(uiSource, /utteranceSentRef\.current = true;[\s\S]*processUserTurn\(snapshot\)/);
-  assert.match(uiSource, /startTokenRef\.current !== token \|\| requestBusyRef\.current \|\| review \|\| utteranceSentRef\.current/);
+  assert.match(uiSource, /const guardState = \{[\s\S]*tokenMatched: startTokenRef\.current === token[\s\S]*requestBusy: requestBusyRef\.current[\s\S]*review: Boolean\(review\)[\s\S]*utteranceSent: utteranceSentRef\.current/);
+  assert.match(uiSource, /!guardState\.mounted \|\| !guardState\.tokenMatched \|\| guardState\.requestBusy \|\| guardState\.review \|\| guardState\.utteranceSent/);
   assert.match(uiSource, /onActivity: \(activity\)[\s\S]*resetUserTurnTimers\(activity\)/);
   assert.match(uiSource, /recognitionSessionId[\s\S]*userTurnId/);
 });
@@ -177,7 +181,7 @@ test("partner selection can be cancelled without entering Review", () => {
   assert.match(uiSource, /const cancelPartnerSelection = useCallback\(\(trigger:/);
   assert.match(uiSource, /cancelPartnerSelection[\s\S]*setShowIntro\(true\)/);
   assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(\(\) => cancelPartnerSelection\("user"\)\)\}>Cancel/);
-  assert.match(uiSource, />\s*End Lesson\s*</);
+  assert.match(uiSource, /onClick=\{\(\) => runButtonAction\(\(\) => void endLesson\(\)\)\}[\s\S]*>\s*End\s*</);
   assert.doesNotMatch(uiSource, /やーめた|やめーた/);
   assert.match(uiSource, /if \(!hasUserResponse\(messages\)\)/);
 });

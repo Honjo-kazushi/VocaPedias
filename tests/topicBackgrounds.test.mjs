@@ -18,7 +18,7 @@ test("the original topics have mapped backgrounds and added topics use the cafe 
   assert.equal(mappedIds.size, 15);
   assert.match(backgroundsSource, /DEFAULT_TOPIC_BACKGROUND = cafe/);
 
-  const imagePaths = [...backgroundsSource.matchAll(/from "(\.\.\/assets\/backgrounds\/[^"]+\.png)"/g)]
+  const imagePaths = [...backgroundsSource.matchAll(/from "(\.\.\/assets\/backgrounds\/[^"]+\.webp)"/g)]
     .map((match) => new URL(match[1], backgroundsUrl));
   assert.ok(imagePaths.length > 1);
   await Promise.all(imagePaths.map((url) => access(url)));

@@ -4,9 +4,20 @@ import { PHRASES_SCENE } from "./phrases.scene";
 import { PHRASES_SEED } from "./phrases.seed";
 
 export type SceneFamilyId = "hotel" | "airport" | "street" | "restaurant" | "shopping" | "transportation" | "hospital" | "fastfood";
-export type SceneSituation = { id: string; sceneId: SceneFamilyId; sceneTitle: string; title: string; learnerRole: string; partnerRole: string; goal: string; usefulPhraseIds: readonly string[]; possibleComplications: readonly string[]; partnerCandidates: readonly CharacterId[] };
+export type SceneSituation = { id: string; sceneId: SceneFamilyId; sceneTitle: string; title: string; learnerRole: string; partnerRole: string; goal: string; completionGuidance: string; usefulPhraseIds: readonly string[]; possibleComplications: readonly string[]; partnerCandidates: readonly CharacterId[] };
 export type SceneRoleplay = { id: SceneFamilyId; title: string; shortLabel: string; situations: readonly SceneSituation[] };
 type Seed = Omit<SceneSituation, "sceneId" | "sceneTitle" | "partnerCandidates">;
+
+const COMPLETION_GUIDANCE: Record<SceneFamilyId, string> = {
+  hotel: "Do not complete after one detail such as a name or reservation number. Continue until the intended hotel request is resolved and the guest has the information or outcome they need.",
+  airport: "Do not complete after one document or answer. Continue until the intended airport procedure or information request has reached a usable outcome.",
+  street: "Continue until the traveler has enough directions or location information to proceed, not merely until one direction has been stated.",
+  restaurant: "Choosing, accepting, or discussing one item does not necessarily finish the interaction. If the customer may naturally want another item, keep it in progress and confirm whether anything else is needed before treating an order as complete.",
+  shopping: "Liking or discussing one product does not necessarily complete the interaction. Continue while the purchase, fitting, availability, return, or inquiry still has a natural unresolved part.",
+  transportation: "Continue until the traveler has the practical ticket, route, fare, transfer, or journey information needed for the stated purpose.",
+  hospital: "Continue until the basic communication goal and next instruction are clear. Do not infer medical resolution merely because one symptom or detail was given.",
+  fastfood: "Selecting one item does not complete an order. Continue until the relevant order details and the practical counter outcome described by the goal are reasonably settled.",
+};
 
 const PARTNERS: Record<SceneFamilyId, readonly CharacterId[]> = {
   hotel: ["sophie", "jamie", "grandma_rose", "mike", "lily"],
@@ -18,8 +29,8 @@ const PARTNERS: Record<SceneFamilyId, readonly CharacterId[]> = {
   hospital: ["dr_dan", "sophie", "grandma_rose", "jamie"],
   fastfood: ["sophie", "lily", "grandma_rose"],
 };
-const q = (id: string, title: string, learnerRole: string, partnerRole: string, goal: string, usefulPhraseIds: string[], possibleComplications: string[] = []): Seed => ({ id, title, learnerRole, partnerRole, goal, usefulPhraseIds, possibleComplications });
-const f = (id: SceneFamilyId, title: string, shortLabel: string, situations: Seed[]): SceneRoleplay => ({ id, title, shortLabel, situations: situations.map((item) => ({ ...item, sceneId: id, sceneTitle: title, partnerCandidates: PARTNERS[id] })) });
+const q = (id: string, title: string, learnerRole: string, partnerRole: string, goal: string, usefulPhraseIds: string[], possibleComplications: string[] = []): Omit<Seed, "completionGuidance"> => ({ id, title, learnerRole, partnerRole, goal, usefulPhraseIds, possibleComplications });
+const f = (id: SceneFamilyId, title: string, shortLabel: string, situations: Array<Omit<Seed, "completionGuidance">>): SceneRoleplay => ({ id, title, shortLabel, situations: situations.map((item) => ({ ...item, sceneId: id, sceneTitle: title, completionGuidance: COMPLETION_GUIDANCE[id], partnerCandidates: PARTNERS[id] })) });
 
 export const SCENE_ROLEPLAYS: readonly SceneRoleplay[] = [
   f("hotel", "Hotel", "予約・滞在・トラブル", [

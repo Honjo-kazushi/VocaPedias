@@ -4,14 +4,27 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("../src/components/AiConversationUI.tsx", import.meta.url), "utf8");
 
-test("Miyabi input ignore is released before stale token callbacks return", () => {
-  const timerStart = source.indexOf("miyabiIgnoreReleaseTimerRef.current = window.setTimeout");
-  const timerEnd = source.indexOf("}, 250);", timerStart);
-  const timerBody = source.slice(timerStart, timerEnd);
+test("iOS Miyabi Help stops recognition and competing timers before TTS", () => {
+  const rescueStart = source.indexOf("const requestRescue = async");
+  const ttsRequest = source.indexOf('tossaPerf("SPEECH", "Miyabi TTS request"', rescueStart);
+  const beforeTts = source.slice(rescueStart, ttsRequest);
 
-  assert.ok(timerStart >= 0 && timerEnd > timerStart);
-  assert.ok(timerBody.indexOf("setIgnoreRecognitionDuringMiyabi(false)") < timerBody.indexOf("startTokenRef.current !== token"));
-  assert.ok(timerBody.indexOf("miyabiTtsInputIgnoredRef.current = false") < timerBody.indexOf("startTokenRef.current !== token"));
+  assert.match(beforeTts, /clearTimeout\(recognitionRestartTimerRef\.current\)/);
+  assert.match(beforeTts, /clearTimeout\(softFinalizeTimerRef\.current\)/);
+  assert.match(beforeTts, /clearTimeout\(hardFinalizeTimerRef\.current\)/);
+  assert.match(beforeTts, /clearTimeout\(silenceTimerRef\.current\)/);
+  assert.match(beforeTts, /cancelRecognition\(\)/);
+  assert.match(beforeTts, /setIgnoreRecognitionDuringMiyabi\(true\)/);
+});
+
+test("completed iOS Miyabi TTS resumes a fresh recognition session after 750ms", () => {
+  const rescueStart = source.indexOf("const requestRescue = async");
+  const rescueEnd = source.indexOf("const endLesson = async", rescueStart);
+  const rescueBody = source.slice(rescueStart, rescueEnd);
+
+  assert.match(rescueBody, /if \(reason === "complete"\)[\s\S]*scheduleMicrophoneStart\(token, 750, true\)/);
+  assert.match(rescueBody, /oldSessionId: recognitionSessionBefore/);
+  assert.match(source, /"Miyabi help recognition resumed"[\s\S]*oldSessionId: miyabiResumeFromSessionRef\.current[\s\S]*newSessionId: getRecognitionSessionId\(\)/);
 });
 
 test("conversation resets always clear both Miyabi ignore flags", () => {

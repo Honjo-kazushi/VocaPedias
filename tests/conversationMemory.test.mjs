@@ -77,6 +77,41 @@ test("empty and malformed Gemini responses produce no candidates", () => {
   assert.deepEqual(memory.parseMemoryCandidates('[{"action":"upsert"}]'), []);
 });
 
+test("Free Talk uses memory only on the selected 25 percent path and injects at most one item", () => {
+  const memories = [existing(), existing({ id: "m2", key: "pet", text: "has a hamster" })];
+  const skipped = memory.selectConversationMemoryForUse(memories, null, () => 0.25);
+  assert.equal(skipped.selectedMemory, null);
+  assert.equal(skipped.reason, "not-selected");
+  assert.equal(skipped.probability, 0.25);
+
+  const values = [0.1, 0.9];
+  const selected = memory.selectConversationMemoryForUse(memories, null, () => values.shift());
+  assert.equal(selected.selectedMemory.id, "m2");
+  assert.equal(Array.isArray(selected.selectedMemory), false);
+});
+
+test("the previously used Free Talk memory is excluded once and then becomes eligible again", () => {
+  const coffee = existing();
+  const pet = existing({ id: "m2", key: "pet", text: "has a hamster" });
+  const next = memory.selectConversationMemoryForUse([coffee, pet], coffee.id, () => 0);
+  assert.equal(next.selectedMemory.id, pet.id);
+  assert.equal(next.excludedId, coffee.id);
+  assert.equal(next.candidateCount, 1);
+
+  const following = memory.selectConversationMemoryForUse([coffee, pet], pet.id, () => 0);
+  assert.equal(following.selectedMemory.id, coffee.id);
+});
+
+test("Free Talk memory rotation stores only the selected memory id", () => {
+  const values = new Map();
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  memory.saveLastUsedFreeTalkMemoryId("m1", storage);
+  assert.equal(memory.loadLastUsedFreeTalkMemoryId(storage), "m1");
+  assert.equal(values.size, 1);
+  memory.saveLastUsedFreeTalkMemoryId(null, storage);
+  assert.equal(memory.loadLastUsedFreeTalkMemoryId(storage), null);
+});
+
 test("scene exclusion is enforced at the conversation integration boundary", () => {
   const ui = fs.readFileSync(new URL("../src/components/AiConversationUI.tsx", import.meta.url), "utf8");
   assert.match(ui, /conversationMode === "SCENE" \|\| scene/);

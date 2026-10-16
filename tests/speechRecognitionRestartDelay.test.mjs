@@ -16,8 +16,9 @@ test("the baseline user turn soft timeout is common to every device", () => {
   assert.equal(userTurnSoftTimeoutMs("ios"), 1800);
   assert.equal(userTurnSoftTimeoutMs("fallback"), 1800);
   assert.match(uiSource, /const softTimeoutMs = decision\.timeoutMs/);
-  assert.match(uiSource, /soft timer fire", \{ generation: token, userTurnId, timeoutMs: softTimeoutMs, softTimerKind: decision\.kind, deviceGroup \}/);
-  assert.match(uiSource, /\}, softTimeoutMs\)/);
+  assert.match(uiSource, /"soft timer fire", \{[\s\S]*?timeoutMs: softTimeoutMs,[\s\S]*?softTimerKind: decision\.kind,[\s\S]*?deviceGroup/);
+  assert.match(uiSource, /decideSoftTimerFire/);
+  assert.match(uiSource, /fireSoftTimer\(softTimerExtendedRef\.current\), softTimeoutMs\)/);
 });
 
 test("post-TTS recognition restart delay is Apple-specific", () => {
