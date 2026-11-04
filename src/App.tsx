@@ -2,6 +2,7 @@ import { useState, useSyncExternalStore } from "react";
 import HomePage from "./ui/pages/HomePage";
 import TtsVoiceTester from "./components/TtsVoiceTester";
 import PerfDebugPanel from "./components/PerfDebugPanel";
+import FeedbackPage from "./feedback/FeedbackPage";
 import { isTossaPerfDebugEnabled, subscribeTossaDebugMode } from "./debug/tossaPerf";
 import { unlockAppleTtsOnUserGesture } from "./sound/speakEn.ts";
 import type { MainMode } from "./ui/static/uiStatic";
@@ -16,6 +17,7 @@ const STARTUP_MODES: ReadonlyArray<{ mode: MainMode; label: string; description:
 
 function App() {
   const [startupMode, setStartupMode] = useState<MainMode | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const perfDebugEnabled = useSyncExternalStore(
     subscribeTossaDebugMode,
     isTossaPerfDebugEnabled,
@@ -33,7 +35,7 @@ function App() {
       {startupMode && <HomePage initialMainMode={startupMode} />}
       {perfDebugEnabled && <PerfDebugPanel />}
       {!startupMode && (
-        <div className="startup-guide-overlay" role="presentation">
+        showFeedback ? <FeedbackPage onBack={() => setShowFeedback(false)} /> : <div className="startup-guide-overlay" role="presentation">
           <section className="startup-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="startup-guide-title">
             <h1 id="startup-guide-title">TossaSpeak</h1>
             <p className="startup-guide-prompt">起動するモードを選んでください</p>
@@ -50,6 +52,14 @@ function App() {
                   <span>{description}</span>
                 </button>
               ))}
+              <button
+                type="button"
+                className="startup-mode-button"
+                onClick={() => setShowFeedback(true)}
+              >
+                <strong>【ご意見・ご感想】</strong>
+                <span>感想や改善のご提案</span>
+              </button>
             </div>
           </section>
         </div>

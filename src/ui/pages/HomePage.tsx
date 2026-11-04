@@ -13,6 +13,7 @@ import { cancelSpeechSynthesis } from "../../sound/cancelSpeechSynthesis";
 import { PHRASES_SEED } from "../../data/phrases.seed";
 import { PHRASES_SCENE } from "../../data/phrases.scene";
 import AiConversationUI from "../../components/AiConversationUI";
+import FeedbackLogPage from "../../feedback/FeedbackLogPage";
 import { SPEECH_SPEED_MULTIPLIERS, type SpeechSpeed } from "../../ai/conversationControls";
 import { setTossaDeveloperModeEnabled } from "../../debug/tossaPerf";
 
@@ -99,8 +100,10 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
     readBool("debugMode", false)
   );
   const debugHoldTimerRef = useRef<number | null>(null);
+  const feedbackLogHoldTimerRef = useRef<number | null>(null);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [showFeedbackLog, setShowFeedbackLog] = useState(false);
   const [aiReviewActive, setAiReviewActive] = useState(false);
 
   const playClickSe = () => {
@@ -1858,6 +1861,35 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
                     />
                     <span>{UI.developerMode}</span>
                   </label>
+                  {debugMode && (
+                    <button
+                      type="button"
+                      className="feedback-log-trigger"
+                      onPointerDown={() => {
+                        if (feedbackLogHoldTimerRef.current !== null) window.clearTimeout(feedbackLogHoldTimerRef.current);
+                        feedbackLogHoldTimerRef.current = window.setTimeout(() => {
+                          feedbackLogHoldTimerRef.current = null;
+                          setShowFeedbackLog(true);
+                        }, 5000);
+                      }}
+                      onPointerUp={() => {
+                        if (feedbackLogHoldTimerRef.current !== null) window.clearTimeout(feedbackLogHoldTimerRef.current);
+                        feedbackLogHoldTimerRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        if (feedbackLogHoldTimerRef.current !== null) window.clearTimeout(feedbackLogHoldTimerRef.current);
+                        feedbackLogHoldTimerRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        if (feedbackLogHoldTimerRef.current !== null) window.clearTimeout(feedbackLogHoldTimerRef.current);
+                        feedbackLogHoldTimerRef.current = null;
+                      }}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onClick={(event) => event.preventDefault()}
+                    >
+                      ご意見ログ
+                    </button>
+                  )}
                 </section>
 
                 <div style={{ fontSize: "0.75em", color: "#666" }}>
@@ -1881,6 +1913,11 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
               </div>,
               document.body
             )}
+
+          {showFeedbackLog && createPortal(
+            <FeedbackLogPage onBack={() => setShowFeedbackLog(false)} />,
+            document.body,
+          )}
 
           {mode === "TRAIN" && debugMode && <RecentLogs logs={pickLogs} />}
           {mode === "TRAIN" && debugMode && (

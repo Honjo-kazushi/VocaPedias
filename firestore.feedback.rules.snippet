@@ -1,0 +1,30 @@
+// This is a merge-only snippet. Do not deploy it as a complete ruleset.
+// Paste the function and match blocks inside the existing
+// match /databases/{database}/documents block in the production rules.
+
+function isFeedbackAdmin() {
+  return request.auth != null
+    && exists(/databases/$(database)/documents/feedbackAdmins/$(request.auth.uid));
+}
+
+match /feedback/{feedbackId} {
+  allow create: if request.resource.data.keys().hasOnly([
+      "nickname",
+      "message",
+      "createdAt"
+    ])
+    && request.resource.data.nickname is string
+    && request.resource.data.nickname.size() > 0
+    && request.resource.data.nickname.size() <= 50
+    && request.resource.data.message is string
+    && request.resource.data.message.size() > 0
+    && request.resource.data.message.size() <= 2000
+    && request.resource.data.createdAt == request.time;
+
+  allow read: if isFeedbackAdmin();
+  allow update, delete: if false;
+}
+
+match /feedbackAdmins/{uid} {
+  allow read, write: if false;
+}
