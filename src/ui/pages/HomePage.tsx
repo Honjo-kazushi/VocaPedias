@@ -1865,7 +1865,8 @@ export default function HomePage({ initialMainMode = "AI" }: HomePageProps) {
                     <button
                       type="button"
                       className="feedback-log-trigger"
-                      onPointerDown={() => {
+                      onPointerDown={(event) => {
+                        event.preventDefault();
                         if (feedbackLogHoldTimerRef.current !== null) window.clearTimeout(feedbackLogHoldTimerRef.current);
                         feedbackLogHoldTimerRef.current = window.setTimeout(() => {
                           feedbackLogHoldTimerRef.current = null;

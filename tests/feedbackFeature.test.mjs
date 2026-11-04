@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const [appSource, homeSource, repositorySource, logSource, rulesSnippet, completeRules] = await Promise.all([
+const [appSource, homeSource, styleSource, repositorySource, logSource, rulesSnippet, completeRules] = await Promise.all([
   readFile(new URL("../src/App.tsx", import.meta.url), "utf8"),
   readFile(new URL("../src/ui/pages/HomePage.tsx", import.meta.url), "utf8"),
+  readFile(new URL("../src/styles/style.css", import.meta.url), "utf8"),
   readFile(new URL("../src/feedback/feedbackRepository.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/feedback/FeedbackLogPage.tsx", import.meta.url), "utf8"),
   readFile(new URL("../firestore.feedback.rules.snippet", import.meta.url), "utf8"),
@@ -23,11 +24,13 @@ test("feedback uses server time and automatic Firestore document IDs", () => {
 
 test("developer feedback log requires a five second pointer hold", () => {
   assert.match(homeSource, /feedbackLogHoldTimerRef/);
+  assert.match(homeSource, /onPointerDown=\{\(event\) => \{\s*event\.preventDefault\(\);[\s\S]*?feedbackLogHoldTimerRef/);
   assert.match(homeSource, /window\.setTimeout\(\(\) => \{[\s\S]*?setShowFeedbackLog\(true\);[\s\S]*?\}, 5000\)/);
   assert.match(homeSource, /onPointerUp=\{\(\) => \{[\s\S]*?feedbackLogHoldTimerRef/);
   assert.match(homeSource, /onPointerCancel=\{\(\) => \{[\s\S]*?feedbackLogHoldTimerRef/);
   assert.match(homeSource, /onPointerLeave=\{\(\) => \{[\s\S]*?feedbackLogHoldTimerRef/);
   assert.match(homeSource, /onContextMenu=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(styleSource, /\.feedback-log-trigger \{[\s\S]*?user-select: none;[\s\S]*?-webkit-touch-callout: none;[\s\S]*?touch-action: none;/);
 });
 
 test("admin login is kept in local browser persistence", () => {
