@@ -11,7 +11,9 @@ test("PERF diagnostics are opt-in, bounded, and expose copy/clear/voice data", a
     read("../src/debug/tossaPerf.ts"),
     read("../src/sound/speakEn.ts"),
   ]);
-  assert.match(app, /perfDebugEnabled && <PerfDebugPanel/);
+  assert.match(app, /const perfDebugPanelEnabled = searchParams\.get\("perfDebug"\) === "1"/);
+  assert.match(app, /perfDebugPanelEnabled && <PerfDebugPanel/);
+  assert.doesNotMatch(app, /isTossaPerfDebugEnabled|subscribeTossaDebugMode/);
   assert.match(perf, /const MAX_ENTRIES = 300/);
   assert.match(perf, /if \(!isTossaPerfDebugEnabled\(\)\) return/);
   assert.match(panel, /navigator\.clipboard\.writeText\(report\)/);
